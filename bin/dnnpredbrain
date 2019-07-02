@@ -1,0 +1,55 @@
+#! /usr/bin/env python
+
+"""
+Use dnn activation to predict brain activation
+
+Author: Taicheng Huang @ BNU
+Reviewer:
+"""
+
+import os
+import argparse
+import subprocess
+
+def main():
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        help = 'convolutional network name')
+    parser.add_argument('-in',
+                        type = str,
+                        required = True,
+                        help = 'stimuli path')
+    parser.add_argument('-layer',
+                        type = str,
+                        required = True,
+                        help = 'activation for specific layers')
+    parser.add_argument('-channel',
+                        type = str,
+                        required = True,
+                        help = 'activation for specific channels')
+    parser.add_argument('-brainact',
+                        type = str,
+                        required = True,
+                        help = 'brain activation nifti file')
+    parser.add_argument('-mask',
+                        type = str,
+                        required = True,
+                        help = 'brain activation mask')
+    parser.add_argument('-model',
+                        type = str,
+                        required = True,
+                        help = 'model to predict brain activation by cnn activation')
+    parser.add_argument('-cvfold',
+                        type = str,
+                        required = True,
+                        help = 'cross validation fold number')
+    parser.add_argument('-out',
+                        type = str,
+                        required = True,
+                        help = 'output directory')
+    args = parser.parse_args()
+
+if __name__ == '__main__':
+    main()
