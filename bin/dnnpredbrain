@@ -37,7 +37,7 @@ def main():
                         type = str,
                         required = True,
 						metavar = 'Nifti Activation',
-                        help = 'brain activation nifti file')
+                        help = 'brain activation nifti/surface file')
     parser.add_argument('-mask',
                         type = str,
                         required = True,
@@ -45,9 +45,9 @@ def main():
                         help = 'brain activation mask')
     parser.add_argument('-model',
                         type = str,
-                        required = True,
+                        required = False,
 						metavar = 'Brain Model',
-                        help = 'model to predict brain activation by CNN activation')
+                        help = 'model to predict brain activation by CNN activation, by default is GLM')
     parser.add_argument('-cvfold',
                         type = int,
                         required = True,
@@ -59,6 +59,29 @@ def main():
 						metavar = 'Output Directory',
                         help = 'output directory')
     args = parser.parse_args()
+
+	# See below is the framework of this command 
+	# ------------------------------------
+	# Streamline
+	# ------------------------------------
+	# 1 Call Yukun's code (activation extraction from 'core') to get CNN's activations. Parameters: -net, -in, -layer, -channel
+	# 2 Extract brain activation from fMRI data (brainact and mask), and convert it as an array. Parameters: -brainact, -mask
+	# 3 Iterately Call sklearn models to estimate accuracy. Parameters: -model, -cvfold.
+	# 4 Map accuracy to Brain Images. Parameters: -out
+	# 
+	# -----------------------------------
+	# psudo-code
+	# -----------------------------------
+	# cnnact = core.extract(net, in, layer, channel)
+	# brainact = nib.load(brainact)
+	# brainact_array = func_array(brainact)
+	# model = sklearn.GLM(n_fold = cvfold)
+	# model.fit(cnnact, brainact) # Check if need to be iterated
+	# acc = model.acc
+	# project acc to brain
+	# save(acc)
+	# save(model)
+
 
 if __name__ == '__main__':
     main()
