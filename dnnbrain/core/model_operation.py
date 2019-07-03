@@ -6,7 +6,7 @@ import numpy as np
 
 def dnn_activation(input,net,layer,filter=None):
 
-    #get img_tensor
+
     assert net in ['alexnet','vgg11'], "please specify a net"
 
     if net == 'alexnet':
