@@ -1,14 +1,17 @@
-import torchvision
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+try:
+	import torchvision
+	from torchvision import datasets, transforms
+	from torch.utils.data import DataLoader
+except ModuleNotFoundError:
+	print('Please install pytorch and torchvision in your work station')
 
 class ImgLoader():
-	def __init__(self):
+	def __init__(self, imgpath):
 		"""
 		"""
-		pass
-		
-	def gen_dataloader(self, imgpath, imgcropsize, transform = None, batch_size = 8, shuffle=True, num_workers=1):
+		self.imgpath = imgpath
+	
+	def gen_dataloader(self, imgcropsize, transform = None, batch_size = 8, shuffle=True, num_workers=1):
 		"""
 		Generate dataloader from image path
 		
@@ -20,12 +23,16 @@ class ImgLoader():
 		batch_size[int]: batch size
 		shuffle[bool]: shuffle images or not
 		num_workers[int]: cpu workers used in model trainning
+		
+		Returns:
+		---------
+		dataloader[dataloader instance]: dataloader which could be used directly in CNN models
 		"""
 		if transform is None:
 			transform = transforms.Compose([
 							transforms.Resize(imgcropsize),
 							transforms.ToTensor()
 										])
-		pak_datasets = datasets.ImageFolder(imgpath, transform)
+		pak_datasets = datasets.ImageFolder(self.imgpath, transform)
 		dataloader = DataLoader(pak_datasets, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 		return dataloader

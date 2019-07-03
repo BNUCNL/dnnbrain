@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Use dnn activation to predict brain activation
+Use CNN activation to predict brain activation
 
 Author: Taicheng Huang @ BNU
 Reviewer:
@@ -12,44 +12,76 @@ import argparse
 import subprocess
 
 def main():
-    parser = argparse.ArgumentParser(description='')
+    parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
     parser.add_argument('-net',
                         type = str,
                         required = True,
+						metavar = 'CNN',
                         help = 'convolutional network name')
     parser.add_argument('-in',
                         type = str,
                         required = True,
+						metavar = 'Input Directory',
                         help = 'stimuli path')
     parser.add_argument('-layer',
-                        type = str,
+                        type = int,
                         required = True,
+						metavar = 'Layer',
                         help = 'activation for specific layers')
     parser.add_argument('-channel',
-                        type = str,
-                        required = True,
+                        type = int,
+                        required = False,
+						metavar = 'Channel',
                         help = 'activation for specific channels')
     parser.add_argument('-brainact',
                         type = str,
                         required = True,
-                        help = 'brain activation nifti file')
+						metavar = 'Nifti Activation',
+                        help = 'brain activation nifti/surface file')
     parser.add_argument('-mask',
                         type = str,
                         required = True,
+						metavar = 'Nifti mask',
                         help = 'brain activation mask')
     parser.add_argument('-model',
                         type = str,
-                        required = True,
-                        help = 'model to predict brain activation by cnn activation')
+                        required = False,
+						metavar = 'Brain Model',
+                        help = 'model to predict brain activation by CNN activation, by default is GLM')
     parser.add_argument('-cvfold',
-                        type = str,
+                        type = int,
                         required = True,
+						metavar = 'CVFold',
                         help = 'cross validation fold number')
     parser.add_argument('-out',
                         type = str,
                         required = True,
+						metavar = 'Output Directory',
                         help = 'output directory')
     args = parser.parse_args()
+
+	# See below is the framework of this command 
+	# ------------------------------------
+	# Streamline
+	# ------------------------------------
+	# 1 Call Yukun's code (activation extraction from 'core') to get CNN's activations. Parameters: -net, -in, -layer, -channel
+	# 2 Extract brain activation from fMRI data (brainact and mask), and convert it as an array. Parameters: -brainact, -mask
+	# 3 Iterately Call sklearn models to estimate accuracy. Parameters: -model, -cvfold.
+	# 4 Map accuracy to Brain Images. Parameters: -out
+	# 
+	# -----------------------------------
+	# psudo-code
+	# -----------------------------------
+	# cnnact = core.extract(net, in, layer, channel)
+	# brainact = nib.load(brainact)
+	# brainact_array = func_array(brainact)
+	# model = sklearn.GLM(n_fold = cvfold)
+	# model.fit(cnnact, brainact) # Check if needed to be iterated
+	# acc = model.acc
+	# project acc to brain
+	# save(acc)
+	# save(model)
+
 
 if __name__ == '__main__':
     main()
