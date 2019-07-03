@@ -76,7 +76,7 @@ def main():
 	# brainact = nib.load(brainact)
 	# brainact_array = func_array(brainact)
 	# model = sklearn.GLM(n_fold = cvfold)
-	# model.fit(cnnact, brainact) # Check if need to be iterated
+	# model.fit(cnnact, brainact) # Check if needed to be iterated
 	# acc = model.acc
 	# project acc to brain
 	# save(acc)
