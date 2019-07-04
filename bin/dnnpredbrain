@@ -10,8 +10,14 @@ Reviewer:
 import os
 import argparse
 import subprocess
+import numpy as np
 from dnnbrain.core import model_operation
 from dnnbrain.utils import iofiles
+
+try:
+    from sklearn import linear_model, model_selection
+except ModuleNotFoundError:
+    raise Exception('Please install sklearn in your workstation')
 
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
@@ -86,14 +92,72 @@ def main():
 	
 	# DNN activation extraction 
 	if args.net == 'alexnet':
-		imgcropsize = (227,227)
+        imgcropsize = (227,227)
+    elif args.net == 'vgg11':
+        imgcropsize = (227,227)
+    else:
+        raise Exception('Not a supported net, please contact the author for implementation.')
 	imgloader_cls = iofiles.ImgLoader(args.in)
 	imgloader = imgloader_cls.gen_dataloader(imgcropsize)
-	dnn_act = model_operation.dnn_activation(imgloader, args.layer, args.channel)
+	dnn_act, dnn_picname = model_operation.dnn_activation(imgloader, args.net, args.layer, args.channel)
+    
 	# Brain image activation extraction
 	assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
+    brainimg_cls = iofiles.BrainImgLoader(args.brainact)
+    brainimg_data = brainimg_cls.load_brainimg()
+    if args.mask:
+        brainmask_cls = iofiles.BrainImgLoader(args.mask)
+        brainmask_data = brainmask_cls.load_brainimg()
+    else:
+        brainmask_data = np.zeros_like(brainimg_data)
+    assert brainimg_data.shape == brainmask_data.shape, "Shape of brainact and mask need to be same."
+    brainimg_data = brainimg_data*brainmask_data
 	
-	
+    # Initialize machine learning models
+    if not args.model:
+        args.model = 'glm'
+    if args.model == 'glm':
+        model = linear_model.LinearRegression()
+    elif args.model == 'lasso':
+        model = linear_model.Lasso()
+    else:
+        raise Exception('Not supported yet, please contact the author for implementation.')
+    
+    # Tidy DNN activation data and brain activation data
+    # Not quite sure the shape of brain activation and input which data.
+    pass
+    
+    # Cross validation
+    scores = model_selection.cross_val_score(model, dnn_act, brainimg, scroing='explained_variance', cv=args.cvfold)
+    
+    # Save image
+    out_brainimg = np.zeros_like(brainimg_data)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     main()

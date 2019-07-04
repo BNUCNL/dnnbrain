@@ -4,7 +4,7 @@ try:
     import torchvision.models as models
     from torchvision import transforms, utils
 except ModuleNotFoundError:
-    print('Please install pytorch and torchvision in your work station')
+    raise Exception('Please install pytorch and torchvision in your work station')
     
 import numpy as np
 
