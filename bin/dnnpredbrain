@@ -10,53 +10,55 @@ Reviewer:
 import os
 import argparse
 import subprocess
+from dnnbrain.core import model_operation
+from dnnbrain.utils import iofiles
 
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
     parser.add_argument('-net',
                         type = str,
                         required = True,
-						metavar = 'CNN',
+                        metavar = 'CNN',
                         help = 'convolutional network name')
     parser.add_argument('-in',
                         type = str,
                         required = True,
-						metavar = 'Input Directory',
+                        metavar = 'Input Directory',
                         help = 'stimuli path')
     parser.add_argument('-layer',
                         type = int,
                         required = True,
-						metavar = 'Layer',
+                        metavar = 'Layer',
                         help = 'activation for specific layers')
     parser.add_argument('-channel',
                         type = int,
                         required = False,
-						metavar = 'Channel',
+                        metavar = 'Channel',
                         help = 'activation for specific channels')
     parser.add_argument('-brainact',
                         type = str,
                         required = True,
-						metavar = 'Nifti Activation',
+                        metavar = 'Nifti Activation',
                         help = 'brain activation nifti/surface file')
     parser.add_argument('-mask',
                         type = str,
                         required = True,
-						metavar = 'Nifti mask',
+                        metavar = 'Nifti mask',
                         help = 'brain activation mask')
     parser.add_argument('-model',
                         type = str,
                         required = False,
-						metavar = 'Brain Model',
+                        metavar = 'Brain Model',
                         help = 'model to predict brain activation by CNN activation, by default is GLM')
     parser.add_argument('-cvfold',
                         type = int,
                         required = True,
-						metavar = 'CVFold',
+                        metavar = 'CVFold',
                         help = 'cross validation fold number')
     parser.add_argument('-out',
                         type = str,
                         required = True,
-						metavar = 'Output Directory',
+                        metavar = 'Output Directory',
                         help = 'output directory')
     args = parser.parse_args()
 
@@ -81,7 +83,17 @@ def main():
 	# project acc to brain
 	# save(acc)
 	# save(model)
-
+	
+	# DNN activation extraction 
+	if args.net == 'alexnet':
+		imgcropsize = (227,227)
+	imgloader_cls = iofiles.ImgLoader(args.in)
+	imgloader = imgloader_cls.gen_dataloader(imgcropsize)
+	dnn_act = model_operation.dnn_activation(imgloader, args.layer, args.channel)
+	# Brain image activation extraction
+	assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
+	
+	
 
 if __name__ == '__main__':
     main()
