@@ -94,7 +94,7 @@ class BrainImgLoader():
             brain_img = nib.load(self.imgpath).get_data()
         elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
             brain_img = nib.freesurfer.load(self.imgpath)
-        elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii'
+        elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
             brain_img, _ = cifti.read(self.imgpath)
         else:
             raise Exception('Not support this format of brain image data, please contact with Taicheng Huang to update this function.')
