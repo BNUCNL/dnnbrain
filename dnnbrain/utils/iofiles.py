@@ -1,5 +1,6 @@
 try:
     import torchvision
+    import numpy as np
     from torchvision import datasets, transforms
     from torch.utils.data import DataLoader
 except ModuleNotFoundError:
@@ -101,7 +102,33 @@ class BrainImgLoader():
         
         
         
-        
+def save_activation(activation,outpath,net,layer,channel=None):
+    """
+    Save activaiton data to a csv file in outpath
+
+    Parameteers:
+    ------------
+    activation[4darray]: sitmulus x channel x pixel x pixel
+    outpath[str]:outpath and outfilename
+    net[str]:neuron network name
+    layer[int]:the number of layer of network
+    channel[list]: the number list of channel/filter
+
+    """
+    activation2d = np.reshape(activation,(np.prod(activation.shape[0:2]),-1,),order='C')
+    channelline = np.array([channel+1 for channel in range(activation.shape[1])]*activation.shape[0])
+    stimline = []
+    for i in range(activation.shape[0]):
+        a = [i + 1 for j in range(activation.shape[1])]
+        stimline = stimline + a
+    stimline = np.array(stimline)
+    channelline = np.reshape(channelline, (channelline.shape[0], 1))
+    stimline = np.reshape(stimline, (stimline.shape[0], 1))
+    activation2d = np.concatenate((stimline,channelline,activation2d),axis=1)
+    if channel is None:
+        np.savetxt('{}_{}_{}.csv'.format(outpath,net,layer),activation2d,delimiter = ',')
+    else:
+        np.savetxt('{}{}_{}_{}.csv'.format(outpath, net,layer,channel), activation2d, delimiter=',')
         
         
         
