@@ -1,0 +1,249 @@
+#! /usr/bin/env python
+
+import os
+import numpy as np
+import torch
+import torch.nn as nn
+
+from os.path import join as pjoin
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from scipy.stats import pearsonr
+from sklearn.model_selection import KFold
+from dnnbrain.utils.iofiles import ImageBrainactDataset
+
+
+DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="DNN connect brain")
+    parser.add_argument('-in',
+                        metavar='stimuli',
+                        required=True,
+                        type=str,
+                        dest='stimuli_dir',
+                        help="the directory of the stimuli of the net")
+    parser.add_argument('-size',
+                        metavar='stimulus size',
+                        required=True,
+                        type=int,
+                        nargs=2,
+                        help="unify stimulus size")
+    parser.add_argument('-net',
+                        metavar='net',
+                        required=True,
+                        type=str,
+                        dest='net_name',
+                        help="a neural network's name")
+    parser.add_argument('-layer',
+                        metavar='layer_number',
+                        required=True,
+                        type=int,
+                        help="The sequence number of the layer which is connected to predict brain activity.")
+    parser.add_argument('-channel',
+                        metavar='channel_number',
+                        type=int,
+                        help="The sequence number of the out channel of the selected layer"
+                             "If not specified, select all out channels.")
+    parser.add_argument('-csv',
+                        metavar='csv_file',
+                        required=True,
+                        type=str,
+                        help="Each line has two names separated by comma."
+                             "The first name is stimulus's filename, "
+                             "and the second is brain activation data's filename.")
+    parser.add_argument('-brainact',
+                        metavar='brain_activation',
+                        required=True,
+                        type=str,
+                        help="brain activation data file")
+    parser.add_argument('-mask',
+                        metavar='mask_file',
+                        type=str,
+                        help="brain mask used to extract activation locally")
+    parser.add_argument('-bs',
+                        metavar='batch_size',
+                        type=int,
+                        default=8,
+                        help="batch size")
+    parser.add_argument('-shuffle',
+                        metavar='shuffle',
+                        type=bool,
+                        default=True,
+                        help="shuffle")
+    parser.add_argument('-num_workers',
+                        metavar='workers number',
+                        type=int,
+                        default=1,
+                        help="the number of workers")
+    parser.add_argument('-cvfold',
+                        metavar='fold_number',
+                        type=int,
+                        help="cross validation fold number")
+    parser.add_argument('-out',
+                        metavar='output',
+                        required=True,
+                        type=str,
+                        help="output directory")
+    args = parser.parse_args()
+
+    img_brainact_pairs = np.genfromtxt(args.csv, dtype=str, delimiter=',')
+    src_net = torch.load(pjoin(DNNBRAIN_MODEL_DIR, args.net_name+'.pth'))
+
+    if args.cvfold:
+        # split data to args.cvfold folds
+        # Each fold is then used once as a validation while the args.cvfold - 1 remaining folds form the training set.
+        corrs = []
+        kf = KFold(args.cvfold)
+        for train_indices, test_indices in kf.split(img_brainact_pairs):
+            train_pairs = img_brainact_pairs[train_indices]
+            test_pairs = img_brainact_pairs[test_indices]
+            # use training set to train a model
+            net = training(train_pairs, args.stimuli_dir, args.brainact, args.mask, args.size,
+                           args.bs, args.shuffle, args.num_workers, src_net, args.layer, args.channel)
+
+            # use test set to evaluate the model
+            test_dataset = ImageBrainactDataset(
+                img_brainact_pairs=test_pairs,
+                img_dir=args.stimuli_dir,
+                brainact_dir=args.brainact,
+                mask_file=args.mask,
+                img_transform=transforms.Resize(args.size)
+            )
+            for img, brainact in test_dataset:
+                test_output = net(img)
+                corrs.append(pearsonr(test_output, brainact)[0])
+        corr_avg = np.mean(corrs)
+    else:
+        # use all data to train a model
+        net = training(img_brainact_pairs, args.stimuli_dir, args.brainact, args.mask, args.size,
+                       args.bs, args.shuffle, args.num_workers, src_net, args.layer, args.channel)
+
+
+def training(train_pairs, img_dir, brainact, mask_file, img_size, batch_size, shuffle, num_workers,
+             src_net, layer, channel):
+    """
+    create and train a instance of DNN2BrainNet
+
+    :param train_pairs: numpy array
+        Each row has two elements. The first is image's filename,
+        and the second is brain activation data's filename.
+    :param img_dir: str
+        the directory of the images
+    :param brainact: str
+        the directory of the brain activation data
+    :param mask_file: str
+        the file of the mask data
+    :param img_size: iteration and its length is 2
+    :param batch_size: int
+    :param shuffle: bool
+    :param num_workers: int
+    :param src_net: torch.nn.Module
+        a pretrained neural network
+    :param layer: int
+        The sequence number of the layer which is connected to predict brain activity.
+    :param channel: int
+        The sequence number of the out channel of the selected layer
+    :return: DNN2BrainNet
+        a trained DNN2BrainNet
+    """
+    train_dataset = ImageBrainactDataset(
+        img_brainact_pairs=train_pairs,
+        img_dir=img_dir,
+        brainact_dir=brainact,
+        mask_file=mask_file,
+        img_transform=transforms.Compose([
+            transforms.Resize(img_size),
+            transforms.ToTensor()
+        ]),
+        brainact_transform=transforms.ToTensor()
+    )
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers
+    )
+
+    # truncate the pretrained neural network
+    truncated_net = truncate_net(src_net, layer)
+    for param in truncated_net.parameters():
+        # fix the pretrained parameters
+        param.requires_grad = False
+    truncated_output = truncated_net(train_dataset[0][0])
+
+    # create new network
+    net = DNN2BrainNet(
+        truncated_net=truncated_net,
+        channel_unit_num=truncated_output.size()[2:].numel(),
+        fc_out_num=len(train_dataset[0][1]),
+        channel=channel
+    )
+
+    # start training
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.01)
+    loss_func = nn.CrossEntropyLoss()
+    for epoch in range(100):
+        for step, (img, brainact) in enumerate(train_loader):
+            img.require_grad_(True)
+            output = net(img)
+            loss = loss_func(output, brainact)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+    return net
+
+
+def truncate_net(net, layer):
+    """
+    truncate the neural network at the specified layer number
+
+    :param net: torch.nn.Module
+        a neural network
+    :param layer: int
+        The sequence number of the layer which is connected to predict brain activity.
+    :return: truncated_net: torch.nn.Sequential
+    """
+    pass
+    return nn.Sequential()
+
+
+class DNN2BrainNet(nn.Module):
+
+    def __init__(self, truncated_net, channel_unit_num, fc_out_num, channel=None):
+        """
+
+        :param truncated_net: torch.nn.Module
+            a truncated neural network from the pretrained network
+        :param channel_unit_num: int
+            the number of units of each channel of the last layer in the truncated network
+        :param fc_out_num: int
+            the number of the out channels of the full connection layer
+        :param channel: int
+            The sequence number of the out channel of the selected layer
+        """
+        super(DNN2BrainNet, self).__init__()
+        self.truncated_net = truncated_net
+        if channel is None:
+            channel_num = list(self.truncated_net.modules())[-1].out_channels
+        else:
+            channel_num = 1
+        self.fc = nn.Linear(channel_num * channel_unit_num, fc_out_num)
+        self.channel = channel
+
+    def forward(self, x):
+        x = self.truncated_net(x)
+        if self.channel is not None:
+            # extract the specified channel's output
+            x = x[:, self.channel]
+        x = x.view(x.size(0), -1)  # (batch_num, unit_num)
+        x = self.fc(x)
+        return x
+
+
+if __name__ == '__main__':
+    main()

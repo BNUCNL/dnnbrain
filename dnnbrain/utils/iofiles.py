@@ -1,9 +1,11 @@
 import os
+import numpy as np
+from PIL import Image
+
 try:
     import torchvision
-    import numpy as np
     from torchvision import datasets, transforms
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Dataset
 except ModuleNotFoundError:
     raise Exception('Please install pytorch and torchvision in your work station')
     
@@ -12,6 +14,7 @@ try:
     import cifti
 except ModuleNotFoundError:
     raise Exception('Please install nibabel and cifti in your work station')
+
 
 class _ImageFolder(datasets.ImageFolder):
     """
@@ -24,8 +27,9 @@ class _ImageFolder(datasets.ImageFolder):
             img = self.transform(img)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        picname = os.path.basename
+        picname = os.path.basename(path)
         return img, target, picname
+
 
 class ImgLoader():
     def __init__(self, imgpath):
@@ -83,7 +87,7 @@ class BrainImgLoader():
         ------------
         brain_img[np.array]: data of brain image
         """
-        imgname = os.path.basename
+        imgname = os.path.basename(self.imgpath)
         imgsuffix = imgname.split('.')[1:]
         imgsuffix = '.'.join(imgsuffix)
         
@@ -139,10 +143,55 @@ def save_dnnpicname(dnnpicname,outpath):
     np.savetxt('{}picture_name.csv'.format(outpath),dnnpicname_index,delimiter=',',fmt="%s")
         
         
-        
-        
-        
-        
-        
-        
+class ImageBrainactDataset(Dataset):
+    """
+    A tool to read image and brain activation data pairwise.
+    """
 
+    def __init__(self, img_brainact_pairs, img_dir, brainact_dir, mask_file=None,
+                 img_transform=None, brainact_transform=None):
+        """
+
+        :param img_brainact_pairs: numpy array
+            Each row has two elements. The first is image's filename,
+            and the second is brain activation data's filename.
+        :param img_dir: str
+            the directory of the images
+        :param brainact_dir: str
+            the directory of the brain activation data
+        :param mask_file: str, optional
+            the file of the mask data
+        :param img_transform: callable, optional
+            A function/transform that takes in the image and transforms it.
+        :param brainact_transform: callable, optional
+            A function/transform that takes in the brain activation data and transforms it.
+        """
+        self.img_brainact_pairs = img_brainact_pairs
+        self.img_dir = img_dir
+        self.brainact_dir = brainact_dir
+        self.mask_file = mask_file
+        self.img_transform = img_transform
+        self.brainact_transform = brainact_transform
+
+    def __len__(self):
+        return self.img_brainact_pairs.shape[0]
+
+    def __getitem__(self, idx):
+        # load image
+        img_name = self.img_brainact_pairs[idx, 0]
+        img = np.array(Image.open(os.path.join(self.img_dir, img_name)))
+
+        # load brain activation data
+        brainact_name = self.img_brainact_pairs[idx, 1]
+        brainact = BrainImgLoader(os.path.join(self.brainact_dir, brainact_name)).load_brainimg()
+        if self.mask_file is not None:
+            mask = BrainImgLoader(self.mask_file).load_brainimg()
+            brainact = brainact[mask != 0]
+        brainact = brainact.reshape(-1)  # flat the brain activation data
+
+        if self.img_transform:
+            img = self.img_transform(img)
+        if self.brainact_transform:
+            brainact = self.brainact_transform(brainact)
+
+        return img, brainact
