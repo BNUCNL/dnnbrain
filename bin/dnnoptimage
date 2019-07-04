@@ -1,0 +1,52 @@
+#! /usr/bin/env python
+
+"""
+find the characterize relative to one unit
+Author: Yiyuan Zhang @ BNU
+Reviewer:
+"""
+
+#import some packages needed
+import os
+import argparse
+
+def main():
+    
+    parser = argparse.ArgumentParser(description='DNN units optimal stimuli')
+    
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        choices=['alexnet', 'vgg16', 'vgg19', 'resnet'],
+                        help = 'specific name of CNN')
+
+    parser.add_argument('-layer',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific layers')
+    
+    parser.add_argument('-channel',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific channels')
+
+    parser.add_argument('-unit_x',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific units x_axis')
+    
+    parser.add_argument('-unit_y',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific units y_axis')
+    
+    parser.add_argument('-outdir',
+                        type = str,
+                        required = True,
+                        help = 'output directory in Linux')
+    
+    args = parser.parse_args()
+    
+    
+if __name__ == '__main__':
+    main()
