@@ -1,16 +1,17 @@
+import os
 try:
     import torchvision
     import numpy as np
     from torchvision import datasets, transforms
     from torch.utils.data import DataLoader
 except ModuleNotFoundError:
-    print('Please install pytorch and torchvision in your work station')
+    raise Exception('Please install pytorch and torchvision in your work station')
     
 try:
     import nibabel as nib
     import cifti
 except ModuleNotFoundError:
-    print('Please install nibabel and cifti in your work station')
+    raise Exception('Please install nibabel and cifti in your work station')
 
 class _ImageFolder(datasets.ImageFolder):
     """
@@ -23,9 +24,7 @@ class _ImageFolder(datasets.ImageFolder):
             img = self.transform(img)
         if self.target_transform is not None:
             target = self.target_transform(target)
-        picname = path.split('/')[-1]
-        # In case running code in windows
-        picname = picname.split('\\')[-1]
+        picname = os.path.basename
         return img, target, picname
 
 class ImgLoader():
@@ -84,9 +83,7 @@ class BrainImgLoader():
         ------------
         brain_img[np.array]: data of brain image
         """
-        imgname = self.imgpath.split('/')[-1]
-        # In case running code in windows
-        imgname = imgname.split('\\')[-1]
+        imgname = os.path.basename
         imgsuffix = imgname.split('.')[1:]
         imgsuffix = '.'.join(imgsuffix)
         
@@ -99,7 +96,6 @@ class BrainImgLoader():
         else:
             raise Exception('Not support this format of brain image data, please contact with Taicheng Huang to update this function.')
         return brain_img
-        
         
         
 def save_activation(activation,outpath,net,layer,channel=None):
