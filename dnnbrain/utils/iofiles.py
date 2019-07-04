@@ -129,20 +129,18 @@ def save_activation(activation,outpath,net,layer,channel=None):
         np.savetxt('{}_{}_{}.csv'.format(outpath,net,layer),activation2d,delimiter = ',')
     else:
         np.savetxt('{}{}_{}_{}.csv'.format(outpath, net,layer,channel), activation2d, delimiter=',')
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
+
+def save_dnnpicname(dnnpicname,outpath):
+    """
+    save name list of input pictures
+    :param dnnpicname[1darray]: a name list of input pictures,from dnn_activaiton
+    :param outpath[str]: outputpath
+
+    """
+    index = np.arange(1,dnnpicname.shape[0]+1,1)
+    dnnpicname_index = np.vstack((index, dnnpicname)).T
+    np.savetxt('{}picture_name.csv'.format(outpath),dnnpicname_index,delimiter=',',fmt="%s")
         
         
         
