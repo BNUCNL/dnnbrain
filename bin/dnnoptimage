@@ -3,11 +3,10 @@
 """
 find the characterize relative to one unit
 Author: Yiyuan Zhang @ BNU
-Reviewer:
 """
 
+
 #import some packages needed
-import os
 import argparse
 
 def main():
@@ -17,7 +16,7 @@ def main():
     parser.add_argument('-net',
                         type = str,
                         required = True,
-                        choices=['alexnet', 'vgg16', 'vgg19', 'resnet'],
+                        choices=['alexnet', 'vgg16', 'vgg19'],
                         help = 'specific name of CNN')
 
     parser.add_argument('-layer',
@@ -41,6 +40,11 @@ def main():
                         help = 'activation for specific units y_axis')
     
     parser.add_argument('-outdir',
+                        type = str,
+                        required = True,
+                        help = 'output directory in Linux')
+    
+    parser.add_argument('-layer_outdir',
                         type = str,
                         required = True,
                         help = 'output directory in Linux')
