@@ -1,6 +1,10 @@
 import os
 import numpy as np
-from PIL import Image
+
+try:
+    from PIL import Image
+except ModuleNotFoundError:
+    raise Exception('Please install pillow in your work station')
 
 try:
     import torchvision
@@ -99,6 +103,7 @@ class BrainImgLoader():
             brain_img, _ = cifti.read(self.imgpath)
         else:
             raise Exception('Not support this format of brain image data, please contact with Taicheng Huang to update this function.')
+        assert brain_img.ndim == 4, "Please reconstruct your image data as an 4D image with a dimension for picture."
         return brain_img
         
         
