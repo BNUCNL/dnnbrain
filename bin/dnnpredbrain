@@ -96,28 +96,28 @@ def main():
 	# save(model)
 	
 	# DNN activation extraction 
-	if args.net == 'alexnet':
+    if args.net == 'alexnet':
         imgcropsize = (227,227)
     elif args.net == 'vgg11':
         imgcropsize = (227,227)
     else:
         raise Exception('Not a supported net, please contact the author for implementation.')
-	imgloader_cls = iofiles.ImgLoader(args.in)
-	imgloader = imgloader_cls.gen_dataloader(imgcropsize)
-	dnn_act, dnn_picname = model_operation.dnn_activation(imgloader, args.net, args.layer, args.channel)
+    imgloader_cls = iofiles.ImgLoader(args.in)
+    imgloader = imgloader_cls.gen_dataloader(imgcropsize)
+    dnn_act, dnn_picname = model_operation.dnn_activation(imgloader, args.net, args.layer, args.channel)
     # Reshape dnn_act and flatten its unit
     dnn_act = dnn_act.reshape((dnn_act.shape[0], dnn_act.shape[1], dnn_act.shape[2]*dnn_act.shape[3]))
     channel_num = dnn_act.shape[1]
     
-	# Brain image activation extraction
-	assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
+    # Brain image activation extraction
+    assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
     brainimg_cls = iofiles.BrainImgLoader(args.brainact)
     brainimg_data_raw = brainimg_cls.load_brainimg()
     if args.mask:
         brainmask_cls = iofiles.BrainImgLoader(args.mask)
         brainmask_data_raw = brainmask_cls.load_brainimg()
     else:
-        brainmask_data_raw = np.zeros_like(brainimg_data_raw)
+        brainmask_data_raw = np.ones_like(brainimg_data_raw)
     assert brainimg_data_raw.shape == brainmask_data.shape, "Shape of brainact and mask need to be same."
     brainimg_data_raw = brainimg_data_raw*brainmask_data_raw
     
