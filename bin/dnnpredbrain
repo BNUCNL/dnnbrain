@@ -12,11 +12,12 @@ import os
 import argparse
 import subprocess
 import numpy as np
+from torchvision import transforms
 from dnnbrain.core import model_operation
 from dnnbrain.utils import iofiles
 
 try:
-    from sklearn import linear_model, model_selection
+    from sklearn import linear_model, model_selection, decomposition
 except ModuleNotFoundError:
     raise Exception('Please install sklearn in your workstation')
 
@@ -42,12 +43,25 @@ def main():
                         required = False,
                         metavar = 'Channel',
                         help = 'activation for specific channels')
+    parser.add_argument('-csv',
+                        type = int,
+                        required = True,
+                        metavar = 'picture stimuli csv',
+                        help = 'table contains picture names, conditions and picture onset time.
+                                This csv_file helps us connect cnn activation to brain images.
+                                Please organize your information as:
+                                ---------------------------------------
+                                stimID     condition   onset(optional) measurement(optional)
+                                face1.png  face        1.1             3
+                                face2.png  face        3.1             5
+                                scene1.png scene       5.1             4'
+                        )
     parser.add_argument('-brainact',
                         type = str,
                         required = True,
                         metavar = 'Nifti Activation',
                         help = 'brain activation nifti/surface file,
-                                the user should correspond brain image 
+                                user should correspond brain image 
                                 to picture stimuli before calling this
                                 script.')
     parser.add_argument('-mask',
@@ -102,20 +116,21 @@ def main():
         imgcropsize = (227,227)
     else:
         raise Exception('Not a supported net, please contact the author for implementation.')
-    imgloader_cls = iofiles.ImgLoader(args.in)
-    imgloader = imgloader_cls.gen_dataloader(imgcropsize)
-    dnn_act, dnn_picname = model_operation.dnn_activation(imgloader, args.net, args.layer, args.channel)
+        
+    transform = transforms.Compose([transform.Resize(imgcropsize),
+                                    transforms.ToTensor()])                            
+    picdataset = iofiles.PicDataset(args.csv, args.in, transform=transform)
+    dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
+    
     # Reshape dnn_act and flatten its unit
-    dnn_act = dnn_act.reshape((dnn_act.shape[0], dnn_act.shape[1], dnn_act.shape[2]*dnn_act.shape[3]))
     channel_num = dnn_act.shape[1]
+    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num, dnn_act.shape[2]*dnn_act.shape[3]))
     
     # Brain image activation extraction
     assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
-    brainimg_cls = iofiles.BrainImgLoader(args.brainact)
-    brainimg_data_raw = brainimg_cls.load_brainimg()
+    brainimg_data_raw, header = iofiles.load_brainimg(args.brainact)
     if args.mask:
-        brainmask_cls = iofiles.BrainImgLoader(args.mask)
-        brainmask_data_raw = brainmask_cls.load_brainimg()
+        brainmask_data_raw, header = iofiles.load_brainimg(args.mask)
     else:
         brainmask_data_raw = np.ones_like(brainimg_data_raw)
     assert brainimg_data_raw.shape == brainmask_data.shape, "Shape of brainact and mask need to be same."
@@ -135,7 +150,7 @@ def main():
     if not args.model:
         args.model = 'lasso'
     if args.model == 'glm':
-        model = linear_model.LinearRegression()
+        args.model = linear_model.LinearRegression()
     elif args.model == 'lasso':
         model = linear_model.Lasso()
     else:
@@ -144,15 +159,21 @@ def main():
     # output image: channel*voxels
     out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
     # Tidy DNN activation data and brain activation data
-    for i in range(channel_num):
-        # nsamples(pics)*nfeatures(units)
-        dnnact_list = dnn_act[:,i,:]
-        for b_idx in range(brainact_idx):
-            # nsamples(pics)*nfeatures(voxel)
-            brainact_list = brainimg_data[:, tuple(b_idx)][:,None]
-            # Cross validation
-            scores = model_selection.cross_val_score(model, dnn_act, brainimg, scroing='explained_variance', cv=args.cvfold)
-            out_brainimg[i, tuple(b_idx)] = scores
+    
+    # Multivariate regression analysis
+    if args.model == 'lasso':
+        pca = decomposition.PCA(n_components=200)
+        for i in range(channel_num):
+            # nsamples(pics)*nfeatures(units)
+            dnnact_list = dnn_act[:,i,:]
+            for b_idx in range(brainact_idx):
+                # nsamples(pics)*nfeatures(voxel)
+                brainact_list = brainimg_data[:, tuple(b_idx)][:,None]
+                # Decrease dimension using PCA
+                dnn_act_pca = pca.fit_transform(dnnact_list)
+                # Cross validation
+                scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list, scroing='explained_variance', cv=args.cvfold)
+                out_brainimg[i, tuple(b_idx)] = scores
             
     if args.brainact.endswith('mgz') or args.brainact.endswith('mgh'):
         out_brainimg = out_brainimg.transpose((3,1,2,0))
