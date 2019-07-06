@@ -3,12 +3,14 @@
 """
 find the characterize relative to one unit
 Author: Yiyuan Zhang @ BNU
-Reviewer:
 """
 
+
 #import some packages needed
-import os
 import argparse
+from torchvision import models
+from dnnbrain.ViZ import dnnoptimage
+
 
 def main():
     
@@ -17,7 +19,7 @@ def main():
     parser.add_argument('-net',
                         type = str,
                         required = True,
-                        choices=['alexnet', 'vgg16', 'vgg19', 'resnet'],
+                        choices=['alexnet', 'vgg16', 'vgg19'],
                         help = 'specific name of CNN')
 
     parser.add_argument('-layer',
@@ -30,15 +32,10 @@ def main():
                         required = True,
                         help = 'activation for specific channels')
 
-    parser.add_argument('-unit_x',
+    parser.add_argument('-unit',
                         type = int,
                         required = True,
-                        help = 'activation for specific units x_axis')
-    
-    parser.add_argument('-unit_y',
-                        type = int,
-                        required = True,
-                        help = 'activation for specific units y_axis')
+                        help = 'position for a specific unit')
     
     parser.add_argument('-outdir',
                         type = str,
@@ -47,6 +44,33 @@ def main():
     
     args = parser.parse_args()
     
+    def model(net):
+        if net == 'alexnet':
+            model = models.alexnet(pretrained=True)
+            return model
+        elif net == 'vgg16':
+            model = models.vgg16(pretrained=True)
+            return model
+        elif net == 'vgg19':
+            model = models.vgg19(pretrained=True)
+            return model
+        else:
+            raise Exception('Network was not supported, please contact author for implementation.')
+      
+    model = model(args.net)
+    
+    for param in model.parameters():
+        param.requires_grad = False 
+    
+    layer_vis = dnnoptimage.CNNLayerVisualization(model.features, args.layer, args.channel)
+    
+    try:
+        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir, args.unit_x, args.unit_y)
+    except:
+        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir)
+    
     
 if __name__ == '__main__':
+    n_step = 51
     main()
+    
