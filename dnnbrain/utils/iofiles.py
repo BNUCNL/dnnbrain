@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 
 try:
     from PIL import Image
@@ -20,55 +21,62 @@ except ModuleNotFoundError:
     raise Exception('Please install nibabel and cifti in your work station')
 
 
-class _ImageFolder(datasets.ImageFolder):
+class PicDataset(Dataset):
     """
-    Reconstruct ImageFolder to allow it output picture name.
+    Build a dataset to load pictures
     """
-    def __getitem__(self, index):
-        path, target = self.imgs[index]
-        img = self.loader(path)
-        if self.transform is not None:
-            img = self.transform(img)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-        picname = os.path.basename(path)
-        return img, target, picname
-
-
-class ImgLoader():
-    def __init__(self, imgpath):
+    def __init__(self, csv_file, picpath, transform=None):
         """
-        """
-        self.imgpath = imgpath
+        Initialize PicDataset
         
-    def gen_dataloader(self, imgcropsize, transform = None, batch_size = 8, shuffle=True, num_workers=1):
-        """
-        Generate dataloader from image path
-		
         Parameters:
         ------------
-        imgpath[str]: path of stimuli picture
-        imgresize[int/list]: resize images to make it suitable to input of a specific network
-        transform[transform.Compose]: transformation ways
-        batch_size[int]: batch size
-        shuffle[bool]: shuffle images or not
-        num_workers[int]: cpu workers used in model trainning
+        csv_file[str/pd.DataFrame]: table contains picture names, conditions and picture onset time.
+                                     This csv_file helps us connect cnn activation to brain images.
+                                     Please organize your information as:
+                                     ---------------------------------------
+                                     stimID     condition   onset(optional) measurement(optional)
+                                     face1.png  face        1.1             3
+                                     face2.png  face        3.1             5
+                                     scene1.png scene       5.1             4
+        picpath[str]: parent path of pictures.
+        transform[callable function]: optional transform to be applied on a sample.
+        """
+        if isinstance(csv_file,str):
+            csv_file = pd.read_csv(csv_file)
+        self.csv_file = csv_file
+        self.picpath = picpath
+        self.transform = transform
+        
+    def __len__(self):
+        """
+        Return sample size
+        """
+        return self.csv_file.shape[0]
+    
+    def __getitem__(self, idx):
+        """
+        Get picture name, picture data and target of each sample
+        
+        Parameters:
+        -----------
+        idx: index of sample
         
         Returns:
         ---------
-        dataloader[dataloader instance]: dataloader which could be used directly in CNN models
+        picname: picture name
+        picimg: picture data, save as a pillow instance
+        condition: target of each sample (label)
         """
-        if transform is None:
-            transform = transforms.Compose([
-                            transforms.Resize(imgcropsize),
-                            transforms.ToTensor()
-                                           ])
-        pak_datasets = _ImageFolder(self.imgpath, transform)
-        dataloader = DataLoader(pak_datasets, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
-        self.dataloader = dataloader
-        return dataloader
-        
-        
+        # load pictures
+        picname = np.array(self.csv_file['stimID'])
+        condition = np.array(self.csv_file['condition'])
+        picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
+        if self.transform:
+            picimg = self.transform(picimg)[None,...]
+        return picname[idx], picimg, condition[idx]        
+
+   
 class BrainImgLoader():
     def __init__(self, imgpath):
         """
@@ -134,69 +142,12 @@ def save_activation(activation,outpath,net,layer,channel=None):
         np.savetxt('{}_{}_{}.csv'.format(outpath,net,layer),activation2d,delimiter = ',')
     else:
         np.savetxt('{}{}_{}_{}.csv'.format(outpath, net,layer,channel), activation2d, delimiter=',')
-
-
-def save_dnnpicname(dnnpicname,outpath):
-    """
-    save name list of input pictures
-    :param dnnpicname[1darray]: a name list of input pictures,from dnn_activaiton
-    :param outpath[str]: outputpath
-
-    """
-    index = np.arange(1,dnnpicname.shape[0]+1,1)
-    dnnpicname_index = np.vstack((index, dnnpicname)).T
-    np.savetxt('{}picture_name.csv'.format(outpath),dnnpicname_index,delimiter=',',fmt="%s")
         
         
-class ImageBrainactDataset(Dataset):
-    """
-    A tool to read image and brain activation data pairwise.
-    """
-
-    def __init__(self, img_brainact_pairs, img_dir, brainact_dir, mask_file=None,
-                 img_transform=None, brainact_transform=None):
-        """
-
-        :param img_brainact_pairs: numpy array
-            Each row has two elements. The first is image's filename,
-            and the second is brain activation data's filename.
-        :param img_dir: str
-            the directory of the images
-        :param brainact_dir: str
-            the directory of the brain activation data
-        :param mask_file: str, optional
-            the file of the mask data
-        :param img_transform: callable, optional
-            A function/transform that takes in the image and transforms it.
-        :param brainact_transform: callable, optional
-            A function/transform that takes in the brain activation data and transforms it.
-        """
-        self.img_brainact_pairs = img_brainact_pairs
-        self.img_dir = img_dir
-        self.brainact_dir = brainact_dir
-        self.mask_file = mask_file
-        self.img_transform = img_transform
-        self.brainact_transform = brainact_transform
-
-    def __len__(self):
-        return self.img_brainact_pairs.shape[0]
-
-    def __getitem__(self, idx):
-        # load image
-        img_name = self.img_brainact_pairs[idx, 0]
-        img = np.array(Image.open(os.path.join(self.img_dir, img_name)))
-
-        # load brain activation data
-        brainact_name = self.img_brainact_pairs[idx, 1]
-        brainact = BrainImgLoader(os.path.join(self.brainact_dir, brainact_name)).load_brainimg()
-        if self.mask_file is not None:
-            mask = BrainImgLoader(self.mask_file).load_brainimg()
-            brainact = brainact[mask != 0]
-        brainact = brainact.reshape(-1)  # flat the brain activation data
-
-        if self.img_transform:
-            img = self.img_transform(img)
-        if self.brainact_transform:
-            brainact = self.brainact_transform(brainact)
-
-        return img, brainact
+    
+    
+    
+    
+    
+    
+    
