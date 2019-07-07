@@ -47,22 +47,22 @@ def main():
                         type = str,
                         required = True,
                         metavar = 'picture stimuli csv',
-                        help = 'table contains picture names, conditions and picture onset time.
-                                This csv_file helps us connect cnn activation to brain images.
-                                Please organize your information as:
-                                ---------------------------------------
-                                stimID     condition   onset(optional) measurement(optional)
-                                face1.png  face        1.1             3
-                                face2.png  face        3.1             5
+                        help = 'table contains picture names, conditions and picture onset time.\
+                                This csv_file helps us connect cnn activation to brain images.\
+                                Please organize your information as:\
+                                ---------------------------------------\
+                                stimID     condition   onset(optional) measurement(optional)\
+                                face1.png  face        1.1             3\
+                                face2.png  face        3.1             5\
                                 scene1.png scene       5.1             4'
                         )
     parser.add_argument('-brainact',
                         type = str,
                         required = True,
                         metavar = 'Nifti Activation',
-                        help = 'brain activation nifti/surface file,
-                                user should correspond brain image 
-                                to picture stimuli before calling this
+                        help = 'brain activation nifti/surface file,\
+                                user should correspond brain image \
+                                to picture stimuli before calling this\
                                 script.')
     parser.add_argument('-mask',
                         type = str,
@@ -74,12 +74,12 @@ def main():
                         required = False,
                         metavar = 'Brain Model',
                         choices = ['lasso', 'glm'],
-                        help = 'model to predict brain activation by CNN activation, by default is lasso.
-                                lasso analysis is a multivariate analysis and we will first decompose activation
-                                data of DNN into 200 dimension and then calculate explained variance by using 
-                                cross validation. 
-                                glm analysis is a univariate analysis, we will do linear cross validation in each
-                                brain image voxel with each units and return the maximum explained variance as 
+                        help = 'model to predict brain activation by CNN activation, by default is lasso.\
+                                lasso analysis is a multivariate analysis and we will first decompose activation\
+                                data of DNN into 200 dimension and then calculate explained variance by using \
+                                cross validation. \
+                                glm analysis is a univariate analysis, we will do linear cross validation in each\
+                                brain image voxel with each units and return the maximum explained variance as \
                                 the explained variance of brain activation.')
     parser.add_argument('-cvfold',
                         type = int,
@@ -91,8 +91,8 @@ def main():
                         type = str,
                         required = True,
                         metavar = 'Output Directory',
-                        help = 'output directory, output is a 4D brain image data with value in each voxel 
-                                is explained_variance by linear_model, each volume is the prediction explained 
+                        help = 'output directory, output is a 4D brain image data with value in each voxel \
+                                is explained_variance by linear_model, each volume is the prediction explained \
                                 variance in each layer.')
     args = parser.parse_args()
 
