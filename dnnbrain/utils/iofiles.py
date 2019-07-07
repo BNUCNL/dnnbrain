@@ -80,56 +80,94 @@ class PicDataset(Dataset):
         return picname[idx], picimg, condition[idx]        
 
    
-class BrainImgLoader():
-    def __init__(self, imgpath):
-        """
-        """
-        self.imgpath = imgpath
+def load_brainimg(imgpath):
+    """
+    Load brain image identified by its suffix
+    suffix now support
+      
+    Nifti: .nii.gz
+    freesurfer: .mgz, .mgh
+    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
         
-    def load_brainimg(self):
-        """
-        Load brain image identified by its suffix
-        suffix now support
+    Parameters:
+    ------------
+    imgpath: brain image data path
         
-        Nifti: .nii.gz
-        freesurfer: .mgz, .mgh
-        cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
+    Returns:
+    ------------
+    brain_img[np.array]: data of brain image
+    """
+    imgname = os.path.basename(imgpath)
+    imgsuffix = imgname.split('.')[1:]
+    imgsuffix = '.'.join(imgsuffix)
+
+    if imgsuffix == 'nii.gz':
+        brain_img = nib.load(imgpath).get_data()
+        brain_img = np.transpose(brain_img,(3,0,1,2))
+        header = nib.load(imgpath).header
+    elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
+        brain_img = nib.freesurfer.load(imgpath).get_data()
+        brain_img = np.transpose(brain_img, (3,0,1,2))
+        header = nib.freesurfer.load(imgpath).header
+    elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
+        brain_img, header = cifti.read(imgpath)
+        brain_img = brain_img[...,None,None]
+    else:
+        raise Exception('Not support this format of brain image data, please contact with author to update this function.')
+    assert brain_img.ndim == 4, "Please reconstruct your image data as an 4D image with a dimension for picture."
+    return brain_img, header
+    
+    
+def save_brainimg(imgpath, data, header):
+    """
+    Save brain image identified by its suffix
+    suffix now support
+     
+    Nifti: .nii.gz
+    freesurfer: .mgz, .mgh
+    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
         
-        Parameters:
-        ------------
+    Parameters:
+    ------------
+    imgpath: brain image path to be saved
+    data: brain image data matrix
+    header: brain image header
         
-        Returns:
-        ------------
-        brain_img[np.array]: data of brain image
-        """
-        imgname = os.path.basename(self.imgpath)
-        imgsuffix = imgname.split('.')[1:]
-        imgsuffix = '.'.join(imgsuffix)
+    Returns:
+    --------
+    """
+    imgname = os.path.basename(imgpath)
+    imgsuffix = imgname.split('.')[1:]
+    imgsuffix = '.'.join(imgsuffix)
+    
+    if imgsuffix == 'nii.gz':
+        data = np.transpose(data,(1,2,3,0))
+        outimg = nib.Nifti1Image(data, None, header)
+        nib.save(outimg, imgpath)
+    elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
+        data = np.transpose(data, (1,2,3,0))
+        outimg = nib.MGHImage(outimg, None, header)
+        nib.save(outimg, imgpath)
+    elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
+        data = data[...,0,0]
+        map_name = ['']*data.shape[0]
+        bm_full = header[1]
+        cifti.write(imgpath, outimg, (cifti.Scalar.from_names(map_names), bm_full))
+    else:
+        raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
+ 
         
-        if imgsuffix == 'nii.gz':
-            brain_img = nib.load(self.imgpath).get_data()
-        elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
-            brain_img = nib.freesurfer.load(self.imgpath)
-        elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
-            brain_img, _ = cifti.read(self.imgpath)
-        else:
-            raise Exception('Not support this format of brain image data, please contact with Taicheng Huang to update this function.')
-        assert brain_img.ndim == 4, "Please reconstruct your image data as an 4D image with a dimension for picture."
-        return brain_img
-        
-        
-def save_activation(activation,outpath,net,layer,channel=None):
+def save_activation_to_csv(activation,outpath,net,layer,channel=None):
     """
     Save activaiton data to a csv file in outpath
 
-    Parameteers:
+    Parameters:
     ------------
     activation[4darray]: sitmulus x channel x pixel x pixel
     outpath[str]:outpath and outfilename
     net[str]:neuron network name
     layer[int]:the number of layer of network
     channel[list]: the number list of channel/filter
-
     """
     activation2d = np.reshape(activation,(np.prod(activation.shape[0:2]),-1,),order='C')
     channelline = np.array([channel+1 for channel in range(activation.shape[1])]*activation.shape[0])
