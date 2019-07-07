@@ -1,19 +1,16 @@
 #! /usr/bin/env python
-
 import os
 import numpy as np
 import torch
 import torch.nn as nn
 
-from os.path import join as pjoin
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from torchvision import transforms
 from scipy.stats import pearsonr
 from sklearn.model_selection import KFold
-from dnnbrain.utils.iofiles import ImageBrainactDataset
-
-
-DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
+from dnnbrain.core.models import DNN2BrainNet
+from dnnbrain.core.model_operation import truncate_net
+from dnnbrain.utils.iofiles import PicDataset, NetLoader, BrainImgLoader
 
 
 def main():
@@ -26,14 +23,8 @@ def main():
                         type=str,
                         dest='stimuli_dir',
                         help="the directory of the stimuli of the net")
-    parser.add_argument('-size',
-                        metavar='stimulus size',
-                        required=True,
-                        type=int,
-                        nargs=2,
-                        help="unify stimulus size")
     parser.add_argument('-net',
-                        metavar='net',
+                        metavar='net_name',
                         required=True,
                         type=str,
                         dest='net_name',
@@ -52,11 +43,9 @@ def main():
                         metavar='csv_file',
                         required=True,
                         type=str,
-                        help="Each line has two names separated by comma."
-                             "The first name is stimulus's filename, "
-                             "and the second is brain activation data's filename.")
+                        help="map stimulus with brain activation")
     parser.add_argument('-brainact',
-                        metavar='brain_activation',
+                        metavar='brain_data',
                         required=True,
                         type=str,
                         help="brain activation data file")
@@ -64,21 +53,6 @@ def main():
                         metavar='mask_file',
                         type=str,
                         help="brain mask used to extract activation locally")
-    parser.add_argument('-bs',
-                        metavar='batch_size',
-                        type=int,
-                        default=8,
-                        help="batch size")
-    parser.add_argument('-shuffle',
-                        metavar='shuffle',
-                        type=bool,
-                        default=True,
-                        help="shuffle")
-    parser.add_argument('-num_workers',
-                        metavar='workers number',
-                        type=int,
-                        default=1,
-                        help="the number of workers")
     parser.add_argument('-cvfold',
                         metavar='fold_number',
                         type=int,
@@ -90,37 +64,59 @@ def main():
                         help="output directory")
     args = parser.parse_args()
 
-    img_brainact_pairs = np.genfromtxt(args.csv, dtype=str, delimiter=',')
-    src_net = torch.load(pjoin(DNNBRAIN_MODEL_DIR, args.net_name+'.pth'))
+    # load net and prepare data
+    net_loader = NetLoader(args.net)
+    pic_dataset = PicDataset(args.csv, args.stimuli_dir,
+                             transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()]))
+    pics = torch.tensor([pic for _, pic, _ in pic_dataset])
+    brainact = BrainImgLoader(args.brainact).load_brainimg()
+    brainact = torch.tensor(brainact)
+    if args.mask:
+        brainact_tmp = []
+        mask = BrainImgLoader(args.mask).load_brainimg()
+        for volume in brainact:
+            brainact_tmp.append(volume[mask != 0])
+        brainact = torch.tensor(brainact_tmp)
+    brainact = brainact.view(brainact.size(0), -1)  # flat the brain activation data
 
     if args.cvfold:
         # split data to args.cvfold folds
         # Each fold is then used once as a validation while the args.cvfold - 1 remaining folds form the training set.
-        corrs = []
-        kf = KFold(args.cvfold)
-        for train_indices, test_indices in kf.split(img_brainact_pairs):
-            train_pairs = img_brainact_pairs[train_indices]
-            test_pairs = img_brainact_pairs[test_indices]
-            # use training set to train a model
-            net = training(train_pairs, args.stimuli_dir, args.brainact, args.mask, args.size,
-                           args.bs, args.shuffle, args.num_workers, src_net, args.layer, args.channel)
-
-            # use test set to evaluate the model
-            test_dataset = ImageBrainactDataset(
-                img_brainact_pairs=test_pairs,
-                img_dir=args.stimuli_dir,
-                brainact_dir=args.brainact,
-                mask_file=args.mask,
-                img_transform=transforms.Resize(args.size)
-            )
-            for img, brainact in test_dataset:
-                test_output = net(img)
-                corrs.append(pearsonr(test_output, brainact)[0])
-        corr_avg = np.mean(corrs)
+        pass
     else:
         # use all data to train a model
-        net = training(img_brainact_pairs, args.stimuli_dir, args.brainact, args.mask, args.size,
-                       args.bs, args.shuffle, args.num_workers, src_net, args.layer, args.channel)
+        # truncate the pretrained neural network
+        truncated_net = truncate_net(net_loader.model, args.layer, net_loader.conv_indices)
+        for param in truncated_net.parameters():
+            # fix the pretrained parameters
+            param.requires_grad = False
+        truncated_output = truncated_net(pics[0])
+
+        # create new network
+        net = DNN2BrainNet(
+            truncated_net=truncated_net,
+            channel_unit_num=truncated_output.size()[2:].numel(),
+            fc_out_num=brainact.size()[1],
+            channel=args.channel
+        )
+
+        # tensor dataset
+        dataset = TensorDataset(pics, brainact)
+        train_loader = DataLoader(dataset=dataset, batch_size=8, shuffle=True, num_workers=1)
+
+        # start training
+        optimizer = torch.optim.Adam(net.parameters(), lr=0.01)
+        loss_func = nn.CrossEntropyLoss()
+        for epoch in range(100):
+            for step, (img, brainact) in enumerate(train_loader):
+                img.require_grad_(True)
+                output = net(img)
+                loss = loss_func(output, brainact)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        return net
 
 
 def training(train_pairs, img_dir, brainact, mask_file, img_size, batch_size, shuffle, num_workers,
@@ -196,53 +192,6 @@ def training(train_pairs, img_dir, brainact, mask_file, img_size, batch_size, sh
             optimizer.step()
 
     return net
-
-
-def truncate_net(net, layer):
-    """
-    truncate the neural network at the specified layer number
-
-    :param net: torch.nn.Module
-        a neural network
-    :param layer: int
-        The sequence number of the layer which is connected to predict brain activity.
-    :return: truncated_net: torch.nn.Sequential
-    """
-    pass
-    return nn.Sequential()
-
-
-class DNN2BrainNet(nn.Module):
-
-    def __init__(self, truncated_net, channel_unit_num, fc_out_num, channel=None):
-        """
-
-        :param truncated_net: torch.nn.Module
-            a truncated neural network from the pretrained network
-        :param channel_unit_num: int
-            the number of units of each channel of the last layer in the truncated network
-        :param fc_out_num: int
-            the number of the out channels of the full connection layer
-        :param channel: int
-            The sequence number of the out channel of the selected layer
-        """
-        super(DNN2BrainNet, self).__init__()
-        self.truncated_net = truncated_net
-        if channel is None:
-            channel_num = list(self.truncated_net.modules())[-1].out_channels
-        else:
-            channel_num = 1
-        self.fc = nn.Linear(channel_num * channel_unit_num, fc_out_num)
-        self.channel = channel
-
-    def forward(self, x):
-        x = self.truncated_net(x)
-        if self.channel is not None:
-            # extract the specified channel's output
-            x = x[:, self.channel]
-        x = x.view(x.size(0), -1)  # (batch_num, unit_num)
-        x = self.fc(x)
-        return x
 
 
 if __name__ == '__main__':
