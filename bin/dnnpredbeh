@@ -1,0 +1,153 @@
+#! /usr/bin/env python
+
+"""
+Use CNN activation to predict behavior measurement
+
+Author: Taicheng Huang @ BNU
+Email: taicheng_huang@mail.bnu.edu.cn
+Reviewer:
+"""
+
+import os
+import argparse
+import subprocess
+import numpy as np
+from torchvision import transforms
+import pandas as pd
+from dnnbrain.core import model_operation
+from dnnbrain.utils import iofiles
+
+try:
+    from sklearn import linear_model, model_selection, decomposition
+except ModuleNotFoundError:
+    raise Exception('Please install sklearn in your workstation')
+
+def main():
+    parser = argparse.ArgumentParser(description='Use CNN activation to predict behavior measurement')
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        metavar = 'CNN',
+                        help = 'convolutional network name')
+    parser.add_argument('-in',
+                        type = str,
+                        required = True,
+                        metavar = 'Input Directory',
+                        help = 'stimuli path')
+    parser.add_argument('-layer',
+                        type = int,
+                        required = True,
+                        metavar = 'Layer',
+                        help = 'activation for specific layers')
+    parser.add_argument('-channel',
+                        type = int,
+                        required = False,
+                        metavar = 'Channel',
+                        help = 'activation for specific channels')
+    parser.add_argument('-csv',
+                        type = str,
+                        required = True,
+                        metavar = 'picture stimuli csv',
+                        help = 'table contains picture names, conditions and picture onset time.
+                                This csv_file helps us connect cnn activation to brain images.
+                                Please organize your information as:
+                                ---------------------------------------
+                                stimID     condition   onset(optional) measurement(optional)
+                                face1.png  face        1.1             3
+                                face2.png  face        3.1             5
+                                scene1.png scene       5.1             4'
+                        )
+    parser.add_argument('-behavior',
+                        type = str,
+                        required = True,
+                        metavar = 'behavior measurement',
+                        help = 'behavior measurement extracted from csv. This code will extracte
+                                behavior measurement with key from the csv_file (see above 
+                                parameter -csv).'
+    parser.add_argument('-model',
+                        type = str,
+                        required = False,
+                        metavar = 'Brain Model',
+                        choices = ['lasso', 'glm'],
+                        help = 'model to predict brain activation by CNN activation, by default is lasso.
+                                lasso analysis is a multivariate analysis and we will first decompose activation
+                                data of DNN into 200 dimension and then calculate explained variance by using 
+                                cross validation. 
+                                glm analysis is a univariate analysis, we will do linear cross validation in each
+                                brain image voxel with each units and return the maximum explained variance as 
+                                the explained variance of brain activation.')
+    parser.add_argument('-cvfold',
+                        type = int,
+                        required = False,
+                        default = 2,
+                        metavar = 'CVFold',
+                        help = 'cross validation fold numbers')
+    parser.add_argument('-out',
+                        type = str,
+                        required = True,
+                        metavar = 'Output Directory',
+                        help = 'output directory, output is text file with each value
+                                is explained_variance by multivariate or univariate analysis 
+                                in each layer.')
+    args = parser.parse_args()
+
+	# DNN activation extraction 
+    netloader = iofiles.NetLoader(args.net)
+    imgcropsize = netloader.img_size
+     
+    transform = transforms.Compose([transform.Resize(imgcropsize),
+                                    transforms.ToTensor()])                            
+    picdataset = iofiles.PicDataset(args.csv, args.in, transform=transform)
+    dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
+    
+    # Reshape dnn_act and flatten its unit
+    channel_num = dnn_act.shape[1]
+    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num, dnn_act.shape[2]*dnn_act.shape[3]))
+    
+    # Get behavior measurement
+    csv_table = pd.read_csv(args.csv)
+    beh_measure = np.array(csv_table[args.behavior])[:,None]
+	
+    # Initialize machine learning models
+    if not args.model:
+        args.model = 'lasso'
+    if args.model == 'glm':
+        args.model = linear_model.LinearRegression()
+    elif args.model == 'lasso':
+        model = linear_model.Lasso()
+    else:
+        raise Exception('Not supported yet, please contact the author for implementation.')
+        
+    scores = []
+    # Multivariate regression analysis
+    if args.model == 'lasso':
+        pca = decomposition.PCA(n_components=200)
+        for i in range(channel_num):
+            # nsamples(pics)*nfeatures(units)
+            dnnact_list = dnn_act[:,i,:]
+            # Decrease dimension using PCA
+            dnn_act_pca = pca.fit_transform(dnnact_list)
+            # Cross validation
+            scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scroing='explained_variance', cv=args.cvfold)
+            scores.append(scores_tmp)                
+    # Univariate regression analysis
+        # get the maximum value of explained_variance across all DNN units in a channel
+    elif args.model == 'glm':
+        for i in range(channel_num):
+            # nsamples(pics)*nfeatures(units) in one layer
+            dnnact_list = dnn_act[:,i,:]
+            # Iterate across units
+            scores_tmp = []
+            for j in range(dnnact_list.shape[1]): 
+                dnnactlist_tmp = dnnact_list[:,j][:,None]
+                scores_tmp.append(model_selection.cross_val_score(model, dnnactlist_tmp, beh_measure, scoring='explained_variance', cv=args.cvfold))
+            scores.append(np.max(scores_tmp))
+    else:
+        raise Exception('Not supported yet, please contact the author for implementation.')
+    scores = np.array(scores)
+    
+    # Save behavior measurement into hardware
+    np.savetxt(args.out, scores, delimiter=',')
+
+if __name__ == '__main__':
+    main()
