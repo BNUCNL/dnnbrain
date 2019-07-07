@@ -73,12 +73,20 @@ def main():
                         type = str,
                         required = False,
                         metavar = 'Brain Model',
-                        help = 'model to predict brain activation by CNN activation, by default is GLM')
+                        choices = ['lasso', 'glm'],
+                        help = 'model to predict brain activation by CNN activation, by default is lasso.
+                                lasso analysis is a multivariate analysis and we will first decompose activation
+                                data of DNN into 200 dimension and then calculate explained variance by using 
+                                cross validation. 
+                                glm analysis is a univariate analysis, we will do linear cross validation in each
+                                brain image voxel with each units and return the maximum explained variance as 
+                                the explained variance of brain activation.')
     parser.add_argument('-cvfold',
                         type = int,
-                        required = True,
+                        required = False,
+                        default = 2,
                         metavar = 'CVFold',
-                        help = 'cross validation fold number')
+                        help = 'cross validation fold numbers')
     parser.add_argument('-out',
                         type = str,
                         required = True,
@@ -174,15 +182,27 @@ def main():
                 # Cross validation
                 scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list, scroing='explained_variance', cv=args.cvfold)
                 out_brainimg[i, tuple(b_idx)] = scores
-            
+                
+    # Univariate regression analysis
+        # get the maximum value of explained_variance across all DNN units in a channel
+    elif args.model == 'glm':
+        for i in range(channel_num):
+            # nsamples(pics)*nfeatures(units)
+            dnnact_list = dnn_act[:,i,:]
+            # Iterate across units
+            for b_idx in range(brainact_idx):
+                scores_tmp = []
+                for j in range(dnnact_list.shape[1]): 
+                    brainact_list = brainimg_data[:,tuple(b_idx)][:,None]
+                    dnnactlist_tmp = dnnact_list[:,j][:,None]
+                    scores_tmp.append(model_selection.cross_val_score(model, dnnactlist_tmp, brainact_list, scoring='explained_variance', cv=args.cvfold))
+                out_brainimg[i, tuple(b_idx)] = np.max(scores_tmp)
+                                    
     if args.brainact.endswith('mgz') or args.brainact.endswith('mgh'):
         out_brainimg = out_brainimg.transpose((3,1,2,0))
-    # Here only return the out_brainimg but not save it in hardware, because I haven't implement ways to save image data.
-    return out_brainimg
     
-        
-
-
+    # Save image into hardware
+    iofiles.save_brainimg(args.out, out_brainimg, header)
 
 if __name__ == '__main__':
     main()
