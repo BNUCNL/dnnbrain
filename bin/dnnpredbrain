@@ -13,6 +13,7 @@ import argparse
 import subprocess
 import numpy as np
 from torchvision import transforms
+from scipy.spatial.distance import cdist
 from dnnbrain.core import model_operation
 from dnnbrain.utils import iofiles
 
@@ -20,6 +21,18 @@ try:
     from sklearn import linear_model, model_selection, decomposition
 except ModuleNotFoundError:
     raise Exception('Please install sklearn in your workstation')
+
+
+def get_mean_activation(brainimg, mask, roilabel):
+    """
+    """
+    mean_roisignal = []
+    for i, lbl in enumerate(roilabel):
+        act_idx = np.transpose(np.where(mask[0,...]==lbl))
+        roisignal = np.array([brainimg[:, act_idx[j][0], act_idx[j][1], act_idx[j][2]] for j in range(len(act_idx))])
+        mean_roisignal.append(np.mean(roisignal,axis=0))
+    return np.array(mean_roisignal)
+
 
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
@@ -69,18 +82,23 @@ def main():
                         required = True,
                         metavar = 'Nifti mask',
                         help = 'brain activation mask')
+    parser.add_argument('-roi',
+                        type = bool,
+                        required = False,
+                        default = True,
+                        help = 'Do ROI analysis or not.')
     parser.add_argument('-model',
                         type = str,
                         required = False,
                         metavar = 'Brain Model',
-                        choices = ['lasso', 'glm'],
-                        help = 'model to predict brain activation by CNN activation, by default is lasso.\
-                                lasso analysis is a multivariate analysis and we will first decompose activation\
-                                data of DNN into 200 dimension and then calculate explained variance by using \
-                                cross validation. \
-                                glm analysis is a univariate analysis, we will do linear cross validation in each\
-                                brain image voxel with each units and return the maximum explained variance as \
-                                the explained variance of brain activation.')
+                        choices = ['multivariate', 'univariate'],
+                        help = 'model to predict brain activation by CNN activation, by default is multivariate.\
+                                multivariate analysis calls lasso regression with default alpha = 1, and we will \
+                                first decompose activation data of DNN into 200 dimension and then calculate \
+                                explained variance by using cross validation. \
+                                univariate analysis, we will do linear cross validation in each brain image voxel \
+                                with each units and return the maximum explained variance as the explained variance \
+                                of brain activation.')
     parser.add_argument('-cvfold',
                         type = int,
                         required = False,
@@ -126,69 +144,65 @@ def main():
     else:
         brainmask_data_raw = np.ones_like(brainimg_data_raw)
     assert brainimg_data_raw.shape == brainmask_data.shape, "Shape of brainact and mask need to be same."
-    brainimg_data_raw = brainimg_data_raw*brainmask_data_raw
     
-    # For simplicity, rearrange brainimg_data as the same dimension with pic*voxel.
-    if args.brainact.endswith('.mgz') or args.brainact.endswith('mgh'):
-        brainimg_data = brainimg_data.transpose(3,1,2,0)
-        brainmask_data = brainmask_data_raw.transpose(3,1,2,0)
+    if args.roi:
+        roilabel = np.unique(brainmask_data)[1:]
+        brainact_list = get_mean_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
     else:
-        brainimg_data = 1.0*brainimg_data_raw
-        brainmask_data = 1.0*brainmask_data_raw
-    # Image shape is pic*voxel and idx record location of activation
-    brainact_idx = np.transpose(np.where(brainmask_data[0,...]!=0))
-	
+        brainimg_data_raw = brainimg_data_raw*brainmask_data_raw
+        brainact_idx = np.transpose(np.where(brainmask_data[0,...]!=0))
+        # Flatten brainimage as (npic * nvoxel) array
+        brainact_list = np.zeros((brainimg_data_raw.shape[0], brainact_idx.shape[0]))
+        for i, b_idx in enumerate(brainact_idx):
+            brainact_list[:,i] = brainimg_data_raw[:, b_idx[0], b_idx[1], b_idx[2]]
+	   
     # Initialize machine learning models
-    if not args.model:
-        args.model = 'lasso'
-    if args.model == 'glm':
-        args.model = linear_model.LinearRegression()
-    elif args.model == 'lasso':
-        model = linear_model.Lasso()
-    else:
-        raise Exception('Not supported yet, please contact the author for implementation.')
-
-    # output image: channel*voxels
-    out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
-    # Tidy DNN activation data and brain activation data
+    if args.model = 'multivariate':
+        model = linear_model.lasso()
     
+    score_array = np.zeros((channel_num, brainact_idx.shape[0]))
     # Multivariate regression analysis
-    if args.model == 'lasso':
+    if args.model == 'multivariate':
         pca = decomposition.PCA(n_components=200)
         for i in range(channel_num):
             # nsamples(pics)*nfeatures(units)
             dnnact_list = dnn_act[:,i,:]
-            for b_idx in range(brainact_idx):
-                # nsamples(pics)*nfeatures(voxel)
-                brainact_list = brainimg_data[:, tuple(b_idx)][:,None]
+            for j, b_idx in enumerate(brainact_idx):
+                # nsamples(pics)*nfeatures(voxels)
                 # Decrease dimension using PCA
                 dnn_act_pca = pca.fit_transform(dnnact_list)
                 # Cross validation
-                scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list, scroing='explained_variance', cv=args.cvfold)
-                out_brainimg[i, tuple(b_idx)] = scores
+                scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
+                score_array[i, j] = scores               
                 
     # Univariate regression analysis
-        # get the maximum value of explained_variance across all DNN units in a channel
-    elif args.model == 'glm':
+    # get the maximum value of explained_variance across all DNN units in a channel
+    elif args.model == 'univariate':
         for i in range(channel_num):
             # nsamples(pics)*nfeatures(units)
             dnnact_list = dnn_act[:,i,:]
-            # Iterate across units
-            for b_idx in range(brainact_idx):
-                scores_tmp = []
-                for j in range(dnnact_list.shape[1]): 
-                    brainact_list = brainimg_data[:,tuple(b_idx)][:,None]
-                    dnnactlist_tmp = dnnact_list[:,j][:,None]
-                    scores_tmp.append(model_selection.cross_val_score(model, dnnactlist_tmp, brainact_list, scoring='explained_variance', cv=args.cvfold))
-                out_brainimg[i, tuple(b_idx)] = np.max(scores_tmp)
+            corr = 1.0 - cdist(dnn_act.T, brainact_list.T, metric='correlation')
+            # Each layer's max correlation 
+            maxcorr = np.max(corr,axis=0)
+            # Assign correlation to brain image
+            for j, b_idx in enumerate(brainact_idx):
+                score_array[i,j] = maxcorr[j]
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
-                                    
-    if args.brainact.endswith('mgz') or args.brainact.endswith('mgh'):
-        out_brainimg = out_brainimg.transpose((3,1,2,0))
     
-    # Save image into hardware
-    iofiles.save_brainimg(args.out, out_brainimg, header)
+    # Save output
+    if args.roi:
+        # Save behavior measurement into hardware
+        np.savetxt(args.out, score_array, delimiter=',')
+    else:
+        # output image: channel*voxels
+        out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
+        for i in range(channel_num):
+            for j, b_idx in enumerate(brainact_idx):
+                out_brainimg[i,b_idx[0], b_idx[1], b_idx[2]] = score_array[i,j]
+        # Save image into hardware
+        iofiles.save_brainimg(args.out, out_brainimg, header)
+
 
 if __name__ == '__main__':
     main()
