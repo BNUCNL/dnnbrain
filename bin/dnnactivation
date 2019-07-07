@@ -13,7 +13,7 @@ from dnnbrain.utils import iofiles
 
 def main():
     parser = argparse.ArgumentParser(description='Extract activation from specific layer from a DNN')
-    parser.add_argument('-inpic',
+    parser.add_argument('-indir',
                         type = str,
                         required = True,
                         metavar = 'Input Directory',
@@ -46,7 +46,7 @@ def main():
                         required = False,
                         metavar = 'Channel',
                         help = 'activation for specific channels')
-    parser.add_argument('-out',
+    parser.add_argument('-outdir',
                         type = str,
                         required = True,
                         metavar = 'Output Directory',
@@ -67,11 +67,11 @@ def main():
     imgcropsize = netloader.img_size
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.csv, args.inpic, transform=transform)
+    picdataset = iofiles.PicDataset(args.csv, args.indir, transform=transform)
     dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
 	
     # Save activation data
-    iofiles.save_activation_to_csv(dnn_act,args.out,args.net,args.layer,args.channel)
+    iofiles.save_activation_to_csv(dnn_act,args.outdir,args.net,args.layer,args.channel)
     
 if __name__ == '__main__':
     main()

@@ -30,7 +30,7 @@ def main():
                         required = True,
                         metavar = 'CNN',
                         help = 'convolutional network name')
-    parser.add_argument('-in',
+    parser.add_argument('-indir',
                         type = str,
                         required = True,
                         metavar = 'Input Directory',
@@ -64,26 +64,27 @@ def main():
                         metavar = 'behavior measurement',
                         help = 'behavior measurement extracted from csv. This code will extracte\
                                 behavior measurement with key from the csv_file (see above \
-                                parameter -csv).'
+                                parameter -csv).')
     parser.add_argument('-model',
                         type = str,
                         required = False,
                         metavar = 'Brain Model',
-                        choices = ['lasso', 'glm'],
-                        help = 'model to predict brain activation by CNN activation, by default is lasso.\
-                                lasso analysis is a multivariate analysis and we will first decompose activation\
-                                data of DNN into 200 dimension and then calculate explained variance by using \
-                                cross validation. \
-                                glm analysis is a univariate analysis, we will do linear cross validation in each\
-                                brain image voxel with each units and return the maximum explained variance as \
-                                the explained variance of brain activation.')
+                        choices = ['multivariate', 'univariate'],
+                        default = 'multivariate',
+                        help = 'model to predict brain activation by CNN activation, by default is multivariate.\
+                                multivariate analysis calls lasso regression with default alpha = 1, and we will \
+                                first decompose activation data of DNN into 200 dimension and then calculate \
+                                explained variance by using cross validation. \
+                                univariate analysis, we will do linear cross validation in each brain image voxel \
+                                with each units and return the maximum explained variance as the explained variance \
+                                of brain activation.')
     parser.add_argument('-cvfold',
                         type = int,
                         required = False,
                         default = 2,
                         metavar = 'CVFold',
                         help = 'cross validation fold numbers')
-    parser.add_argument('-out',
+    parser.add_argument('-outdir',
                         type = str,
                         required = True,
                         metavar = 'Output Directory',
@@ -96,10 +97,12 @@ def main():
     netloader = iofiles.NetLoader(args.net)
     imgcropsize = netloader.img_size
      
-    transform = transforms.Compose([transform.Resize(imgcropsize),
+    transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.csv, args.in, transform=transform)
+    picdataset = iofiles.PicDataset(args.csv, args.indir, transform=transform)
     dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
+    if dnn_act.ndim == 3:
+        dnn_act = dnn_act[:,None,...]
     
     # Reshape dnn_act and flatten its unit
     channel_num = dnn_act.shape[1]
@@ -110,20 +113,19 @@ def main():
     beh_measure = np.array(csv_table[args.behavior])[:,None]
 	
     # Initialize machine learning models
-    if not args.model:
-        args.model = 'lasso'
-    if args.model == 'glm':
-        args.model = linear_model.LinearRegression()
-    elif args.model == 'lasso':
+    if args.model == 'multivariate':
         model = linear_model.Lasso()
-    else:
-        raise Exception('Not supported yet, please contact the author for implementation.')
         
     scores = []
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        pca = decomposition.PCA(n_components=200)
+        if len(beh_measure) < 200:
+            comp_num = len(beh_measure)
+        else:
+            comp_num = 200
+        pca = decomposition.PCA(n_components=comp_num)
         for i in range(channel_num):
+            print('Channel {}'.format(i+1))
             # nsamples(pics)*nfeatures(units)
             dnnact_list = dnn_act[:,i,:]
             # Decrease dimension using PCA
@@ -135,6 +137,7 @@ def main():
         # get the maximum value of explained_variance across all DNN units in a channel
     elif args.model == 'univariate':
         for i in range(channel_num):
+            print('Channel {}'.format(i+1))
             # nsamples(pics)*nfeatures(units) in one layer
             dnnact_list = dnn_act[:,i,:]
             # Iterate across units
@@ -149,7 +152,7 @@ def main():
     scores = np.array(scores)
     
     # Save behavior measurement into hardware
-    np.savetxt(args.out, scores, delimiter=',')
+    np.savetxt(args.outdir, scores, delimiter=',')
 
 if __name__ == '__main__':
     main()
