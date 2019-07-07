@@ -7,11 +7,12 @@ Author: Yiyuan Zhang @ BNU
 
 #import some packages needed
 import numpy as np
+import math
 import torch
 from torch.optim import Adam
 
 try:
-    from misc_functions import preprocess_image, recreate_image, save_image
+    from misc_functions import preprocess_image, recreate_image
 except ModuleNotFoundError:
     raise Exception('Please install misc_functions in your work station')
 
@@ -46,7 +47,7 @@ class CNNLayerVisualization():
         self.model[self.selected_layer].register_forward_hook(hook_function)
 
 
-    def visualise_layer_with_hooks(self, n_step, outdir, unit_x=-100, unit_y =-100):
+    def visualise_layer_with_hooks(self, model_name, n_step, outdir, unit=-10):
         '''
         Find optimal stimuli for this unit
         
@@ -65,7 +66,12 @@ class CNNLayerVisualization():
         # Hook the selected layer
         self.hook_layer()
         # Generate a random image
-        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+        if model_name=='alexnet':
+            random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+        elif model_name=='vgg16':
+            random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+        else:
+            random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
         # Process image and return variable
         processed_image = preprocess_image(random_image, False)
         # Define optimizer for the image
@@ -86,10 +92,12 @@ class CNNLayerVisualization():
                     break
             # Loss function is the mean of the output of the selected layer/filter
             # We try to minimize the mean of the output of that specific filter
-            if unit_x==-100:
+            if unit==-10:
                 loss = -torch.mean(self.conv_output) 
             else:
-                loss = -self.conv_output[unit_x][unit_y]
+                raw = math.floor(unit/self.conv_output.shape[0])
+                column = unit - (math.floor(unit/self.conv_output.shape[0]))*self.conv_output.shape[0]
+                loss = -self.conv_output[raw][column]
                 
             print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(loss.data.numpy()))
             # Backward
@@ -97,6 +105,5 @@ class CNNLayerVisualization():
             # Update image
             optimizer.step()
             # Recreate image
-            self.created_image_unit = recreate_image(processed_image)
-            
-        save_image(self.created_image_unit, outdir)
+            self.created_image = recreate_image(processed_image)
+  
