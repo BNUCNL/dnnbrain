@@ -8,8 +8,9 @@ Author: Yiyuan Zhang @ BNU
 
 #import some packages needed
 import argparse
+from PIL import Image
 from torchvision import models
-from dnnbrain.ViZ import dnnoptimage
+from dnnbrain.viz import dnnoptimage
 
 
 def main():
@@ -30,11 +31,11 @@ def main():
     parser.add_argument('-channel',
                         type = int,
                         required = True,
-                        help = 'activation for specific channels')
+                        help = 'activation for a specific channel')
 
     parser.add_argument('-unit',
                         type = int,
-                        required = True,
+                        required = False,
                         help = 'position for a specific unit')
     
     parser.add_argument('-outdir',
@@ -65,12 +66,15 @@ def main():
     layer_vis = dnnoptimage.CNNLayerVisualization(model.features, args.layer, args.channel)
     
     try:
-        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir, args.unit_x, args.unit_y)
+        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir, args.unit)
+        im = Image.fromarray(layer_vis.created_image)
+        im.save(args.outdir)
     except:
         layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir)
+        im = Image.fromarray(layer_vis.created_image)
+        im.save(args.outdir)
     
     
 if __name__ == '__main__':
     n_step = 51
     main()
-    
