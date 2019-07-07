@@ -9,7 +9,7 @@ except ModuleNotFoundError:
     
 import numpy as np
 
-from dnnbrain.utils.iofiles import NetLoader
+from dnnbrain.utils import iofiles
 
 
 def dnn_activation(input, net, layer, channel=None):
@@ -27,12 +27,11 @@ def dnn_activation(input, net, layer, channel=None):
     ---------
     dnnact[numpy.array]: DNN activation, A 4D dataset with its format as pic*channel*unit*unit
     """
-    loader = NetLoader(net)
+    loader = iofiles.NetLoader(net)
     actmodel = truncate_net(loader.model, layer, loader.conv_indices)
     dnnact = []
     for _, picdata, target in input:
         dnnact_part = actmodel(picdata)
-        # dnnact.append(torch.squeeze(dnnact_part, 0).detach().numpy())
         dnnact.extend(dnnact_part.detach().numpy())
     dnnact = np.array(dnnact)
     if channel:
