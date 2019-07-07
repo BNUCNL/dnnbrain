@@ -44,7 +44,7 @@ def main():
                         metavar = 'Channel',
                         help = 'activation for specific channels')
     parser.add_argument('-csv',
-                        type = int,
+                        type = str,
                         required = True,
                         metavar = 'picture stimuli csv',
                         help = 'table contains picture names, conditions and picture onset time.
@@ -92,7 +92,8 @@ def main():
                         required = True,
                         metavar = 'Output Directory',
                         help = 'output directory, output is a 4D brain image data with value in each voxel 
-                                is explained_variance by linear_model')
+                                is explained_variance by linear_model, each volume is the prediction explained 
+                                variance in each layer.')
     args = parser.parse_args()
 
 	# See below is the framework of this command 
@@ -103,28 +104,11 @@ def main():
 	# 2 Extract brain activation from fMRI data (brainact and mask), and convert it as an array. Parameters: -brainact, -mask
 	# 3 Iterately Call sklearn models to estimate accuracy. Parameters: -model, -cvfold.
 	# 4 Map accuracy to Brain Images. Parameters: -out
-	# 
-	# -----------------------------------
-	# psudo-code
-	# -----------------------------------
-	# cnnact = core.extract(net, in, layer, channel)
-	# brainact = nib.load(brainact)
-	# brainact_array = func_array(brainact)
-	# model = sklearn.GLM(n_fold = cvfold)
-	# model.fit(cnnact, brainact) # Check if needed to be iterated
-	# acc = model.acc
-	# project acc to brain
-	# save(acc)
-	# save(model)
 	
 	# DNN activation extraction 
-    if args.net == 'alexnet':
-        imgcropsize = (227,227)
-    elif args.net == 'vgg11':
-        imgcropsize = (227,227)
-    else:
-        raise Exception('Not a supported net, please contact the author for implementation.')
-        
+    netloader = iofiles.NetLoader(args.net)
+    imgcropsize = netloader.img_size
+     
     transform = transforms.Compose([transform.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
     picdataset = iofiles.PicDataset(args.csv, args.in, transform=transform)
@@ -197,6 +181,8 @@ def main():
                     dnnactlist_tmp = dnnact_list[:,j][:,None]
                     scores_tmp.append(model_selection.cross_val_score(model, dnnactlist_tmp, brainact_list, scoring='explained_variance', cv=args.cvfold))
                 out_brainimg[i, tuple(b_idx)] = np.max(scores_tmp)
+    else:
+        raise Exception('Not supported yet, please contact the author for implementation.')
                                     
     if args.brainact.endswith('mgz') or args.brainact.endswith('mgh'):
         out_brainimg = out_brainimg.transpose((3,1,2,0))

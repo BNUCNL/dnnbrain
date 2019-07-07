@@ -152,7 +152,7 @@ def save_brainimg(imgpath, data, header):
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
  
         
-def save_activation(activation,outpath,net,layer,channel=None):
+def save_activation_to_csv(activation,outpath,net,layer,channel=None):
     """
     Save activaiton data to a csv file in outpath
 
@@ -163,7 +163,6 @@ def save_activation(activation,outpath,net,layer,channel=None):
     net[str]:neuron network name
     layer[int]:the number of layer of network
     channel[list]: the number list of channel/filter
-
     """
     activation2d = np.reshape(activation,(np.prod(activation.shape[0:2]),-1,),order='C')
     channelline = np.array([channel+1 for channel in range(activation.shape[1])]*activation.shape[0])
