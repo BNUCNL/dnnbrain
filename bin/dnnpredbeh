@@ -14,6 +14,7 @@ import subprocess
 import numpy as np
 from torchvision import transforms
 import pandas as pd
+from scipy import stats
 from dnnbrain.core import model_operation
 from dnnbrain.utils import iofiles
 
@@ -120,7 +121,7 @@ def main():
         
     scores = []
     # Multivariate regression analysis
-    if args.model == 'lasso':
+    if args.model == 'multivariate':
         pca = decomposition.PCA(n_components=200)
         for i in range(channel_num):
             # nsamples(pics)*nfeatures(units)
@@ -128,11 +129,11 @@ def main():
             # Decrease dimension using PCA
             dnn_act_pca = pca.fit_transform(dnnact_list)
             # Cross validation
-            scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scroing='explained_variance', cv=args.cvfold)
+            scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scoring='explained_variance', cv=args.cvfold)
             scores.append(scores_tmp)                
     # Univariate regression analysis
         # get the maximum value of explained_variance across all DNN units in a channel
-    elif args.model == 'glm':
+    elif args.model == 'univariate':
         for i in range(channel_num):
             # nsamples(pics)*nfeatures(units) in one layer
             dnnact_list = dnn_act[:,i,:]
@@ -140,7 +141,8 @@ def main():
             scores_tmp = []
             for j in range(dnnact_list.shape[1]): 
                 dnnactlist_tmp = dnnact_list[:,j][:,None]
-                scores_tmp.append(model_selection.cross_val_score(model, dnnactlist_tmp, beh_measure, scoring='explained_variance', cv=args.cvfold))
+                r, _ = stats.pearsonr(beh_measure, dnnactlist_tmp)
+                scores_tmp.append(r)
             scores.append(np.max(scores_tmp))
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
