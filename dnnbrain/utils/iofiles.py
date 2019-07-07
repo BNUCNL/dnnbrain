@@ -8,6 +8,7 @@ except ModuleNotFoundError:
     raise Exception('Please install pillow in your work station')
 
 try:
+    import torch
     import torchvision
     from torchvision import datasets, transforms
     from torch.utils.data import DataLoader, Dataset
@@ -19,6 +20,8 @@ try:
     import cifti
 except ModuleNotFoundError:
     raise Exception('Please install nibabel and cifti in your work station')
+
+DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
 class PicDataset(Dataset):
@@ -73,7 +76,7 @@ class PicDataset(Dataset):
         condition = np.array(self.csv_file['condition'])
         picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
         if self.transform:
-            picimg = self.transform(picimg)[None,...]
+            picimg = self.transform(picimg)[None, ...]
         return picname[idx], picimg, condition[idx]        
 
    
@@ -177,11 +180,27 @@ def save_activation(activation,outpath,net,layer,channel=None):
     else:
         np.savetxt('{}{}_{}_{}.csv'.format(outpath, net,layer,channel), activation2d, delimiter=',')
         
-        
-    
-    
-    
-    
-    
-    
-    
+
+class NetLoader:
+
+    def __init__(self, net):
+        """
+        Load neural network model according to the net name.
+        Meanwhile, hard code each network's information internally.
+
+        Parameters:
+        -----------
+        net[str]: a neural network's name
+        """
+        if net == 'alexnet':
+            self.model = torchvision.models.alexnet()
+            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
+            self.conv_indices = [0, 3, 6, 8, 10]  # map convolution layer number to raw index in model
+            self.img_size = (224, 224)
+        elif net == 'vgg11':
+            self.model = torchvision.models.vgg11()
+            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
+            self.conv_indices = [0, 3, 6, 8, 11, 13, 16, 18]
+            self.img_size = (224, 224)
+        else:
+            raise Exception('Network was not supported, please contact author for implementation.')
