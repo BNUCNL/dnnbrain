@@ -92,7 +92,7 @@ class GuidedBackprop():
         return gradients_as_arr
 
 
-def layer_channel_reconstruction(net,input,layer,channel):
+def layer_channel_reconstruction(model,picimg,layer,channel):
     """
     DNN layer_channel reconstruction
 
@@ -106,9 +106,8 @@ def layer_channel_reconstruction(net,input,layer,channel):
 
     """
 
-    pic = Image.open(input)
-    transfromation = transforms.Compose([transforms.ToTensor()])
-    pic = transfromation(pic)
+    transformation = transforms.Compose([transforms.ToTensor()])
+    pic = transformation(picimg)
     pic = pic[np.newaxis]
 
     out = model(pic)
@@ -121,9 +120,4 @@ def layer_channel_reconstruction(net,input,layer,channel):
     all_sal = rescale_grads(guided_grads,gradtype="all")
     out_image = torch.from_numpy(all_sal).permute(1,2,0)
     out_image = out_image.numpy()
-
-
-
-
-if __name__ == '__main__':
-    layer_channel_reconstruction()
+    return out_image
