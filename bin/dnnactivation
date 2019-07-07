@@ -1,0 +1,64 @@
+#! /usr/bin/env python
+
+"""
+Extract activation from specific layer from a DNN
+Author: YukunQu @ BNU
+Reviewer:
+"""
+
+import argparse
+from dnnbrain.core.model_operation import dnn_activation
+import dnnbrain.utils.iofiles as io
+
+def main():
+    parser = argparse.ArgumentParser(description='Extract activation from specific layer from a DNN')
+    parser.add_argument('-in',
+                        type = str,
+                        required = True,
+                        metavar = 'Input Directory',
+                        help = 'stimuli path')
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        metavar = 'CNN name',
+                        help = 'convolutional network name')
+    parser.add_argument('-layer',
+                        type = int,
+                        required = True,
+                        metavar = 'Layer',
+                        help = 'activation for specific layers')
+    parser.add_argument('-channel',
+                        type = int,
+                        required = False,
+                        metavar = 'Channel',
+                        help = 'activation for specific channels')
+    parser.add_argument('-out',
+                        type = str,
+                        required = True,
+                        metavar = 'Output Directory',
+                        help = 'output directory')
+    args = parser.parse_args()
+
+	
+	# See below is the framework of this command 
+	# ------------------------------------
+	# Streamline
+	# ------------------------------------
+	# 1 Call activation extraction from 'core' to get CNN's activations. Parameters: -net, -in, -layer, -channel
+	# 2 Save activation data and picutre list to csv files. Parameters: -activation,-net, -out, -layer, -channel, -dnnpicname
+	
+	
+	# DNN activation extraction 
+	if args.net == 'alexnet':
+        imgcropsize = (227,227)
+    elif args.net == 'vgg11':
+        imgcropsize = (227,227)
+    else:
+        raise Exception('Not a supported net, please contact the author for implementation.')
+	imgloader = io.ImgLoader(args.in)
+	dataloader = imgloader.gen_dataloader(imgcropsize)
+	dnn_act, dnn_picname = dnn_activation(imgloader, args.net, args.layer, args.channel)
+	
+	# Save activation data
+	io.save_activation(dnn_act,args.out,args.net,args.layer,args.channel)
+	io.save_dnnpicname(dnn_picname,args.out)
