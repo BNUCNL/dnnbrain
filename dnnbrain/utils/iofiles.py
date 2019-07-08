@@ -46,8 +46,7 @@ class PicDataset(Dataset):
         
         transform[callable function]: optional transform to be applied on a sample.
         """
-        csv_file = pd.read_csv(csv_file, skiprows=1)
-        self.csv_file = csv_file
+        self.csv_file = pd.read_csv(csv_file, skiprows=1)
         with open(csv_file,'r') as f:
             self.picpath = f.readline().rstrip()
         self.transform = transform
