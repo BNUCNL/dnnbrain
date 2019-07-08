@@ -28,27 +28,28 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    def __init__(self, csv_file, picpath, transform=None):
+    def __init__(self, csv_file, transform=None):
         """
         Initialize PicDataset
         
         Parameters:
         ------------
-        csv_file[str/pd.DataFrame]: table contains picture names, conditions and picture onset time.
-                                     This csv_file helps us connect cnn activation to brain images.
-                                     Please organize your information as:
-                                     ---------------------------------------
-                                     stimID     condition   onset(optional) measurement(optional)
-                                     face1.png  face        1.1             3
-                                     face2.png  face        3.1             5
-                                     scene1.png scene       5.1             4
-        picpath[str]: parent path of pictures.
+        csv_file[str]:  table contains picture names, conditions and picture onset time.
+                        This csv_file helps us connect cnn activation to brain images.
+                        Please organize your information as:
+                                     
+                        [PICDIR]
+                        stimID     condition   onset(optional) measurement(optional)
+                        face1.png  face        1.1             3
+                        face2.png  face        3.1             5
+                        scene1.png scene       5.1             4
+        
         transform[callable function]: optional transform to be applied on a sample.
         """
-        if isinstance(csv_file,str):
-            csv_file = pd.read_csv(csv_file)
+        csv_file = pd.read_csv(csv_file, skiprows=1)
         self.csv_file = csv_file
-        self.picpath = picpath
+        with open(csv_file,'r') as f:
+            self.picpath = f.readline().rstrip()
         self.transform = transform
         
     def __len__(self):
@@ -76,6 +77,9 @@ class PicDataset(Dataset):
         condition = np.array(self.csv_file['condition'])
         picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
         if self.transform:
+            picimg = self.transform(picimg)[None, ...]
+        else:
+            self.transform = transforms.Compose([transforms.ToTensor()])
             picimg = self.transform(picimg)[None, ...]
         return picname[idx], picimg, condition[idx]        
 
@@ -146,13 +150,13 @@ def save_brainimg(imgpath, data, header):
         nib.save(outimg, imgpath)
     elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
         data = np.transpose(data, (1,2,3,0))
-        outimg = nib.MGHImage(outimg, None, header)
+        outimg = nib.MGHImage(data, None, header)
         nib.save(outimg, imgpath)
     elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
         data = data[...,0,0]
         map_name = ['']*data.shape[0]
         bm_full = header[1]
-        cifti.write(imgpath, outimg, (cifti.Scalar.from_names(map_names), bm_full))
+        cifti.write(imgpath, data, (cifti.Scalar.from_names(map_names), bm_full))
     else:
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
  
