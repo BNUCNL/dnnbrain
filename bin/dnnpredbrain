@@ -137,8 +137,8 @@ def main():
     # Brain image activation extraction
     brainimg_data_raw, header = iofiles.load_brainimg(args.brainact)
     if args.mask:
-        assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
-        brainmask_data_raw, header = iofiles.load_brainimg(args.mask)
+        assert os.path.basename(args.brainact).split('.')[1:] == os.path.basename(args.mask).split('.')[1:], "Brain activation and mask are mismatched."
+        brainmask_data_raw, header = iofiles.load_brainimg(args.mask, ismask=True)
     else:
         brainmask_data_raw = np.ones(brainimg_data_raw.shape[1:])
     assert brainimg_data_raw.shape[1:] == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."

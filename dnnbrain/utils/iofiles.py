@@ -83,7 +83,7 @@ class PicDataset(Dataset):
         return picname[idx], picimg, condition[idx]        
 
    
-def load_brainimg(imgpath):
+def load_brainimg(imgpath, ismask=False):
     """
     Load brain image identified by its suffix
     suffix now support
@@ -99,6 +99,7 @@ def load_brainimg(imgpath):
     Returns:
     ------------
     brain_img[np.array]: data of brain image
+    header[header]: header of brain image
     """
     imgname = os.path.basename(imgpath)
     imgsuffix = imgname.split('.')[1:]
@@ -106,18 +107,22 @@ def load_brainimg(imgpath):
 
     if imgsuffix == 'nii.gz':
         brain_img = nib.load(imgpath).get_data()
-        brain_img = np.transpose(brain_img,(3,0,1,2))
+        if not ismask:
+            brain_img = np.transpose(brain_img,(3,0,1,2))
         header = nib.load(imgpath).header
     elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
         brain_img = nib.freesurfer.load(imgpath).get_data()
-        brain_img = np.transpose(brain_img, (3,0,1,2))
+        if not ismask:
+            brain_img = np.transpose(brain_img, (3,0,1,2))
         header = nib.freesurfer.load(imgpath).header
     elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
         brain_img, header = cifti.read(imgpath)
-        brain_img = brain_img[...,None,None]
+        if not ismask:
+            brain_img = brain_img[...,None,None]
+        else:
+            brain_img = brain_img[...,None]
     else:
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')
-    assert brain_img.ndim == 4, "Please reconstruct your image data as an 4D image with a dimension for picture."
     return brain_img, header
     
     
