@@ -28,7 +28,7 @@ def get_mean_activation(brainimg, mask, roilabel):
     """
     mean_roisignal = []
     for i, lbl in enumerate(roilabel):
-        act_idx = np.transpose(np.where(mask[0,...]==lbl))
+        act_idx = np.transpose(np.where(mask==lbl))
         roisignal = np.array([brainimg[:, act_idx[j][0], act_idx[j][1], act_idx[j][2]] for j in range(len(act_idx))])
         mean_roisignal.append(np.mean(roisignal,axis=0))
     return np.array(mean_roisignal)
@@ -131,7 +131,7 @@ def main():
         
     # Reshape dnn_act and flatten its unit
     channel_num = dnn_act.shape[1]
-    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num, dnn_act.shape[2]*dnn_act.shape[3]))
+    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num*dnn_act.shape[2]*dnn_act.shape[3]))
 
     
     # Brain image activation extraction
@@ -140,8 +140,8 @@ def main():
         assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
         brainmask_data_raw, header = iofiles.load_brainimg(args.mask)
     else:
-        brainmask_data_raw = np.ones_like(brainimg_data_raw)
-    assert brainimg_data_raw.shape == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
+        brainmask_data_raw = np.ones(brainimg_data_raw.shape[1:])
+    assert brainimg_data_raw.shape[1:] == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
     
     if args.roi:
         roilabel = np.unique(brainmask_data_raw)
@@ -161,41 +161,35 @@ def main():
     if args.model == 'multivariate':
         model = linear_model.Lasso()
     
-    score_array = np.zeros((channel_num, actnode_num))
+    score_array = np.zeros((1, actnode_num))
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        if brainact_list.shape[0] < 200:
-            comp_num = brainact_list.shape[0]
+        if dnn_act.shape[0] < 200:
+            comp_num = dnn_act.shape[0]
         else:
             comp_num = 200
         pca = decomposition.PCA(n_components=comp_num)
-        for i in range(channel_num):
-            print('Channel {}'.format(i+1))
-            # nsamples(pics)*nfeatures(units)
-            dnnact_list = dnn_act[:,i,:]
-            for j in range(actnode_num):
-                if (j%10000 == 0) & (not args.roi):
-                    print('  Finish calculation on {} voxels'.format(j))
-                # nsamples(pics)*nfeatures(voxels)
-                # Decrease dimension using PCA
-                dnn_act_pca = pca.fit_transform(dnnact_list)
-                # Cross validation
-                scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
-                score_array[i, j] = np.mean(scores)
+        # nsamples(pics)*nfeatures(units)
+        for j in range(actnode_num):
+            if (j%10000 == 0) & (not args.roi):
+                print('  Finish calculation on {} voxels'.format(j))
+            # nsamples(pics)*nfeatures(voxels)
+            # Decrease dimension using PCA
+            dnn_act_pca = pca.fit_transform(dnn_act)
+            # Cross validation
+            scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
+            score_array[0, j] = np.mean(scores)
                 
     # Univariate regression analysis
     # get the maximum value of explained_variance across all DNN units in a channel
     elif args.model == 'univariate':
-        for i in range(channel_num):
-            print('Channel {}'.format(i+1))
-            # nsamples(pics)*nfeatures(units)
-            dnnact_list = dnn_act[:,i,:]
-            corr = 1.0 - cdist(dnnact_list.T, brainact_list.T, metric='correlation')
-            # Each layer's max correlation 
-            maxcorr = np.max(corr,axis=0)
-            # Assign correlation to brain image
-            for j in range(actnode_num):
-                score_array[i,j] = maxcorr[j]
+        # nsamples(pics)*nfeatures(units)
+        corr = 1.0 - cdist(dnn_act.T, brainact_list.T, metric='correlation')
+        # Each layer's max correlation 
+        maxcorr = np.max(corr,axis=0)
+        # Assign correlation to brain image
+        for j in range(actnode_num):
+            score_array[0,j] = maxcorr[j]
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
     

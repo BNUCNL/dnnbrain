@@ -103,7 +103,7 @@ def main():
     
     # Reshape dnn_act and flatten its unit
     channel_num = dnn_act.shape[1]
-    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num, dnn_act.shape[2]*dnn_act.shape[3]))
+    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num*dnn_act.shape[2]*dnn_act.shape[3]))
     
     # Get behavior measurement
     csv_table = pd.read_csv(args.csv)
@@ -121,29 +121,23 @@ def main():
         else:
             comp_num = 200
         pca = decomposition.PCA(n_components=comp_num)
-        for i in range(channel_num):
-            print('Channel {}'.format(i+1))
-            # nsamples(pics)*nfeatures(units)
-            dnnact_list = dnn_act[:,i,:]
-            # Decrease dimension using PCA
-            dnn_act_pca = pca.fit_transform(dnnact_list)
-            # Cross validation
-            scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scoring='explained_variance', cv=args.cvfold)
-            scores.append(np.mean(scores_tmp))
+        # nsamples(pics)*nfeatures(units)
+        # Decrease dimension using PCA
+        dnn_act_pca = pca.fit_transform(dnn_act)
+        # Cross validation
+        scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scoring='explained_variance', cv=args.cvfold)
+        scores.append(np.mean(scores_tmp))
     # Univariate regression analysis
         # get the maximum value of explained_variance across all DNN units in a channel
     elif args.model == 'univariate':
-        for i in range(channel_num):
-            print('Channel {}'.format(i+1))
-            # nsamples(pics)*nfeatures(units) in one layer
-            dnnact_list = dnn_act[:,i,:]
-            # Iterate across units
-            scores_tmp = []
-            for j in range(dnnact_list.shape[1]): 
-                dnnactlist_tmp = dnnact_list[:,j][:,None]
-                r, _ = stats.pearsonr(beh_measure, dnnactlist_tmp)
-                scores_tmp.append(r)
-            scores.append(np.max(scores_tmp))
+        # nsamples(pics)*nfeatures(units) in one layer
+        # Iterate across units
+        scores_tmp = []
+        for j in range(dnn_act.shape[1]): 
+            dnnactlist_tmp = dnn_act[:,j][:,None]
+            r, _ = stats.pearsonr(beh_measure, dnnactlist_tmp)
+            scores_tmp.append(r)
+        scores.append(np.max(scores_tmp))
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
     scores = np.array(scores)
