@@ -77,6 +77,9 @@ class PicDataset(Dataset):
         picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
         if self.transform:
             picimg = self.transform(picimg)[None, ...]
+        else:
+            self.transform = transforms.Compose([transforms.ToTensor()])
+            picimg = self.transform(picimg)[None, ...]
         return picname[idx], picimg, condition[idx]        
 
    
@@ -146,13 +149,13 @@ def save_brainimg(imgpath, data, header):
         nib.save(outimg, imgpath)
     elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
         data = np.transpose(data, (1,2,3,0))
-        outimg = nib.MGHImage(outimg, None, header)
+        outimg = nib.MGHImage(data, None, header)
         nib.save(outimg, imgpath)
     elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
         data = data[...,0,0]
         map_name = ['']*data.shape[0]
         bm_full = header[1]
-        cifti.write(imgpath, outimg, (cifti.Scalar.from_names(map_names), bm_full))
+        cifti.write(imgpath, data, (cifti.Scalar.from_names(map_names), bm_full))
     else:
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
  

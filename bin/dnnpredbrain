@@ -37,30 +37,32 @@ def get_mean_activation(brainimg, mask, roilabel):
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
     parser.add_argument('-net',
-                        type = str,
-                        required = True,
-                        metavar = 'CNN',
-                        help = 'convolutional network name')
+                        type=str,
+                        required=True,
+                        metavar='CNN',
+                        help='convolutional network name')
     parser.add_argument('-in',
-                        type = str,
-                        required = True,
-                        metavar = 'Input Directory',
-                        help = 'stimuli path')
+                        type=str,
+                        required=True,
+                        dest='indir',
+                        metavar='Input Directory',
+                        help='stimuli path')
     parser.add_argument('-layer',
-                        type = int,
-                        required = True,
-                        metavar = 'Layer',
-                        help = 'activation for specific layers')
+                        type=int,
+                        required=True,
+                        metavar='Layer',
+                        help='activation for specific layers')
     parser.add_argument('-channel',
-                        type = int,
-                        required = False,
-                        metavar = 'Channel',
-                        help = 'activation for specific channels')
+                        type=int,
+                        required=False,
+                        nargs='*',
+                        metavar='Channel',
+                        help='activation for specific channels')
     parser.add_argument('-csv',
-                        type = str,
-                        required = True,
-                        metavar = 'picture stimuli csv',
-                        help = 'table contains picture names, conditions and picture onset time.\
+                        type=str,
+                        required=True,
+                        metavar='picture stimuli csv',
+                        help='table contains picture names, conditions and picture onset time.\
                                 This csv_file helps us connect cnn activation to brain images.\
                                 Please organize your information as:\
                                 ---------------------------------------\
@@ -70,48 +72,47 @@ def main():
                                 scene1.png scene       5.1             4'
                         )
     parser.add_argument('-brainact',
-                        type = str,
-                        required = True,
-                        metavar = 'Nifti Activation',
-                        help = 'brain activation nifti/surface file,\
+                        type=str,
+                        required=True,
+                        metavar='Nifti Activation',
+                        help='brain activation nifti/surface file,\
                                 user should correspond brain image \
                                 to picture stimuli before calling this\
                                 script.')
     parser.add_argument('-mask',
-                        type = str,
-                        required = True,
-                        metavar = 'Nifti mask',
-                        help = 'brain activation mask')
+                        type=str,
+                        required=False,
+                        metavar='Nifti mask',
+                        help='brain activation mask')
     parser.add_argument('-roi',
-                        type = bool,
-                        required = False,
-                        default = True,
-                        help = 'Do ROI analysis or not.')
+                        action='store_true',
+                        help='Do ROI analysis or not.')
     parser.add_argument('-model',
-                        type = str,
-                        required = False,
-                        metavar = 'Brain Model',
-                        choices = ['multivariate', 'univariate'],
-                        help = 'model to predict brain activation by CNN activation, by default is multivariate.\
-                                multivariate analysis calls lasso regression with default alpha = 1, and we will \
-                                first decompose activation data of DNN into 200 dimension and then calculate \
-                                explained variance by using cross validation. \
-                                univariate analysis, we will do linear cross validation in each brain image voxel \
-                                with each units and return the maximum explained variance as the explained variance \
-                                of brain activation.')
+                        type=str,
+                        required=False,
+                        metavar='Brain Model',
+                        choices=['multivariate', 'univariate'],
+                        help='model to predict brain activation by CNN activation, by default is multivariate.\
+                              multivariate analysis calls lasso regression with default alpha = 1, and we will \
+                              first decompose activation data of DNN into 200 dimension and then calculate \
+                              explained variance by using cross validation. \
+                              univariate analysis, we will do linear cross validation in each brain image voxel \
+                              with each units and return the maximum explained variance as the explained variance \
+                              of brain activation.')
     parser.add_argument('-cvfold',
-                        type = int,
-                        required = False,
-                        default = 2,
-                        metavar = 'CVFold',
-                        help = 'cross validation fold numbers')
+                        type=int,
+                        required=False,
+                        default=2,
+                        metavar='CVFold',
+                        help='cross validation fold numbers')
     parser.add_argument('-out',
-                        type = str,
-                        required = True,
-                        metavar = 'Output Directory',
-                        help = 'output directory, output is a 4D brain image data with value in each voxel \
-                                is explained_variance by linear_model, each volume is the prediction explained \
-                                variance in each layer.')
+                        type=str,
+                        required=True,
+                        dest='outdir',
+                        metavar='Output Directory',
+                        help='output directory, output is a 4D brain image data with value in each voxel \
+                              is explained_variance by linear_model, each volume is the prediction explained \
+                              variance in each layer.')
     args = parser.parse_args()
 
 	# See below is the framework of this command 
@@ -127,65 +128,79 @@ def main():
     netloader = iofiles.NetLoader(args.net)
     imgcropsize = netloader.img_size
      
-    transform = transforms.Compose([transform.Resize(imgcropsize),
+    transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.csv, args.in, transform=transform)
+    picdataset = iofiles.PicDataset(args.csv, args.indir, transform=transform)
     dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
-    
+    if dnn_act.ndim == 3:
+        dnn_act = dnn_act[:,None,...]
+        
     # Reshape dnn_act and flatten its unit
     channel_num = dnn_act.shape[1]
     dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num, dnn_act.shape[2]*dnn_act.shape[3]))
+
     
     # Brain image activation extraction
-    assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
     brainimg_data_raw, header = iofiles.load_brainimg(args.brainact)
     if args.mask:
+        assert args.brainact.split('.')[1:] == args.mask.split('.')[1:], "Brain activation and mask are mismatched."
         brainmask_data_raw, header = iofiles.load_brainimg(args.mask)
     else:
         brainmask_data_raw = np.ones_like(brainimg_data_raw)
-    assert brainimg_data_raw.shape == brainmask_data.shape, "Shape of brainact and mask need to be same."
+    assert brainimg_data_raw.shape == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
     
     if args.roi:
-        roilabel = np.unique(brainmask_data)[1:]
+        roilabel = np.unique(brainmask_data_raw)
+        roilabel = roilabel[roilabel!=0]
         brainact_list = get_mean_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
+        actnode_num = len(roilabel)
     else:
-        brainimg_data_raw = brainimg_data_raw*brainmask_data_raw
-        brainact_idx = np.transpose(np.where(brainmask_data[0,...]!=0))
+        brainimg_data = brainimg_data_raw*brainmask_data_raw
+        brainact_idx = np.transpose(np.where(brainmask_data_raw[0,...]!=0))
         # Flatten brainimage as (npic * nvoxel) array
         brainact_list = np.zeros((brainimg_data_raw.shape[0], brainact_idx.shape[0]))
         for i, b_idx in enumerate(brainact_idx):
             brainact_list[:,i] = brainimg_data_raw[:, b_idx[0], b_idx[1], b_idx[2]]
+        actnode_num = brainact_idx.shape[0]
 	   
     # Initialize machine learning models
-    if args.model = 'multivariate':
-        model = linear_model.lasso()
+    if args.model == 'multivariate':
+        model = linear_model.Lasso()
     
-    score_array = np.zeros((channel_num, brainact_idx.shape[0]))
+    score_array = np.zeros((channel_num, actnode_num))
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        pca = decomposition.PCA(n_components=200)
+        if brainact_list.shape[0] < 200:
+            comp_num = brainact_list.shape[0]
+        else:
+            comp_num = 200
+        pca = decomposition.PCA(n_components=comp_num)
         for i in range(channel_num):
+            print('Channel {}'.format(i+1))
             # nsamples(pics)*nfeatures(units)
             dnnact_list = dnn_act[:,i,:]
-            for j, b_idx in enumerate(brainact_idx):
+            for j in range(actnode_num):
+                if (j%10000 == 0) & (not args.roi):
+                    print('  Finish calculation on {} voxels'.format(j))
                 # nsamples(pics)*nfeatures(voxels)
                 # Decrease dimension using PCA
                 dnn_act_pca = pca.fit_transform(dnnact_list)
                 # Cross validation
                 scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
-                score_array[i, j] = scores               
+                score_array[i, j] = np.mean(scores)
                 
     # Univariate regression analysis
     # get the maximum value of explained_variance across all DNN units in a channel
     elif args.model == 'univariate':
         for i in range(channel_num):
+            print('Channel {}'.format(i+1))
             # nsamples(pics)*nfeatures(units)
             dnnact_list = dnn_act[:,i,:]
-            corr = 1.0 - cdist(dnn_act.T, brainact_list.T, metric='correlation')
+            corr = 1.0 - cdist(dnnact_list.T, brainact_list.T, metric='correlation')
             # Each layer's max correlation 
             maxcorr = np.max(corr,axis=0)
             # Assign correlation to brain image
-            for j, b_idx in enumerate(brainact_idx):
+            for j in range(actnode_num):
                 score_array[i,j] = maxcorr[j]
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
@@ -193,7 +208,7 @@ def main():
     # Save output
     if args.roi:
         # Save behavior measurement into hardware
-        np.savetxt(args.out, score_array, delimiter=',')
+        np.savetxt(args.outdir, score_array, delimiter=',')
     else:
         # output image: channel*voxels
         out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
@@ -201,7 +216,7 @@ def main():
             for j, b_idx in enumerate(brainact_idx):
                 out_brainimg[i,b_idx[0], b_idx[1], b_idx[2]] = score_array[i,j]
         # Save image into hardware
-        iofiles.save_brainimg(args.out, out_brainimg, header)
+        iofiles.save_brainimg(args.outdir, out_brainimg, header)
 
 
 if __name__ == '__main__':

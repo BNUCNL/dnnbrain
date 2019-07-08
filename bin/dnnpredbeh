@@ -26,71 +26,74 @@ except ModuleNotFoundError:
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict behavior measurement')
     parser.add_argument('-net',
-                        type = str,
-                        required = True,
-                        metavar = 'CNN',
-                        help = 'convolutional network name')
-    parser.add_argument('-indir',
-                        type = str,
-                        required = True,
-                        metavar = 'Input Directory',
-                        help = 'stimuli path')
+                        type=str,
+                        required=True,
+                        metavar='CNN',
+                        help='convolutional network name')
+    parser.add_argument('-in',
+                        type=str,
+                        required=True,
+                        dest='indir',
+                        metavar='Input Directory',
+                        help='stimuli path')
     parser.add_argument('-layer',
-                        type = int,
-                        required = True,
-                        metavar = 'Layer',
-                        help = 'activation for specific layers')
+                        type=int,
+                        required=True,
+                        metavar='Layer',
+                        help='activation for specific layers')
     parser.add_argument('-channel',
-                        type = int,
-                        required = False,
-                        metavar = 'Channel',
-                        help = 'activation for specific channels')
+                        type=int,
+                        required=False,
+                        nargs='*',
+                        metavar='Channel',
+                        help='activation for specific channels')
     parser.add_argument('-csv',
-                        type = str,
-                        required = True,
-                        metavar = 'picture stimuli csv',
-                        help = 'table contains picture names, conditions and picture onset time.\
-                                This csv_file helps us connect cnn activation to brain images.\
-                                Please organize your information as:\
-                                ---------------------------------------\
-                                stimID     condition   onset(optional) measurement(optional)\
-                                face1.png  face        1.1             3\
-                                face2.png  face        3.1             5\
-                                scene1.png scene       5.1             4'
+                        type=str,
+                        required=True,
+                        metavar='picture stimuli csv',
+                        help='table contains picture names, conditions and picture onset time.\
+                              This csv_file helps us connect cnn activation to brain images.\
+                              Please organize your information as:\
+                              ---------------------------------------\
+                              stimID     condition   onset(optional) measurement(optional)\
+                              face1.png  face        1.1             3\
+                              face2.png  face        3.1             5\
+                              scene1.png scene       5.1             4'
                         )
     parser.add_argument('-behavior',
-                        type = str,
-                        required = True,
-                        metavar = 'behavior measurement',
-                        help = 'behavior measurement extracted from csv. This code will extracte\
-                                behavior measurement with key from the csv_file (see above \
-                                parameter -csv).')
+                        type=str,
+                        required=True,
+                        metavar='behavior measurement',
+                        help='behavior measurement extracted from csv. This code will extracte\
+                              behavior measurement with key from the csv_file (see above \
+                              parameter -csv).')
     parser.add_argument('-model',
-                        type = str,
-                        required = False,
-                        metavar = 'Brain Model',
-                        choices = ['multivariate', 'univariate'],
-                        default = 'multivariate',
-                        help = 'model to predict brain activation by CNN activation, by default is multivariate.\
-                                multivariate analysis calls lasso regression with default alpha = 1, and we will \
-                                first decompose activation data of DNN into 200 dimension and then calculate \
-                                explained variance by using cross validation. \
-                                univariate analysis, we will do linear cross validation in each brain image voxel \
-                                with each units and return the maximum explained variance as the explained variance \
-                                of brain activation.')
+                        type=str,
+                        required=False,
+                        metavar='Brain Model',
+                        choices=['multivariate', 'univariate'],
+                        default='multivariate',
+                        help='model to predict brain activation by CNN activation, by default is multivariate.\
+                              multivariate analysis calls lasso regression with default alpha = 1, and we will \
+                              first decompose activation data of DNN into 200 dimension and then calculate \
+                              explained variance by using cross validation. \
+                              univariate analysis, we will do linear cross validation in each brain image voxel \
+                              with each units and return the maximum explained variance as the explained variance \
+                              of brain activation.')
     parser.add_argument('-cvfold',
-                        type = int,
-                        required = False,
-                        default = 2,
-                        metavar = 'CVFold',
-                        help = 'cross validation fold numbers')
-    parser.add_argument('-outdir',
-                        type = str,
-                        required = True,
-                        metavar = 'Output Directory',
-                        help = 'output directory, output is text file with each value\
-                                is explained_variance by multivariate or univariate analysis \
-                                in each layer.')
+                        type=int,
+                        required=False,
+                        default=2,
+                        metavar='CVFold',
+                        help='cross validation fold numbers')
+    parser.add_argument('-out',
+                        type=str,
+                        required=True,
+                        dest='outdir',
+                        metavar='Output Directory',
+                        help='output directory, output is text file with each value\
+                              is explained_variance by multivariate or univariate analysis \
+                              in each layer.')
     args = parser.parse_args()
 
 	# DNN activation extraction 
@@ -119,8 +122,8 @@ def main():
     scores = []
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        if len(beh_measure) < 200:
-            comp_num = len(beh_measure)
+        if dnn_act.shape[0] < 200:
+            comp_num = dnn_act.shape[0]
         else:
             comp_num = 200
         pca = decomposition.PCA(n_components=comp_num)
@@ -132,7 +135,7 @@ def main():
             dnn_act_pca = pca.fit_transform(dnnact_list)
             # Cross validation
             scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scoring='explained_variance', cv=args.cvfold)
-            scores.append(scores_tmp)                
+            scores.append(np.mean(scores_tmp))
     # Univariate regression analysis
         # get the maximum value of explained_variance across all DNN units in a channel
     elif args.model == 'univariate':

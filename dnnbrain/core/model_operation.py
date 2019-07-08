@@ -21,7 +21,7 @@ def dnn_activation(input, net, layer, channel=None):
     input[dataset]: input image dataset
     net[str]: DNN network
     layer[int]: layer of DNN network, layer was counted from 1 (not 0)
-    channel[int]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
+    channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
     
     Returns:
     ---------
@@ -35,7 +35,8 @@ def dnn_activation(input, net, layer, channel=None):
         dnnact.extend(dnnact_part.detach().numpy())
     dnnact = np.array(dnnact)
     if channel:
-        dnnact = dnnact[:, channel-1, :, :]
+        channel_new = [cl-1 for cl in channel]
+        dnnact = dnnact[:, tuple(channel_new), :, :]
     return dnnact
 
 

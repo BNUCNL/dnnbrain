@@ -13,47 +13,49 @@ from dnnbrain.utils import iofiles
 
 def main():
     parser = argparse.ArgumentParser(description='Extract activation from specific layer from a DNN')
-    parser.add_argument('-indir',
-                        type = str,
-                        required = True,
-                        metavar = 'Input Directory',
-                        help = 'stimuli path')
+    parser.add_argument('-in',
+                        type=str,
+                        required=True,
+                        dest='indir',
+                        metavar='Input Directory',
+                        help='stimuli path')
     parser.add_argument('-net',
-                        type = str,
-                        required = True,
-                        metavar = 'CNN name',
-                        help = 'convolutional network name')
+                        type=str,
+                        required=True,
+                        metavar='CNN name',
+                        help='convolutional network name')
     parser.add_argument('-csv',
-                        type = str,
-                        required = True,
-                        metavar = 'picture stimuli csv',
-                        help = 'table contains picture names, conditions and picture onset time.\
-                                This csv_file helps us connect cnn activation to brain images.\
-                                Please organize your information as:\
-                                ---------------------------------------\
-                                stimID     condition   onset(optional) measurement(optional)\
-                                face1.png  face        1.1             3\
-                                face2.png  face        3.1             5\
-                                scene1.png scene       5.1             4'
+                        type=str,
+                        required=True,
+                        metavar='picture stimuli csv',
+                        help='table contains picture names, conditions and picture onset time.\
+                              This csv_file helps us connect cnn activation to brain images.\
+                              Please organize your information as:\
+                              ---------------------------------------\
+                              stimID     condition   onset(optional) measurement(optional)\
+                              face1.png  face        1.1             3\
+                              face2.png  face        3.1             5\
+                              scene1.png scene       5.1             4'
                         )
     parser.add_argument('-layer',
-                        type = int,
-                        required = True,
-                        metavar = 'Layer',
-                        help = 'activation for specific layers')
+                        type=int,
+                        required=True,
+                        metavar='Layer',
+                        help='activation for specific layers')
     parser.add_argument('-channel',
-                        type = int,
-                        required = False,
-                        metavar = 'Channel',
-                        help = 'activation for specific channels')
-    parser.add_argument('-outdir',
-                        type = str,
-                        required = True,
-                        metavar = 'Output Directory',
-                        help = 'output directory')
+                        type=int,
+                        required=False,
+                        nargs='*',
+                        metavar='Channel',
+                        help='activation for specific channels')
+    parser.add_argument('-out',
+                        type=str,
+                        required=True,
+                        dest='outdir',
+                        metavar='Output Directory',
+                        help='output directory')
     args = parser.parse_args()
 
-	
 	# See below is the framework of this command 
 	# ------------------------------------
 	# Streamline
