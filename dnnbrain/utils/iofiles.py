@@ -184,7 +184,7 @@ def save_activation_to_csv(activation,outpath):
     channelline = np.reshape(channelline, (channelline.shape[0], 1))
     stimline = np.reshape(stimline, (stimline.shape[0], 1))
     activation2d = np.concatenate((stimline,channelline,activation2d),axis=1)
-    np.savetxt(outpath, activation2d)
+    np.savetxt(outpath, activation2d, delimiter= ',')
         
 
 class NetLoader:
