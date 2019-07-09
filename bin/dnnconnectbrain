@@ -25,29 +25,26 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="DNN connect brain")
-    parser.add_argument('-in',
-                        metavar='stimuli',
-                        required=True,
-                        type=str,
-                        dest='stimuli_dir',
-                        help="the directory of the stimuli of the net")
     parser.add_argument('-net',
                         metavar='net_name',
                         required=True,
                         type=str,
                         dest='net_name',
-                        help="a neural network's name")
+                        help="a pretrained neural network's name such as 'alexnet' and 'vgg11'")
     parser.add_argument('-layer',
-                        metavar='layer_number',
+                        metavar='layer_name',
                         required=True,
-                        type=int,
-                        help="The sequence number of the layer which is connected to predict brain activity.")
+                        type=str,
+                        help="The name of the layer which is connected to predict brain activity."
+                             "For example, 'conv1' represents the first convolution layer, and"
+                             "'fc1' represents the first full connection layer."
+                             "(Notice: there is a BUG when trying extract 'fc' layer!)")
     parser.add_argument('-channel',
                         metavar='channel_number',
                         type=int,
                         nargs='*',
                         help="The sequence numbers of out channels of the selected layer"
-                             "If not specified, select all out channels.")
+                             "If not specified, use all out channels.")
     parser.add_argument('-csv',
                         metavar='csv_file',
                         required=True,
@@ -79,34 +76,33 @@ def main():
     # ---prepare net---
     net_loader = NetLoader(args.net_name)
     # truncate the pretrained neural network
-    truncated_net = truncate_net(net_loader.model, args.layer, net_loader.conv_indices)
+    truncated_net = truncate_net(net_loader.model, net_loader.layer2indices[args.layer])
     for param in truncated_net.parameters():
         # fix the pretrained parameters
         param.requires_grad = False
 
     # ---prepare data---
     # prepare pictures
-    pic_dataset = PicDataset(args.csv, args.stimuli_dir,
-                             transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()]))
+    pic_dataset = PicDataset(args.csv, transforms.Compose([transforms.Resize(net_loader.img_size),
+                                                           transforms.ToTensor()]))
     pics = torch.tensor([pic.numpy() for _, pic, _ in pic_dataset])
     pics.squeeze_(1)
     truncated_output = truncated_net(pics[0].unsqueeze(0))
     channel_unit_num = truncated_output.shape[2:].numel()
 
     # load brain activation data
-    acts_src, _ = load_brainimg(args.brainact)
+    acts_src, header = load_brainimg(args.brainact)
 
     # prepare mask
     if args.mask:
-        mask, _ = load_brainimg(args.mask)
-        mask = mask[0]
+        mask, header = load_brainimg(args.mask, ismask=True)
     else:
         mask = np.sum(acts_src, 0) != 0
 
     # extract signals in mask
     acts = []
     if args.roi and args.mask:
-        labels = np.delete(np.unique(mask), 0)
+        labels = np.delete(np.unique(mask), 0).astype(int)
         for act in acts_src:
             acts_sub = []
             for label in labels:
@@ -134,30 +130,41 @@ def main():
             net.train(False)
             with torch.no_grad():
                 predicted_acts = net(test_pics)
-            test_acts = test_acts.numpy().T
-            predicted_acts = predicted_acts.numpy().T
-            scores = [np.power(pearsonr(x, y)[0], 2) for x, y in zip(test_acts, predicted_acts)]
+
+            # calculate prediction score
+            scores = []
+            for x, y in zip(test_acts.numpy().T, predicted_acts.numpy().T):
+                r = pearsonr(x, y)[0]
+                if np.isnan(r):
+                    r = 0
+                scores.append(np.power(r, 2))
             scores_list.append(scores)
-        scores_avg = np.mean(scores_list, 0)
+        scores_avg = np.nanmean(scores_list, 0)
+
         # save
         if args.roi:
             save_roi_score(args.out, scores_avg, labels)
         else:
-            save_voxel_score(args.out, scores_avg, mask)
+            save_voxel_score(args.out, scores_avg, mask, header)
     else:
         # use all data to train a model
         net = training(pics, acts, truncated_net, channel_unit_num, args.channel)
         net.train(False)
         with torch.no_grad():
             predicted_acts = net(pics)
-        acts = acts.numpy().T
-        predicted_acts = predicted_acts.numpy().T
-        scores = [np.power(pearsonr(x, y)[0], 2) for x, y in zip(acts, predicted_acts)]
+
+        # calculate prediction score
+        scores = []
+        for x, y in zip(acts.numpy().T, predicted_acts.numpy().T):
+            r = pearsonr(x, y)[0]
+            if np.isnan(r):
+                r = 0
+            scores.append(np.power(r, 2))
 
         if args.roi:
             save_roi_score(args.out, scores, labels)
         else:
-            save_voxel_score(args.out, scores, mask)
+            save_voxel_score(args.out, scores, mask, header)
 
         net_file = pjoin(args.out, 'dnn2brain_net.pkl')
         torch.save(net, net_file)
@@ -203,7 +210,7 @@ def training(pics, acts, truncated_net, channel_unit_num, channel):
         optimizer.step()
 
         # output information
-        print('Epoch:', epoch+1, '\t|Loss:', loss.item())
+        print('Epoch:', epoch+1, '\t| Loss:', loss.item())
 
     return net
 
@@ -218,14 +225,14 @@ def save_roi_score(out_dir, scores, labels):
     scores[iterator]: roi prediction scores
     labels[iterator]: roi labels
     """
-    label_line = ','.join(map(str, labels))
-    score_line = ','.join(map(str, scores))
-    out_content = '\n'.join([label_line, score_line])
+    contents = [','.join(pair) for pair in zip(map(str, labels), map(str, scores))]
+    contents.insert(0, 'ROI,score')
+    contents = '\n'.join(contents)
     score_file = pjoin(out_dir, 'roi_score.csv')
-    open(score_file, 'w+').writelines(out_content)
+    open(score_file, 'w+').writelines(contents)
 
 
-def save_voxel_score(out_dir, scores, mask):
+def save_voxel_score(out_dir, scores, mask, header=None):
     """
     save voxel prediction score in brain file
 
@@ -233,11 +240,11 @@ def save_voxel_score(out_dir, scores, mask):
     scores[iterator]: voxel prediction scores
     mask[np.ndarray]: brain mask used to extract activation locally
     """
-    brainimg = np.zeros_like(mask)
+    brainimg = np.zeros_like(mask, dtype=np.float)
     brainimg[mask != 0] = scores
     brainimg = np.expand_dims(brainimg, 0)
     score_file = pjoin(out_dir, 'voxel_score.nii.gz')
-    save_brainimg(score_file, brainimg, None)
+    save_brainimg(score_file, brainimg, header)
 
 
 if __name__ == '__main__':
