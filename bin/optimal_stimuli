@@ -10,7 +10,8 @@ Author: Yiyuan Zhang @ BNU
 import argparse
 from PIL import Image
 from torchvision import models
-from dnnbrain.viz import dnnoptimage
+from dnnbrain.viz import dnnopt_operation
+from dnnbrain.utils.iofiles import NetLoader
 
 
 def main():
@@ -31,7 +32,7 @@ def main():
     parser.add_argument('-channel',
                         type = int,
                         required = True,
-                        help = 'activation for a specific channel')
+                        help = 'activation for specific channels')
 
     parser.add_argument('-unit',
                         type = int,
@@ -58,23 +59,23 @@ def main():
         else:
             raise Exception('Network was not supported, please contact author for implementation.')
       
-    model = model(args.net)
+    netloader = NetLoader(args.net)
     
-    for param in model.parameters():
+    for param in netloader.model.parameters():
         param.requires_grad = False 
     
-    layer_vis = dnnoptimage.CNNLayerVisualization(model.features, args.layer, args.channel)
+    layer_vis = dnnopt_operation.CNNLayerVisualization(netloader.model.features, args.layer, args.channel)
     
     try:
-        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir, args.unit)
+        layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir, args.unit)
         im = Image.fromarray(layer_vis.created_image)
         im.save(args.outdir)
     except:
-        layer_vis.visualise_layer_with_hooks(args.net, n_step, args.outdir)
+        layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir)
         im = Image.fromarray(layer_vis.created_image)
         im.save(args.outdir)
     
     
 if __name__ == '__main__':
-    n_step = 51
     main()
+

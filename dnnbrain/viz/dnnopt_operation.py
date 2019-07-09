@@ -67,7 +67,7 @@ class CNNLayerVisualization():
         self.hook_layer()
         # Generate a random image
         if model_name=='alexnet':
-            random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+            random_image = np.uint8(np.random.uniform(150, 180, (227, 227, 3)))
         elif model_name=='vgg16':
             random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
         else:
@@ -99,7 +99,7 @@ class CNNLayerVisualization():
                 column = unit - (math.floor(unit/self.conv_output.shape[0]))*self.conv_output.shape[0]
                 loss = -self.conv_output[raw][column]
                 
-            print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(loss.data.numpy()))
+            print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(-(loss.data.numpy())))
             # Backward
             loss.backward()
             # Update image
