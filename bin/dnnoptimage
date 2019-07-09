@@ -21,13 +21,14 @@ def main():
     parser.add_argument('-net',
                         type = str,
                         required = True,
-                        choices=['alexnet', 'vgg16', 'vgg19'],
+                        choices=['alexnet', 'vgg11'],
                         help = 'specific name of CNN')
 
     parser.add_argument('-layer',
-                        type = int,
-                        required = True,
-                        help = 'activation for specific layers')
+                        type = str,
+                        required=True,
+                        metavar='Layer',
+			            help='activation for specific layers, please input conv1 or fc1 for activation')
     
     parser.add_argument('-channel',
                         type = int,
@@ -45,26 +46,13 @@ def main():
                         help = 'output directory in Linux')
     
     args = parser.parse_args()
-    
-    def model(net):
-        if net == 'alexnet':
-            model = models.alexnet(pretrained=True)
-            return model
-        elif net == 'vgg16':
-            model = models.vgg16(pretrained=True)
-            return model
-        elif net == 'vgg19':
-            model = models.vgg19(pretrained=True)
-            return model
-        else:
-            raise Exception('Network was not supported, please contact author for implementation.')
       
     netloader = NetLoader(args.net)
     
     for param in netloader.model.parameters():
         param.requires_grad = False 
     
-    layer_vis = dnnopt_operation.CNNLayerVisualization(netloader.model.features, args.layer, args.channel)
+    layer_vis = dnnopt_operation.CNNLayerVisualization(netloader.model.features, netloader.layer2indices[args.layer][1], args.channel)
     
     try:
         layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir, args.unit)
