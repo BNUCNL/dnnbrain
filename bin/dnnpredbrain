@@ -40,12 +40,12 @@ def main():
     parser.add_argument('-net',
                         type=str,
                         required=True,
-                        metavar='CNN',
+                        metavar='NetName',
                         help='convolutional network name')
     parser.add_argument('-layer',
                         type=str,
                         required=True,
-                        metavar='Layer',
+                        metavar='LayerName',
                         help='activation for specific layers, please input conv1 or fc1 for activation')
     parser.add_argument('-channel',
                         type=int,
@@ -53,10 +53,11 @@ def main():
                         nargs='*',
                         metavar='Channel',
                         help='activation for specific channels')
-    parser.add_argument('-csv',
+    parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        metavar='picture stimuli csv',
+                        dest='csv'
+                        metavar='StimuliInfoFile',
                         help='table contains picture names, conditions and picture onset time.\
                                 This csv_file helps us connect cnn activation to brain images.\
                                 Please organize your information as:\
@@ -69,7 +70,7 @@ def main():
     parser.add_argument('-brainact',
                         type=str,
                         required=True,
-                        metavar='Nifti Activation',
+                        metavar='BrainActFile',
                         help='brain activation nifti/surface file,\
                                 user should correspond brain image \
                                 to picture stimuli before calling this\
@@ -77,7 +78,7 @@ def main():
     parser.add_argument('-mask',
                         type=str,
                         required=False,
-                        metavar='Nifti mask',
+                        metavar='MaskFile',
                         help='brain activation mask')
     parser.add_argument('-roi',
                         action='store_true',
@@ -85,7 +86,7 @@ def main():
     parser.add_argument('-model',
                         type=str,
                         required=False,
-                        metavar='Brain Model',
+                        metavar='BrainModel',
                         choices=['multivariate', 'univariate'],
                         help='model to predict brain activation by CNN activation, by default is multivariate.\
                               multivariate analysis calls lasso regression with default alpha = 1, and we will \
@@ -98,12 +99,12 @@ def main():
                         type=int,
                         required=False,
                         default=2,
-                        metavar='CVFold',
+                        metavar='FoldNumber',
                         help='cross validation fold numbers')
     parser.add_argument('-out',
                         type=str,
                         required=True,
-                        dest='outdir',
+                        dest='OutputDir',
                         metavar='Output Directory',
                         help='output directory, output is a 4D brain image data with value in each voxel \
                               is explained_variance by linear_model, each volume is the prediction explained \
@@ -160,15 +161,15 @@ def main():
 	   
     # Initialize machine learning models
     if args.model == 'multivariate':
-        model = linear_model.Lasso()
+        model = linear_model.LinearRegression()
     
     score_array = np.zeros((1, actnode_num))
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        if dnn_act.shape[0] < 200:
+        if dnn_act.shape[0] < 10:
             comp_num = dnn_act.shape[0]
         else:
-            comp_num = 200
+            comp_num = 10
         pca = decomposition.PCA(n_components=comp_num)
         # nsamples(pics)*nfeatures(units)
         for j in range(actnode_num):
