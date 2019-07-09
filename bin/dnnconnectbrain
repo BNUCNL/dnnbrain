@@ -26,13 +26,13 @@ def main():
 
     parser = argparse.ArgumentParser(description="DNN connect brain")
     parser.add_argument('-net',
-                        metavar='net_name',
+                        metavar='NetName',
                         required=True,
                         type=str,
                         dest='net_name',
                         help="a pretrained neural network's name such as 'alexnet' and 'vgg11'")
     parser.add_argument('-layer',
-                        metavar='layer_name',
+                        metavar='LayerName',
                         required=True,
                         type=str,
                         help="The name of the layer which is connected to predict brain activity."
@@ -40,34 +40,34 @@ def main():
                              "'fc1' represents the first full connection layer."
                              "(Notice: there is a BUG when trying extract 'fc' layer!)")
     parser.add_argument('-channel',
-                        metavar='channel_number',
+                        metavar='ChannelNumber',
                         type=int,
                         nargs='*',
                         help="The sequence numbers of out channels of the selected layer"
                              "If not specified, use all out channels.")
-    parser.add_argument('-csv',
-                        metavar='csv_file',
+    parser.add_argument('-stim',
+                        metavar='StimuliInfoFile',
                         required=True,
                         type=str,
                         help="map stimulus with brain activation")
     parser.add_argument('-brainact',
-                        metavar='brain_data',
+                        metavar='BrainActFile',
                         required=True,
                         type=str,
                         help="brain activation data file")
     parser.add_argument('-mask',
-                        metavar='mask_file',
+                        metavar='MaskFile',
                         type=str,
                         help="brain mask used to extract activation locally")
     parser.add_argument('-roi',
                         action='store_true',
                         help="Do ROI-level analysis when the argument is used.")
     parser.add_argument('-cvfold',
-                        metavar='fold_number',
+                        metavar='FoldNumber',
                         type=int,
                         help="cross validation fold number")
     parser.add_argument('-out',
-                        metavar='output',
+                        metavar='OutputDir',
                         required=True,
                         type=str,
                         help="output directory")
@@ -83,8 +83,8 @@ def main():
 
     # ---prepare data---
     # prepare pictures
-    pic_dataset = PicDataset(args.csv, transforms.Compose([transforms.Resize(net_loader.img_size),
-                                                           transforms.ToTensor()]))
+    pic_dataset = PicDataset(args.stim, transforms.Compose([transforms.Resize(net_loader.img_size),
+                                                            transforms.ToTensor()]))
     pics = torch.tensor([pic.numpy() for _, pic, _ in pic_dataset])
     pics.squeeze_(1)
     truncated_output = truncated_net(pics[0].unsqueeze(0))
