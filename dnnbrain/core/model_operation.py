@@ -20,7 +20,7 @@ def dnn_activation(input, net, layer, channel=None):
     ------------
     input[dataset]: input image dataset
     net[str]: DNN network
-    layer[int]: layer of DNN network, layer was counted from 1 (not 0)
+    layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
     
     Returns:
@@ -28,7 +28,7 @@ def dnn_activation(input, net, layer, channel=None):
     dnnact[numpy.array]: DNN activation, A 4D dataset with its format as pic*channel*unit*unit
     """
     loader = iofiles.NetLoader(net)
-    actmodel = truncate_net(loader.model, layer, loader.conv_indices)
+    actmodel = truncate_net(loader.model, loader.layer2indices[layer])
     dnnact = []
     for _, picdata, target in input:
         dnnact_part = actmodel(picdata)
@@ -40,20 +40,24 @@ def dnn_activation(input, net, layer, channel=None):
     return dnnact
 
 
-def truncate_net(net, layer, conv_indices):
+def truncate_net(net, indices):
     """
     truncate the neural network at the specified layer number
 
     Parameters:
     -----------
     net[torch.nn.Module]: a neural network
-    layer[int]: The sequence number of the layer which is connected to predict brain activity.
-    conv_indices[list]: The convolution module's indices in the net
+    indices[iterator]: a sequence of raw indices to find a layer
 
     Returns:
     --------
     truncated_net[torch.nn.Sequential]
     """
-    conv_idx = conv_indices[layer-1]
-    truncated_net = nn.Sequential(*list(net.children())[0][0:conv_idx+1])
-    return truncated_net
+    if len(indices) > 1:
+        tmp = list(net.children())[:indices[0]]
+        next = list(net.children())[indices[0]]
+        return nn.Sequential(*(tmp+[truncate_net(next, indices[1:])]))
+    elif len(indices) == 1:
+        return nn.Sequential(*list(net.children())[:indices[0]+1])
+    else:
+        raise ValueError("Layer indices must not be empty!")

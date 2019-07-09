@@ -201,12 +201,15 @@ class NetLoader:
         if net == 'alexnet':
             self.model = torchvision.models.alexnet()
             self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-            self.conv_indices = [0, 3, 6, 8, 10]  # map convolution layer number to raw index in model
+            self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
+                                  'conv5': (0, 10), 'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6)}
             self.img_size = (224, 224)
         elif net == 'vgg11':
             self.model = torchvision.models.vgg11()
             self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
-            self.conv_indices = [0, 3, 6, 8, 11, 13, 16, 18]
+            self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
+                                  'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
+                                  'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
             self.img_size = (224, 224)
         else:
             raise Exception('Network was not supported, please contact author for implementation.')
