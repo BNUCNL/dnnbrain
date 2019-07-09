@@ -12,6 +12,7 @@ import os
 import argparse
 import subprocess
 import numpy as np
+import pandas as pd
 from torchvision import transforms
 from scipy.spatial.distance import cdist
 from dnnbrain.core import model_operation
@@ -150,7 +151,7 @@ def main():
         actnode_num = len(roilabel)
     else:
         brainimg_data = brainimg_data_raw*brainmask_data_raw
-        brainact_idx = np.transpose(np.where(brainmask_data_raw[0,...]!=0))
+        brainact_idx = np.transpose(np.where(brainmask_data_raw!=0))
         # Flatten brainimage as (npic * nvoxel) array
         brainact_list = np.zeros((brainimg_data_raw.shape[0], brainact_idx.shape[0]))
         for i, b_idx in enumerate(brainact_idx):
@@ -171,7 +172,7 @@ def main():
         pca = decomposition.PCA(n_components=comp_num)
         # nsamples(pics)*nfeatures(units)
         for j in range(actnode_num):
-            if (j%10000 == 0) & (not args.roi):
+            if (j%100 == 0) & (not args.roi):
                 print('  Finish calculation on {} voxels'.format(j))
             # nsamples(pics)*nfeatures(voxels)
             # Decrease dimension using PCA
@@ -195,8 +196,9 @@ def main():
     
     # Save output
     if args.roi:
+        score_df = pd.DataFrame({'ROI':roilabel, 'scores':score_array.flatten()})
         # Save behavior measurement into hardware
-        np.savetxt(args.outdir, score_array, delimiter=',')
+        score_df.to_csv(args.outdir, index=False)
     else:
         # output image: channel*voxels
         out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
