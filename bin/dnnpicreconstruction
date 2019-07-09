@@ -1,0 +1,75 @@
+#! /usr/bin/env python
+
+"""
+Use CNN activation to predict brain activation
+Author: Yang Anmin
+Reviewer:
+"""
+
+import os
+import numpy as np
+import argparse
+import torch
+from torch.nn import ReLU
+import torchvision
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+from PIL import Image
+from dnnbrain.utils import iofiles
+from dnnbrain.viz import dnnpicreconstruction
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Visualize what a channel sees in the image')
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        choices=['alexnet', 'vgg11'],
+                        metavar = 'network name',
+                        help = 'convolutional network name')
+    parser.add_argument('-csv',
+                        type=str,
+                        required=True,
+                        metavar='picture stimuli csv',
+                        help='table contains picture names, conditions and picture onset time.\
+                              This csv_file helps us connect cnn activation to brain images.\
+                              Please organize your information as:\
+                              [PicPath]\
+                              stimID     condition   onset(optional) measurement(optional)\
+                              face1.png  face        1.1             3\
+                              face2.png  face        3.1             5\
+                              scene1.png scene       5.1             4'
+                        )
+    parser.add_argument('-layer',
+                        type=str,
+                        required=True,
+                        metavar='Layer',
+                        help='activation for specific layers, please input conv1 or fc1 for activation')
+    parser.add_argument('-channel',
+                        type = int,
+                        required = True,
+                        metavar = 'Channel',
+                        help = 'channel of interest')
+    parser.add_argument('-output',
+                        type = str,
+                        required = True,
+                        metavar = 'Output Directory',
+                        help = 'output directory where reconstructed pictures are stored')
+    args = parser.parse_args()
+
+    # select net
+    netloader = iofiles.NetLoader(args.net)
+    model = netloader.model
+
+    # real layer in CNN
+    cnn_layer = netloader.layer2indices[args.layer][1]
+
+    picdataset = iofiles.PicDataset(args.csv, transform=None)
+    for picname, picimg, _ in picdataset:
+        out_image = dnnpicreconstruction.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel)
+        im = Image.fromarray(out_image)
+        outpath = args.output + '/' + args.layer + '_' + '%d' %args.channel + '_' + picname
+        im.save(outpath)
+
+if __name__ == '__main__':
+    main()
