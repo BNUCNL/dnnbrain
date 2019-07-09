@@ -32,10 +32,10 @@ def main():
                               scene1.png scene       5.1             4'
                         )
     parser.add_argument('-layer',
-                        type=int,
+                        type=str,
                         required=True,
                         metavar='Layer',
-                        help='activation for specific layers')
+                        help='activation for specific layers, please input conv1 or fc1 for activation')
     parser.add_argument('-channel',
                         type=int,
                         required=False,
