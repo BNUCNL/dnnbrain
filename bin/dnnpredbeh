@@ -106,7 +106,7 @@ def main():
     dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num*dnn_act.shape[2]*dnn_act.shape[3]))
     
     # Get behavior measurement
-    csv_table = pd.read_csv(args.csv)
+    csv_table = pd.read_csv(args.csv, skiprows=1)
     beh_measure = np.array(csv_table[args.behavior])[:,None]
 	
     # Initialize machine learning models
