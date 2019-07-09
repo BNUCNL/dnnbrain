@@ -16,7 +16,7 @@ import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 from PIL import Image
 from dnnbrain.utils import iofiles
-from dnnbrain.viz import dnnpicreconstruction
+from dnnbrain.viz import model_operation
 
 
 def main():
