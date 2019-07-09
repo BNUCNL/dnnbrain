@@ -1,0 +1,81 @@
+#! /usr/bin/env python
+
+"""
+find the characterize relative to one unit
+Author: Yiyuan Zhang @ BNU
+"""
+
+
+#import some packages needed
+import argparse
+from PIL import Image
+from torchvision import models
+from dnnbrain.viz import dnnopt_operation
+from dnnbrain.utils.iofiles import NetLoader
+
+
+def main():
+    
+    parser = argparse.ArgumentParser(description='DNN units optimal stimuli')
+    
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        choices=['alexnet', 'vgg16', 'vgg19'],
+                        help = 'specific name of CNN')
+
+    parser.add_argument('-layer',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific layers')
+    
+    parser.add_argument('-channel',
+                        type = int,
+                        required = True,
+                        help = 'activation for specific channels')
+
+    parser.add_argument('-unit',
+                        type = int,
+                        required = False,
+                        help = 'position for a specific unit')
+    
+    parser.add_argument('-outdir',
+                        type = str,
+                        required = True,
+                        help = 'output directory in Linux')
+    
+    args = parser.parse_args()
+    
+    def model(net):
+        if net == 'alexnet':
+            model = models.alexnet(pretrained=True)
+            return model
+        elif net == 'vgg16':
+            model = models.vgg16(pretrained=True)
+            return model
+        elif net == 'vgg19':
+            model = models.vgg19(pretrained=True)
+            return model
+        else:
+            raise Exception('Network was not supported, please contact author for implementation.')
+      
+    netloader = NetLoader(args.net)
+    
+    for param in netloader.model.parameters():
+        param.requires_grad = False 
+    
+    layer_vis = dnnopt_operation.CNNLayerVisualization(netloader.model.features, args.layer, args.channel)
+    
+    try:
+        layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir, args.unit)
+        im = Image.fromarray(layer_vis.created_image)
+        im.save(args.outdir)
+    except:
+        layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir)
+        im = Image.fromarray(layer_vis.created_image)
+        im.save(args.outdir)
+    
+    
+if __name__ == '__main__':
+    main()
+
