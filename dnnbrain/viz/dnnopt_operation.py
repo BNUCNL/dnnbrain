@@ -27,7 +27,7 @@ class CNNLayerVisualization():
     Functions:
     --------------
     hook_layer: hook the model when it runs
-    visualise_layer_with_hooks: given a layer, channel (and unit), find optimal stimuli for this channel (unit). 
+    visualise_layer_with_hooks: given a layer, channel/unit, find optimal stimuli for this channel/unit. 
     """
     
     
@@ -55,8 +55,7 @@ class CNNLayerVisualization():
         --------------
         n_step[int]: number of train step
         outdir[str]: put return into outdir
-        unit_x[int]: the unit position in x axis
-        unit_y[int]: the unit position in y axis
+        unit[int]: the unit number
         
         Returens:
         --------------
@@ -67,8 +66,6 @@ class CNNLayerVisualization():
         self.hook_layer()
         # Generate a random image
         if model_name=='alexnet':
-            random_image = np.uint8(np.random.uniform(150, 180, (227, 227, 3)))
-        elif model_name=='vgg16':
             random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
         else:
             random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
