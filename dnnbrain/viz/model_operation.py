@@ -105,19 +105,13 @@ def layer_channel_reconstruction(model,picimg,layer,channel):
     out[str]: output path
 
     """
-
-    transformation = transforms.Compose([transforms.ToTensor()])
-    pic = transformation(picimg)
-    pic = pic[np.newaxis]
-
-    out = model(pic)
+    out = model(picimg)
     _, preds = torch.max(out.data, 1)
     target_class=preds.numpy()[0]
 
-    img.requires_grad=True
+    picimg.requires_grad=True
     GBP = GuidedBackprop(model)
-    guided_grads = GBP.generate_gradients(img, target_class, cnn_layer, channel)
+    guided_grads = GBP.generate_gradients(picimg, target_class, layer, channel)
     all_sal = rescale_grads(guided_grads,gradtype="all")
     out_image = torch.from_numpy(all_sal).permute(1,2,0)
-    out_image = out_image.numpy()
     return out_image
