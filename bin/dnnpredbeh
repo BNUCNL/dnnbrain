@@ -28,12 +28,12 @@ def main():
     parser.add_argument('-net',
                         type=str,
                         required=True,
-                        metavar='CNN',
+                        metavar='NetName',
                         help='convolutional network name')
     parser.add_argument('-layer',
                         type=str,
                         required=True,
-                        metavar='Layer',
+                        metavar='LayerName',
                         help='activation for specific layers, please input conv1 or fc1 for activation')
     parser.add_argument('-channel',
                         type=int,
@@ -41,10 +41,11 @@ def main():
                         nargs='*',
                         metavar='Channel',
                         help='activation for specific channels')
-    parser.add_argument('-csv',
+    parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        metavar='picture stimuli csv',
+                        dest='csv'
+                        metavar='StimuliInfoFile',
                         help='table contains picture names, conditions and picture onset time.\
                               This csv_file helps us connect cnn activation to brain images.\
                               Please organize your information as:\
@@ -57,14 +58,14 @@ def main():
     parser.add_argument('-behavior',
                         type=str,
                         required=True,
-                        metavar='behavior measurement',
+                        metavar='BehaviorMeasurement',
                         help='behavior measurement extracted from csv. This code will extracte\
                               behavior measurement with key from the csv_file (see above \
                               parameter -csv).')
     parser.add_argument('-model',
                         type=str,
                         required=False,
-                        metavar='Brain Model',
+                        metavar='BrainModel',
                         choices=['multivariate', 'univariate'],
                         default='multivariate',
                         help='model to predict brain activation by CNN activation, by default is multivariate.\
@@ -78,12 +79,12 @@ def main():
                         type=int,
                         required=False,
                         default=2,
-                        metavar='CVFold',
+                        metavar='FoldNumber',
                         help='cross validation fold numbers')
     parser.add_argument('-out',
                         type=str,
                         required=True,
-                        dest='outdir',
+                        dest='OutputDir',
                         metavar='Output Directory',
                         help='output directory, output is text file with each value\
                               is explained_variance by multivariate or univariate analysis \
@@ -111,15 +112,15 @@ def main():
 	
     # Initialize machine learning models
     if args.model == 'multivariate':
-        model = linear_model.Lasso()
+        model = linear_model.LinearRegression()
         
     scores = []
     # Multivariate regression analysis
     if args.model == 'multivariate':
-        if dnn_act.shape[0] < 200:
+        if dnn_act.shape[0] < 10:
             comp_num = dnn_act.shape[0]
         else:
-            comp_num = 200
+            comp_num = 10
         pca = decomposition.PCA(n_components=comp_num)
         # nsamples(pics)*nfeatures(units)
         # Decrease dimension using PCA
