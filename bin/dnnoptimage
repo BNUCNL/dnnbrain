@@ -21,28 +21,32 @@ def main():
     parser.add_argument('-net',
                         type = str,
                         required = True,
+			metavar='[NetName]',
                         choices=['alexnet', 'vgg11'],
                         help = 'specific name of CNN')
 
     parser.add_argument('-layer',
                         type = str,
                         required=True,
-                        metavar='Layer',
-			            help='activation for specific layers, please input conv1 or fc1 for activation')
+			metavar='[LayerName]',
+			help='activation for specific layers, please input conv1 or fc1 for activation')
     
     parser.add_argument('-channel',
                         type = int,
                         required = True,
+			metavar='[ChannelNumber]',
                         help = 'activation for specific channels')
 
     parser.add_argument('-unit',
                         type = int,
                         required = False,
+			metavar='[UnitNember]',
                         help = 'position for a specific unit')
     
     parser.add_argument('-outdir',
                         type = str,
                         required = True,
+			metavar='[OutputDir]',
                         help = 'output directory in Linux')
     
     args = parser.parse_args()
@@ -66,4 +70,3 @@ def main():
     
 if __name__ == '__main__':
     main()
-
