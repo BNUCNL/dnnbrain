@@ -22,9 +22,9 @@ def main():
                         type=str,
                         required = True,
                         choices=['alexnet', 'vgg11'],
-                        metavar = 'network name',
+                        metavar = 'cnn name',
                         help = 'convolutional network name')
-    parser.add_argument('-csv',
+    parser.add_argument('-stim',
                         type=str,
                         required=True,
                         metavar='picture stimuli csv',
@@ -47,7 +47,7 @@ def main():
                         required = True,
                         metavar = 'Channel',
                         help = 'channel of interest')
-    parser.add_argument('-output',
+    parser.add_argument('-out',
                         type=str,
                         required = True,
                         metavar = 'Output Directory',
@@ -67,7 +67,7 @@ def main():
         out_image = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel)
         out_image = np.array(out_image)
         imgname = args.layer+'_'+str(args.channel)+'_'+picname
-        outpath = os.path.join(args.output, imgname)
+        outpath = os.path.join(args.out, imgname)
         plt.imsave(outpath, out_image)
 
 if __name__ == '__main__':
