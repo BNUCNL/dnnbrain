@@ -1,4 +1,5 @@
 import os
+import scipy.io
 import numpy as np
 import pandas as pd
 
@@ -18,6 +19,7 @@ except ModuleNotFoundError:
 try:
     import nibabel as nib
     import cifti
+
 except ModuleNotFoundError:
     raise Exception('Please install nibabel and cifti in your work station')
 
@@ -165,27 +167,48 @@ def save_brainimg(imgpath, data, header):
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
  
         
-def save_activation_to_csv(activation,outpath):
+def save_activation(activation,outpath):
     """
-    Save activaiton data to a csv file in outpath
-
+    Save activaiton data as a csv file or mat format file to outpath
+         csv format save a 2D.
+            The first column is stimulus indexs
+            The second column is channel indexs
+            Each row is the activation of a filter for a picture
+         mat format save a 2D or 4D array depend on the activation from convolution layer or fully connected layer.
+            4D array Dimension:sitmulus x channel x pixel x pixel
+            2D array Dimension:stimulus x activation
     Parameters:
     ------------
     activation[4darray]: sitmulus x channel x pixel x pixel
     outpath[str]:outpath and outfilename
     """
-    activation2d = np.reshape(activation,(np.prod(activation.shape[0:2]),-1,),order='C')
-    channelline = np.array([channel+1 for channel in range(activation.shape[1])]*activation.shape[0])
-    stimline = []
-    for i in range(activation.shape[0]):
-        a = [i + 1 for j in range(activation.shape[1])]
-        stimline = stimline + a
-    stimline = np.array(stimline)
-    channelline = np.reshape(channelline, (channelline.shape[0], 1))
-    stimline = np.reshape(stimline, (stimline.shape[0], 1))
-    activation2d = np.concatenate((stimline,channelline,activation2d),axis=1)
-    np.savetxt(outpath, activation2d, delimiter= ',')
-        
+    imgname = os.path.basename(outpath)
+    imgsuffix = imgname.split('.')[1:]
+    imgsuffix = '.'.join(imgsuffix)
+
+    if imgsuffix == 'csv':
+        if len(activation.shape) == 4:
+            activation2d = np.reshape(activation, (np.prod(activation.shape[0:2]), -1,), order='C')
+            channelline = np.array([channel + 1 for channel in range(activation.shape[1])] * activation.shape[0])
+            stimline = []
+            for i in range(activation.shape[0]):
+                a = [i + 1 for j in range(activation.shape[1])]
+                stimline = stimline + a
+            stimline = np.array(stimline)
+            channelline = np.reshape(channelline, (channelline.shape[0], 1))
+            stimline = np.reshape(stimline, (stimline.shape[0], 1))
+            activation2d = np.concatenate((stimline, channelline, activation2d), axis=1)
+        elif len(activation.shape) == 2:
+            stim_indexs = np.arange(1, activation.shape[0] + 1)
+            stim_indexs = np.reshape(stim_indexs, (-1, stim_indexs[0]))
+            activation2d = np.concatenate((stim_indexs, activation), axis=1)
+        np.savetxt(outpath, activation2d, delimiter=',')
+    elif imgsuffix == 'mat':
+        scipy.io.savemat(outpath,mdict={'activation':activation})
+    else:
+        raise Exception(
+        'Not support this format of brain image data, please contact with author to update this function.')
+
 
 class NetLoader:
 

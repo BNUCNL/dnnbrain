@@ -29,40 +29,30 @@ def dnn_activation(input, net, layer, channel=None):
     """
     loader = iofiles.NetLoader(net)
     if 'conv' in layer:
-        dnnact =  dnn_activaiton_conv(input,loader,layer)
+        actmodel = truncate_net_conv(loader.model, loader.layer2indices[layer])
     elif 'fc' in layer:
-        dnnact = dnn_activation_fc(input,loader,layer)
+        actmodel = loader.model
+        indices = loader.layer2indices[layer]
+        new_classifier = nn.Sequential(*list(loader.model.children())[-1][:indices[1] + 1])
+
+        if hasattr(actmodel, 'classifier'):
+            actmodel.classifier = new_classifier
+        elif hasattr(actmodel, 'fc'):
+            actmodel.fc = new_classifier
+        else:
+            raise Exception("The network has no this layer.")
     else:
         raise Exception("Not support this layer,please entry conv or fc")
+
+    dnnact = []
+    for _, picdata, target in input:
+        dnnact_part = actmodel(picdata)
+        dnnact.extend(dnnact_part.detach().numpy())
+    dnnact = np.array(dnnact)
+
     if channel:
         channel_new = [cl - 1 for cl in channel]
         dnnact = dnnact[:, channel_new, :, :]
-    return dnnact
-
-
-def dnn_activaiton_conv(input,netloader,layer):
-    actmodel = truncate_net_conv(netloader.model, netloader.layer2indices[layer])
-    dnnact = []
-    for _, picdata, target in input:
-        dnnact_part = actmodel(picdata)
-        dnnact.extend(dnnact_part.detach().numpy())
-    dnnact = np.array(dnnact)
-    return dnnact
-
-
-def dnn_activation_fc(input,netloader,layer):
-    actmodel = netloader.model
-    indices = netloader.layer2indices[layer]
-    new_classifier = nn.Sequential(*list(netloader.model.children())[-1][:indices[1] + 1])
-    if hasattr(actmodel,'classifier'):
-        actmodel.classifier = new_classifier
-    elif hasattr(actmodel,'fc'):
-        actmodel.fc = new_classifier
-    dnnact = []
-    for _, picdata, target in input:
-        dnnact_part = actmodel(picdata)
-        dnnact.extend(dnnact_part.detach().numpy())
-    dnnact = np.array(dnnact)
     return dnnact
 
 
@@ -89,13 +79,31 @@ def truncate_net_conv(net, indices):
         raise ValueError("Layer indices must not be empty!")
 
 
-def dnn_finetuning(netloader,layer,out_features):
-    """can reconstruct from any layer"""
+def dnn_finetuning(netloader,layer,out_class):
+    """Fine-tuning the neural network, modifying the 1000 classifier to n classifier
+
+    Parameters:
+    -----------
+    netloader[Netloader]: class netloader
+    layer[str]: fully connected layer name of a DNN network
+    out_features[str]:  specify the class of the new dnn model output
+
+    Returns:
+    --------
+    dnn_model[torchvision.models]: the reconstructed dnn model.
+    """
+    if 'fc' not in layer:
+        raise ValueError('Fine tuning only support to reconstruct fully connected layer')
+
     dnn_model = netloader.model
+    # freeze parameters of pretrained network.
+    for param in dnn_model.parameters():
+        param.requires_grad = False
+    # reconstruct the fully connected layer
     indices = netloader.layer2indices[layer]
     old_classifier = list(netloader.model.children())[-1][:indices[1]]
     in_features = list(netloader.model.children())[-1][indices[1]].in_features
-    new_classifier =   nn.Sequential(*(old_classifier + list(nn.Linear(in_features,out_features))))
+    new_classifier = nn.Sequential(*(list(old_classifier) + [nn.Linear(in_features,out_class)]))
 
     if hasattr(dnn_model,'classifier'):
         dnn_model.classifier = new_classifier

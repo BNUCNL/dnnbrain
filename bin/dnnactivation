@@ -67,8 +67,8 @@ def main():
     dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
 	
     # Save activation data
-    iofiles.save_activation_to_csv(dnn_act,args.outdir)
-    
+    iofiles.save_activation(dnn_act,args.outdir)
+
 if __name__ == '__main__':
 
     main()
