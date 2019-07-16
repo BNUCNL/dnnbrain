@@ -16,7 +16,7 @@ def main():
     parser.add_argument('-net',
                         type=str,
                         required=True,
-                        metavar='CNN name',
+                        metavar='NetName',
                         help='convolutional network name')
     parser.add_argument('-stim',
                         type=str,
@@ -70,4 +70,5 @@ def main():
     iofiles.save_activation_to_csv(dnn_act,args.outdir)
     
 if __name__ == '__main__':
+
     main()
