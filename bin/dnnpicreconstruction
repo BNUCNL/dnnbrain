@@ -22,8 +22,8 @@ def main():
                         type=str,
                         required = True,
                         choices=['alexnet', 'vgg11'],
-                        metavar = 'cnn name',
-                        help = 'convolutional network name')
+                        metavar = 'NetName',
+                        help ="a pretrained neural network's name such as 'alexnet' and 'vgg11'")
     parser.add_argument('-stim',
                         type=str,
                         required=True,
@@ -41,16 +41,19 @@ def main():
                         type=str,
                         required=True,
                         metavar='Layer',
-                        help='activation for specific layers, please input conv1 or fc1 for activation')
+                        help="The name of the layer which is connected to predict brain activity."
+                             "For example, 'conv1' represents the first convolution layer, and"
+                             "'fc1' represents the first full connection layer.")
     parser.add_argument('-channel',
                         type=int,
                         required = True,
-                        metavar = 'Channel',
-                        help = 'channel of interest')
+                        metavar = 'ChannelNumber',
+                        help = "The sequence numbers of out channels of the selected layer"
+                             "If not specificly interested in one or a few channels, that is you are interested only in layer, the sequence number is 0.")
     parser.add_argument('-out',
                         type=str,
                         required = True,
-                        metavar = 'Output Directory',
+                        metavar = 'OutputDir',
                         help = 'output directory where reconstructed pictures are stored')
     args = parser.parse_args()
 
@@ -61,13 +64,14 @@ def main():
     # real layer in CNN
     cnn_layer = netloader.layer2indices[args.layer][1]
 
-    picdataset = iofiles.PicDataset(args.csv, transform=None)
+    picdataset = iofiles.PicDataset(args.stim, transform=None)
 
     for picname, picimg, _ in picdataset:
         out_image = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel)
         out_image = np.array(out_image)
         imgname = args.layer+'_'+str(args.channel)+'_'+picname
         outpath = os.path.join(args.out, imgname)
+        plt.figure()
         plt.imsave(outpath, out_image)
 
 if __name__ == '__main__':
