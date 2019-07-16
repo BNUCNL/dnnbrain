@@ -206,8 +206,7 @@ def save_activation(activation,outpath):
     elif imgsuffix == 'mat':
         scipy.io.savemat(outpath,mdict={'activation':activation})
     else:
-        raise Exception(
-        'Not support this format of brain image data, please contact with author to update this function.')
+        np.save(outpath,activation)
 
 
 class NetLoader:
