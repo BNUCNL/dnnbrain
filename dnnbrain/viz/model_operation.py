@@ -6,7 +6,6 @@ Reviewer:
 """
 from torch.nn import ReLU
 import numpy as np
-import argparse
 import torch
 import torchvision
 import torchvision.transforms as transforms
@@ -92,12 +91,11 @@ class GuidedBackprop():
         return gradients_as_arr
 
 
-def layer_channel_reconstruction(model,picimg,layer,channel):
+def layer_channel_reconstruction(model,picimg,layer,channel,class_of_interest):
     """
     DNN layer_channel reconstruction
 
     Parameters:
-    ------------
     net[str]: DNN network
     input[str]: input path
     layer[int]: layer number
@@ -105,13 +103,19 @@ def layer_channel_reconstruction(model,picimg,layer,channel):
     out[str]: output path
 
     """
+
     out = model(picimg)
     _, preds = torch.max(out.data, 1)
-    target_class=preds.numpy()[0]
+    _, indices = torch.sort(out, descending=True)
+    target_class = indices.numpy()[0,class_of_interest]
+    with open('~/dnnbrain/dnnbrain/imagenet_classes.txt') as f:
+        classes = [line.strip() for line in f.readlines()]
+    _, indices = torch.sort(out, descending=True)
+    label =  [(classes[idx]) for idx in indices[0][:class_of_interest+1]][class_of_interest] # get the semantic label of this pic
 
     picimg.requires_grad=True
     GBP = GuidedBackprop(model)
     guided_grads = GBP.generate_gradients(picimg, target_class, layer, channel)
     all_sal = rescale_grads(guided_grads,gradtype="all")
     out_image = torch.from_numpy(all_sal).permute(1,2,0)
-    return out_image
+    return  out_image, label

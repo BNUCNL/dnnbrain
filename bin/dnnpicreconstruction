@@ -49,7 +49,16 @@ def main():
                         required = True,
                         metavar = 'ChannelNumber',
                         help = "The sequence numbers of out channels of the selected layer"
-                             "If not specificly interested in one or a few channels, that is you are interested only in layer, the sequence number is 0.")
+                               "If not specificly interested in one or a few channels, that is you are interested only in layer, the sequence number is 0.")
+    parser.add_argument('-topclass',
+                        type=int,
+                        required = True,
+                        metavar = 'top class reconstructed picture based on',
+                        help = "Recontructing pictures is based on the class which the CNN has classified.\
+                               Take AlexNet for instance, as the fc3 has 1,000 units,we can reconstruct the picture based on 1,000 classes,in which case there will be 1,000 reconstructed pictures.\
+                               '-topclass' offers you the opportunity to reconstruct the picture based on the top classes a specific CNN has classified.\
+                               Should the number is 5, then we will reconstruct 5 pictures based on 5 different classes. "
+                        )
     parser.add_argument('-out',
                         type=str,
                         required = True,
@@ -67,12 +76,14 @@ def main():
     picdataset = iofiles.PicDataset(args.stim, transform=None)
 
     for picname, picimg, _ in picdataset:
-        out_image = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel)
-        out_image = np.array(out_image)
-        imgname = args.layer+'_'+str(args.channel)+'_'+picname
-        outpath = os.path.join(args.out, imgname)
-        plt.figure()
-        plt.imsave(outpath, out_image)
+        for class_of_interest in range(0,args.topclass):
+            out_image = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[0]
+            out_image = np.array(out_image)
+            lablename = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[1]
+            imgname = lablename+"_"+args.layer+'_'+str(args.channel)+'_'+picname
+            outpath = os.path.join(args.out,)
+            plt.figure()
+            plt.imsave(outpath, out_image)
 
 if __name__ == '__main__':
     main()
