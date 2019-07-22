@@ -17,24 +17,13 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from scipy.spatial.distance import cdist
 from dnnbrain.core import model_operation
-from dnnbrain.utils import iofiles
+from dnnbrain.utils import iofiles, base
 
 try:
     from sklearn import linear_model, model_selection, decomposition
 except ModuleNotFoundError:
     raise Exception('Please install sklearn in your workstation')
-
-
-def get_mean_activation(brainimg, mask, roilabel):
-    """
-    """
-    mean_roisignal = []
-    for i, lbl in enumerate(roilabel):
-        act_idx = np.transpose(np.where(mask==lbl))
-        roisignal = np.array([brainimg[:, act_idx[j][0], act_idx[j][1], act_idx[j][2]] for j in range(len(act_idx))])
-        mean_roisignal.append(np.mean(roisignal,axis=0))
-    return np.array(mean_roisignal)
-
+    
 
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to predict brain activation')
@@ -150,7 +139,7 @@ def main():
     if args.roi:
         roilabel = np.unique(brainmask_data_raw)
         roilabel = roilabel[roilabel!=0]
-        brainact_list = get_mean_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
+        brainact_list = base.extract_brain_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
         actnode_num = len(roilabel)
     else:
         brainimg_data = brainimg_data_raw*brainmask_data_raw
