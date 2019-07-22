@@ -77,14 +77,12 @@ def main():
                         type=str,
                         required=False,
                         metavar='BrainModel',
-                        choices=['multivariate', 'univariate'],
-                        help='model to predict brain activation by CNN activation, by default is multivariate.\
-                              multivariate analysis calls lasso regression with default alpha = 1, and we will \
+                        choices=['glm', 'lasso', 'nn'],
+                        help='model to predict brain activation by CNN activation. multivariate analysis \
+                              calls linear regression or lasso regression with default alpha = 1, and we will \
                               first decompose activation data of DNN into 200 dimension and then calculate \
                               explained variance by using cross validation. \
-                              univariate analysis, we will do linear cross validation in each brain image voxel \
-                              with each units and return the maximum explained variance as the explained variance \
-                              of brain activation.')
+                              ')
     parser.add_argument('-cvfold',
                         type=int,
                         required=False,
@@ -150,13 +148,17 @@ def main():
             brainact_list[:,i] = brainimg_data_raw[:, b_idx[0], b_idx[1], b_idx[2]]
         actnode_num = brainact_idx.shape[0]
 	   
-    # Initialize machine learning models
-    if args.model == 'multivariate':
-        model = linear_model.LinearRegression()
     
     score_array = np.zeros((1, actnode_num))
     # Multivariate regression analysis
-    if args.model == 'multivariate':
+    if args.model in ['glm', 'lasso']:
+        if args.model == 'glm':
+            model = linear_model.LinearRegression()
+        elif args.model == 'lasso':
+            model = linear_model.Lasso()
+        else:
+            raise Exception('Not support yet, please contact author for implementation.')
+            
         if dnn_act.shape[0] < 10:
             comp_num = dnn_act.shape[0]
         else:
@@ -172,19 +174,10 @@ def main():
             # Cross validation
             scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
             score_array[0, j] = np.mean(scores)
-                
-    # Univariate regression analysis
-    # get the maximum value of explained_variance across all DNN units in a channel
-    elif args.model == 'univariate':
-        # nsamples(pics)*nfeatures(units)
-        corr = 1.0 - cdist(dnn_act.T, brainact_list.T, metric='correlation')
-        # Each layer's max correlation 
-        maxcorr = np.max(corr,axis=0)
-        # Assign correlation to brain image
-        for j in range(actnode_num):
-            score_array[0,j] = maxcorr[j]
+    elif args.model == 'nn':
+        pass
     else:
-        raise Exception('Not supported yet, please contact the author for implementation.')
+        raise Exception('Not support yet, please contact author for implementation.')
     
     # Save output
     if args.roi:
