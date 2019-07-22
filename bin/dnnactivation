@@ -8,6 +8,7 @@ Reviewer:
 
 import argparse
 from torchvision import transforms
+from torch.util.data import DataLoader
 from dnnbrain.core import model_operation
 from dnnbrain.utils import iofiles
 
@@ -64,7 +65,8 @@ def main():
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
     picdataset = iofiles.PicDataset(args.stim, transform=transform)
-    dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
+    picdatloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+    dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
 	
     # Save activation data
     iofiles.save_activation(dnn_act,args.outdir)
