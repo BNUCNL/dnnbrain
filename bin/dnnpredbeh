@@ -13,6 +13,7 @@ import argparse
 import subprocess
 import numpy as np
 from torchvision import transforms
+from torch.utils.data import DataLoader
 import pandas as pd
 from scipy import stats
 from dnnbrain.core import model_operation
@@ -98,7 +99,8 @@ def main():
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
     picdataset = iofiles.PicDataset(args.csv, transform=transform)
-    dnn_act = model_operation.dnn_activation(picdataset, args.net, args.layer, args.channel)
+    picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+    dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
     if dnn_act.ndim == 3:
         dnn_act = dnn_act[:,None,...]
     

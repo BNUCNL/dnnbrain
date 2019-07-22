@@ -85,7 +85,8 @@ def main():
     # prepare pictures
     pic_dataset = PicDataset(args.stim, transforms.Compose([transforms.Resize(net_loader.img_size),
                                                             transforms.ToTensor()]))
-    pics = torch.tensor([pic.numpy() for _, pic, _ in pic_dataset])
+    pic_dataloader = DataLoader(pic_dataloader, batch_size=1, shuffle=False)
+    pics = torch.tensor([pic.numpy() for _, pic, _ in pic_dataloader])
     pics.squeeze_(1)
     truncated_output = truncated_net(pics[0].unsqueeze(0))
     channel_unit_num = truncated_output.shape[2:].numel()

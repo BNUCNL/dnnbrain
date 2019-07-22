@@ -2,7 +2,7 @@ try:
     import torch
     import torchvision
     from torch import nn
-    import torchvision.models as models
+    from torchvision import models
     from torchvision import transforms, utils
 except ModuleNotFoundError:
     raise Exception('Please install pytorch and torchvision in your work station')
@@ -18,7 +18,7 @@ def dnn_activation(input, net, layer, channel=None):
     
     Parameters:
     ------------
-    input[dataset]: input image dataset
+    input[dataloader]: input image dataloader
     net[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)

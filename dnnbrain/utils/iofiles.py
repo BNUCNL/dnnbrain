@@ -78,10 +78,10 @@ class PicDataset(Dataset):
         condition = np.array(self.csv_file['condition'])
         picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
         if self.transform:
-            picimg = self.transform(picimg)[None, ...]
+            picimg = self.transform(picimg)
         else:
             self.transform = transforms.Compose([transforms.ToTensor()])
-            picimg = self.transform(picimg)[None, ...]
+            picimg = self.transform(picimg)
         return picname[idx], picimg, condition[idx]        
 
    
