@@ -1,0 +1,9 @@
+We will have 
+
+
+model: for model construction, training and testing 
+-- merge models and model_operation
+
+
+repr: for understanding the internal representation
+--recon_image and opt_image
