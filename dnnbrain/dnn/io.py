@@ -15,13 +15,6 @@ try:
     from torch.utils.data import DataLoader, Dataset
 except ModuleNotFoundError:
     raise Exception('Please install pytorch and torchvision in your work station')
-    
-try:
-    import nibabel as nib
-    import cifti
-
-except ModuleNotFoundError:
-    raise Exception('Please install nibabel and cifti in your work station')
 
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
@@ -83,88 +76,6 @@ class PicDataset(Dataset):
             self.transform = transforms.Compose([transforms.ToTensor()])
             picimg = self.transform(picimg)
         return picname[idx], picimg, condition[idx]        
-
-   
-def load_brainimg(imgpath, ismask=False):
-    """
-    Load brain image identified by its suffix
-    suffix now support
-      
-    Nifti: .nii.gz
-    freesurfer: .mgz, .mgh
-    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
-        
-    Parameters:
-    ------------
-    imgpath: brain image data path
-        
-    Returns:
-    ------------
-    brain_img[np.array]: data of brain image
-    header[header]: header of brain image
-    """
-    imgname = os.path.basename(imgpath)
-    imgsuffix = imgname.split('.')[1:]
-    imgsuffix = '.'.join(imgsuffix)
-
-    if imgsuffix == 'nii.gz':
-        brain_img = nib.load(imgpath).get_data()
-        if not ismask:
-            brain_img = np.transpose(brain_img,(3,0,1,2))
-        header = nib.load(imgpath).header
-    elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
-        brain_img = nib.freesurfer.load(imgpath).get_data()
-        if not ismask:
-            brain_img = np.transpose(brain_img, (3,0,1,2))
-        header = nib.freesurfer.load(imgpath).header
-    elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
-        brain_img, header = cifti.read(imgpath)
-        if not ismask:
-            brain_img = brain_img[...,None,None]
-        else:
-            brain_img = brain_img[...,None]
-    else:
-        raise Exception('Not support this format of brain image data, please contact with author to update this function.')
-    return brain_img, header
-    
-    
-def save_brainimg(imgpath, data, header):
-    """
-    Save brain image identified by its suffix
-    suffix now support
-     
-    Nifti: .nii.gz
-    freesurfer: .mgz, .mgh
-    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
-        
-    Parameters:
-    ------------
-    imgpath: brain image path to be saved
-    data: brain image data matrix
-    header: brain image header
-        
-    Returns:
-    --------
-    """
-    imgname = os.path.basename(imgpath)
-    imgsuffix = imgname.split('.')[1:]
-    imgsuffix = '.'.join(imgsuffix)
-    
-    if imgsuffix == 'nii.gz':
-        data = np.transpose(data,(1,2,3,0))
-        outimg = nib.Nifti1Image(data, None, header)
-        nib.save(outimg, imgpath)
-    elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
-        data = np.transpose(data, (1,2,3,0))
-        outimg = nib.MGHImage(data, None, header)
-        nib.save(outimg, imgpath)
-    elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
-        data = data[...,0,0]
-        map_name = ['']*data.shape[0]
-        bm_full = header[1]
-        cifti.write(imgpath, data, (cifti.Scalar.from_names(map_names), bm_full))
-    else:
-        raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
  
         
 def save_activation(activation,outpath):

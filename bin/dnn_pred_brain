@@ -16,8 +16,10 @@ import pandas as pd
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from scipy.spatial.distance import cdist
-from dnnbrain.core import model_operation
-from dnnbrain.utils import iofiles, base
+from dnnbrain.dnn import analyzer
+from dnnbrain.dnn import io as dnn_io
+from dnnbrain.brain import io as brain_io
+
 
 try:
     from sklearn import linear_model, model_selection, decomposition
@@ -46,7 +48,7 @@ def main():
     parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        dest='csv'
+                        dest='csv',
                         metavar='StimuliInfoFile',
                         help='table contains picture names, conditions and picture onset time.\
                                 This csv_file helps us connect cnn activation to brain images.\
@@ -92,8 +94,8 @@ def main():
     parser.add_argument('-out',
                         type=str,
                         required=True,
-                        dest='OutputDir',
-                        metavar='Output Directory',
+                        dest='outdir',
+                        metavar='OutputDir',
                         help='output directory, output is a 4D brain image data with value in each voxel \
                               is explained_variance by linear_model, each volume is the prediction explained \
                               variance in each layer.')
@@ -109,14 +111,14 @@ def main():
 	# 4 Map accuracy to Brain Images. Parameters: -out
 	
 	# DNN activation extraction 
-    netloader = iofiles.NetLoader(args.net)
+    netloader = dnn_io.NetLoader(args.net)
     imgcropsize = netloader.img_size
      
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.csv, transform=transform)
+    picdataset = dnn_io.PicDataset(args.csv, transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
-    dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
+    dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
     if dnn_act.ndim == 3:
         dnn_act = dnn_act[:,None,...]
         
@@ -126,10 +128,10 @@ def main():
 
     
     # Brain image activation extraction
-    brainimg_data_raw, header = iofiles.load_brainimg(args.brainact)
+    brainimg_data_raw, header = brain_io.load_brainimg(args.brainact)
     if args.mask:
         assert os.path.basename(args.brainact).split('.')[1:] == os.path.basename(args.mask).split('.')[1:], "Brain activation and mask are mismatched."
-        brainmask_data_raw, header = iofiles.load_brainimg(args.mask, ismask=True)
+        brainmask_data_raw, header = brain_io.load_brainimg(args.mask, ismask=True)
     else:
         brainmask_data_raw = np.ones(brainimg_data_raw.shape[1:])
     assert brainimg_data_raw.shape[1:] == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
@@ -137,7 +139,7 @@ def main():
     if args.roi:
         roilabel = np.unique(brainmask_data_raw)
         roilabel = roilabel[roilabel!=0]
-        brainact_list = base.extract_brain_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
+        brainact_list = brain_io.extract_brain_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
         actnode_num = len(roilabel)
     else:
         brainimg_data = brainimg_data_raw*brainmask_data_raw
@@ -191,7 +193,7 @@ def main():
             for j, b_idx in enumerate(brainact_idx):
                 out_brainimg[i,b_idx[0], b_idx[1], b_idx[2]] = score_array[i,j]
         # Save image into hardware
-        iofiles.save_brainimg(args.outdir, out_brainimg, header)
+        brain_io.save_brainimg(args.outdir, out_brainimg, header)
 
 
 if __name__ == '__main__':

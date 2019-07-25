@@ -8,9 +8,9 @@ Reviewer:
 
 import argparse
 from torchvision import transforms
-from torch.util.data import DataLoader
-from dnnbrain.core import model_operation
-from dnnbrain.utils import iofiles
+from torch.utils.data import DataLoader
+from dnnbrain.dnn import analyzer
+from dnnbrain.dnn import io as dnn_io
 
 def main():
     parser = argparse.ArgumentParser(description='Extract activation from specific layer from a DNN')
@@ -60,16 +60,16 @@ def main():
 	
 	
 	# DNN activation extraction 
-    netloader = iofiles.NetLoader(args.net)
+    netloader = dnn_io.NetLoader(args.net)
     imgcropsize = netloader.img_size
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.stim, transform=transform)
-    picdatloader = DataLoader(picdataset, batch_size=8, shuffle=False)
-    dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
+    picdataset = dnn_io.PicDataset(args.stim, transform=transform)
+    picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+    dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
 	
     # Save activation data
-    iofiles.save_activation(dnn_act,args.outdir)
+    dnn_io.save_activation(dnn_act,args.outdir)
 
 if __name__ == '__main__':
 

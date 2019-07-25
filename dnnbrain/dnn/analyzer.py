@@ -9,7 +9,7 @@ except ModuleNotFoundError:
     
 import numpy as np
 
-from dnnbrain.utils import iofiles
+from dnnbrain.dnn import io as iofiles
 
 
 def dnn_activation(input, net, layer, channel=None):
