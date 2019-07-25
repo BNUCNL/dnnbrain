@@ -16,8 +16,8 @@ from torchvision import transforms
 from scipy.stats import pearsonr
 from os.path import join as pjoin
 from sklearn.model_selection import KFold
-from dnnbrain.core.models import DNN2BrainNet
-from dnnbrain.core.model_operation import truncate_net
+from dnnbrain.dnn.models import DNN2BrainNet
+from dnnbrain.dnn.analyzer import truncate_net
 from dnnbrain.utils.iofiles import NetLoader, PicDataset, load_brainimg, save_brainimg
 
 

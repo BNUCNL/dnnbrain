@@ -16,8 +16,8 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 import pandas as pd
 from scipy import stats
-from dnnbrain.core import model_operation
-from dnnbrain.utils import iofiles
+from dnnbrain.dnn import analyzer
+from dnnbrain.dnn import io as dnn_io
 
 try:
     from sklearn import linear_model, model_selection, decomposition
@@ -45,7 +45,7 @@ def main():
     parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        dest='csv'
+                        dest='csv',
                         metavar='StimuliInfoFile',
                         help='table contains picture names, conditions and picture onset time.\
                               This csv_file helps us connect cnn activation to brain images.\
@@ -83,22 +83,22 @@ def main():
     parser.add_argument('-out',
                         type=str,
                         required=True,
-                        dest='OutputDir',
-                        metavar='Output Directory',
+                        dest='outdir',
+                        metavar='OutputDir',
                         help='output directory, output is text file with each value\
                               is explained_variance by multivariate or univariate analysis \
                               in each layer.')
     args = parser.parse_args()
 
 	# DNN activation extraction 
-    netloader = iofiles.NetLoader(args.net)
+    netloader = dnn_io.NetLoader(args.net)
     imgcropsize = netloader.img_size
      
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
-    picdataset = iofiles.PicDataset(args.csv, transform=transform)
+    picdataset = dnn_io.PicDataset(args.csv, transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
-    dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
+    dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
     if dnn_act.ndim == 3:
         dnn_act = dnn_act[:,None,...]
     
@@ -131,7 +131,7 @@ def main():
         # Cross validation
         scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, beh_measure, scoring='explained_variance', cv=args.cvfold)
         scores.append(np.mean(scores_tmp))
-    elif args.model == 'nn'：
+    elif args.model == 'nn':
         pass
     else:
         raise Exception('Not supported yet, please contact the author for implementation.')
