@@ -1,9 +1,10 @@
 We will have 
 
 
-model: for model construction, training and testing 
--- merge models and model_operation
+models: for model construction, training and testing 
 
 
-repr: for understanding the internal representation
+representation: for understanding the internal representation
 --recon_image and opt_image
+
+analyzer: do some scientific orientaed analyses for DNN or brain
