@@ -65,7 +65,7 @@ def main():
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
     picdataset = iofiles.PicDataset(args.stim, transform=transform)
-    picdatloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+    picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
     dnn_act = model_operation.dnn_activation(picdataloader, args.net, args.layer, args.channel)
 	
     # Save activation data
