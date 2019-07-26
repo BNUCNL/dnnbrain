@@ -69,13 +69,15 @@ class PicDataset(Dataset):
         # load pictures
         picname = np.array(self.csv_file['stimID'])
         condition = np.array(self.csv_file['condition'])
+        target_name = np.unique(condition)
         picimg = Image.open(os.path.join(self.picpath, condition[idx], picname[idx]))
+        target_label = target_name.tolist().index(condition[idx])
         if self.transform:
             picimg = self.transform(picimg)
         else:
             self.transform = transforms.Compose([transforms.ToTensor()])
             picimg = self.transform(picimg)
-        return picname[idx], picimg, condition[idx]        
+        return picname[idx], picimg, target_label
  
         
 def save_activation(activation,outpath):
