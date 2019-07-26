@@ -127,6 +127,8 @@ def dnn_test_model(dataloaders, model):
     model_target = np.array(model_target)
     actual_target = np.array(actual_target)
     test_acc = 1.0*np.sum(model_target == actual_target)/len(actual_target)
+    time_elapsed =  time.time() - time0
+    print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     return model_target, actual_target, test_acc
         
         
