@@ -36,7 +36,7 @@ class DNN2BrainNet(nn.Module):
         return x
 
 
-def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, train_method='trandition'):
+def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, train_method='tradition'):
     """
     Function to train a DNN model
 
@@ -47,7 +47,7 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
     criterion[class]: criterion function
     optimizer[class]: optimizer function
     num_epoches[int]: epoch times, by default is 200.
-    train_method[str]: training method, by default is 'trandition'. 
+    train_method[str]: training method, by default is 'tradition'. 
                        For some specific models (e.g. inception), loss needs to be calculated in another way.
                        
     Returns:
@@ -56,11 +56,11 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
     """
     time0 = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.train()
     model = model.to(device)
     for epoch in range(num_epoches):
         print('Epoch time {}/{}'.format(epoch+1, num_epoches))
         print('-'*10)
-        model.train()
         running_loss = 0.0
         running_correct = 0
         
@@ -69,7 +69,7 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
             targets = targets.to(device)
             optimizer.zero_grad()
             with torch.set_grad_enabled(1):
-                if train_method == 'trandition':
+                if train_method == 'tradition':
                     outputs = model(inputs)
                     loss = criterion(outputs, targets)
                 elif train_method == 'inception':
@@ -114,16 +114,18 @@ def dnn_test_model(dataloaders, model):
     """ 
     time0 = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.eval()
     model = model.to(device)
     model_target = []
     actual_target = []
-    for i, (_, inputs, targets) in enumerate(dataloaders):
-        print('Now loading batch {}'.format(i+1))
-        inputs = inputs.to(device)
-        outputs = model(inputs)
-        _, outputs_label = torch.max(outputs, 1)
-        model_target.extend(outputs_label.cpu().numpy())
-        actual_target.extend(targets.numpy())
+    with torch.no_grad():
+        for i, (_, inputs, targets) in enumerate(dataloaders):
+            print('Now loading batch {}'.format(i+1))
+            inputs = inputs.to(device)
+            outputs = model(inputs)
+            _, outputs_label = torch.max(outputs, 1)
+            model_target.extend(outputs_label.cpu().numpy())
+            actual_target.extend(targets.numpy())
     model_target = np.array(model_target)
     actual_target = np.array(actual_target)
     test_acc = 1.0*np.sum(model_target == actual_target)/len(actual_target)
