@@ -57,7 +57,7 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
     time0 = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
-    for epoch in range(num_epoches)：
+    for epoch in range(num_epoches):
         print('Epoch time {}/{}'.format(epoch+1, num_epoches))
         print('-'*10)
         model.train()
