@@ -9,8 +9,8 @@ Author: Yiyuan Zhang @ BNU
 #import some packages needed
 import argparse
 from PIL import Image
-from dnnbrain.viz import dnnopt_operation
-from dnnbrain.utils.iofiles import NetLoader
+from dnnbrain.dnn import representation
+from dnnbrain.dnn import io as dnn_io
 
 
 def main():
@@ -50,12 +50,12 @@ def main():
     
     args = parser.parse_args()
       
-    netloader = NetLoader(args.net)
+    netloader = dnn_io.NetLoader(args.net)
     
     for param in netloader.model.parameters():
         param.requires_grad = False 
     
-    layer_vis = dnnopt_operation.CNNLayerVisualization(netloader.model.features, netloader.layer2indices[args.layer][1], args.channel)
+    layer_vis = representation.CNNLayerVisualization(netloader.model.features, netloader.layer2indices[args.layer][1], args.channel)
     
     try:
         layer_vis.visualise_layer_with_hooks(args.net, 51, args.outdir, args.unit)
