@@ -130,7 +130,7 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
         running_loss = 0.0
         running_correct = 0
         
-        for _, inputs, targets in dataloaders:
+        for inputs, targets in dataloaders:
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
@@ -185,7 +185,7 @@ def dnn_test_model(dataloaders, model):
     model_target = []
     actual_target = []
     with torch.no_grad():
-        for i, (_, inputs, targets) in enumerate(dataloaders):
+        for i, (inputs, targets) in enumerate(dataloaders):
             print('Now loading batch {}'.format(i+1))
             inputs = inputs.to(device)
             outputs = model(inputs)

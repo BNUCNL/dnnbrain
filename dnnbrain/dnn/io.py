@@ -45,6 +45,10 @@ class PicDataset(Dataset):
         with open(csv_file,'r') as f:
             self.picpath = f.readline().rstrip()
         self.transform = transform
+        picname = np.array(self.csv_file['stimID'])
+        condition = np.array(self.csv_file['condition'])
+        self.picname = picname
+        self.condition = condition
         
     def __len__(self):
         """
@@ -64,20 +68,33 @@ class PicDataset(Dataset):
         ---------
         picname: picture name
         picimg: picture data, save as a pillow instance
-        condition: target of each sample (label)
+        target_label: target of each sample (label)
         """
         # load pictures
-        picname = np.array(self.csv_file['stimID'])
-        condition = np.array(self.csv_file['condition'])
-        target_name = np.unique(condition)
-        picimg = Image.open(os.path.join(self.picpath, picname[idx])).convert('RGB')
-        target_label = target_name.tolist().index(condition[idx])
+        target_name = np.unique(self.condition)
+        picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        target_label = target_name.tolist().index(self.condition[idx])
         if self.transform:
             picimg = self.transform(picimg)
         else:
             self.transform = transforms.Compose([transforms.ToTensor()])
             picimg = self.transform(picimg)
-        return os.path.basename(picname[idx]), picimg, target_label
+        return picimg, target_label
+        
+    def get_picname(self, idx):
+        """
+        Get picture name and its condition (target condition)
+        
+        Parameters:
+        -----------
+        idx: index of sample
+        
+        Returns:
+        ---------
+        picname: picture name
+        condition: target condition
+        """
+        return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
 def generate_stim_csv(parpath, picname_list, condition_list, outpath, onset_list=None, behavior_measure=None):
