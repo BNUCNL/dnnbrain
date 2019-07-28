@@ -203,7 +203,7 @@ def layer_channel_reconstruction(model,picimg,layer,channel,class_of_interest):
     _, preds = torch.max(out.data, 1)
     _, indices = torch.sort(out, descending=True)
     target_class = indices.numpy()[0,class_of_interest]
-    with open('~/dnnbrain/dnnbrain/imagenet_classes.txt') as f:
+    with open('~/dnnbrain/dnnbrain/data/imagenet_classes.txt') as f:
         classes = [line.strip() for line in f.readlines()]
     _, indices = torch.sort(out, descending=True)
     label =  [(classes[idx]) for idx in indices[0][:class_of_interest+1]][class_of_interest] # get the semantic label of this pic
