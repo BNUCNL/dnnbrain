@@ -23,7 +23,7 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    def __init__(self, csv_file, transform=None):
+    def __init__(self, csv_file, transform=None,crop=None):
         """
         Initialize PicDataset
         
@@ -49,7 +49,14 @@ class PicDataset(Dataset):
         condition = np.array(self.csv_file['condition'])
         self.picname = picname
         self.condition = condition
-        
+        self.crop = crop
+        self.left, self.upper, self.right, self.lower = [None] * 4
+        if self.crop is True:
+            self.left = np.array(self.csv_file['left_coord'])
+            self.upper = np.array(self.csv_file['upper_coord'])
+            self.right = np.array(self.csv_file['right_coord'])
+            self.lower = np.array(self.csv_file['lower_coord'])
+
     def __len__(self):
         """
         Return sample size
@@ -73,6 +80,8 @@ class PicDataset(Dataset):
         # load pictures
         target_name = np.unique(self.condition)
         picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        if self.crop is True:
+            picimg = picimg.crop((self.left[idx],self.upper[idx],self.left[idx],self.lower[idx]))
         target_label = target_name.tolist().index(self.condition[idx])
         if self.transform:
             picimg = self.transform(picimg)
