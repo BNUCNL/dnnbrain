@@ -81,7 +81,7 @@ def main():
             out_image = np.array(out_image)
             lablename = representation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[1]
             imgname = lablename+"_"+args.layer+'_'+str(args.channel)+'_'+picname
-            outpath = os.path.join(args.out,)
+            outpath = os.path.join(args.out, imgname)
             plt.figure()
             plt.imsave(outpath, out_image)
 
