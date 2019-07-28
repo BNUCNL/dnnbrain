@@ -287,16 +287,3 @@ class Vgg_face(nn.Module):
         x37 = self.dropout7(x36)
         x38 = self.fc8(x37)
         return x38
-
-def vgg_face(weights_path=None, **kwargs):
-    """
-    load imported model instance
-
-    Args:
-        weights_path (str): If set, loads model weights from the given path
-    """
-    model = Vgg_face()
-    if weights_path:
-        state_dict = torch.load(weights_path)
-        model.load_state_dict(state_dict)
-    return model
