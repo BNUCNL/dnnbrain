@@ -134,7 +134,7 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
-            with torch.set_grad_enabled(1):
+            with torch.set_grad_enabled(True):
                 if train_method == 'tradition':
                     outputs = model(inputs)
                     loss = criterion(outputs, targets)
@@ -156,10 +156,10 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
         
         epoch_loss = running_loss / len(dataloaders.dataset)
         epoch_acc = running_correct.double() / len(dataloaders.dataset)
-        print('Loss: {.4f} Acc: {.4f}'.format(phase, epoch_loss, epoch_acc))
+        print('Loss: {} Acc: {}'.format(epoch_loss, epoch_acc))
     time_elapsed =  time.time() - time0
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best Acc: {.4f}'.format(epoch_acc))
+    print('Best Acc: {}'.format(epoch_acc))
     return model
     
 
