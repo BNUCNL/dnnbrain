@@ -30,7 +30,7 @@ def dnn_activation(input, netname, layer, channel=None):
     actmodel = dnn_truncate(loader.model, loader.layer2indices[layer], layer)
 
     dnnact = []
-    for _, picdata, target in input:
+    for picdata, target in input:
         dnnact_part = actmodel(picdata)
         dnnact.extend(dnnact_part.detach().numpy())
     dnnact = np.array(dnnact)
