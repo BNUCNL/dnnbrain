@@ -23,7 +23,7 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    def __init__(self, csv_file, transform=None,crop=None):
+    def __init__(self, csv_file, transform=None, crop=None):
         """
         Initialize PicDataset
         
@@ -34,14 +34,15 @@ class PicDataset(Dataset):
                         Please organize your information as:
                                      
                         [PICDIR]
-                        stimID          condition   onset(optional) measurement(optional)   left_coord   ...
-                        download/face1  face        1.1             3                           20       ...
-                        mgh/face2.png   face        3.1             5                           30       ...
-                        scene1.png      scene       5.1             4                           40       ...
+                        stimID          condition   onset(optional) measurement(optional)
+                        download/face1  face        1.1             3
+                        mgh/face2.png   face        3.1             5
+                        scene1.png      scene       5.1             4
         
         transform[callable function]: optional transform to be applied on a sample.
         crop[bool]:crop picture optionally by a bounding box.
                    The coordinates of bounding box for crop pictures should be measurements in csv_file.
+                   The label of coordinates in csv_file should be left_coord,upper_coord,right_coord,lower_coord.
         """
         self.csv_file = pd.read_csv(csv_file, skiprows=1)
         with open(csv_file,'r') as f:
@@ -52,8 +53,7 @@ class PicDataset(Dataset):
         self.picname = picname
         self.condition = condition
         self.crop = crop
-        self.left, self.upper, self.right, self.lower = [None] * 4
-        if self.crop is True:
+        if self.crop:
             self.left = np.array(self.csv_file['left_coord'])
             self.upper = np.array(self.csv_file['upper_coord'])
             self.right = np.array(self.csv_file['right_coord'])
@@ -82,7 +82,7 @@ class PicDataset(Dataset):
         # load pictures
         target_name = np.unique(self.condition)
         picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
-        if self.crop is True:
+        if self.crop:
             picimg = picimg.crop((self.left[idx],self.upper[idx],self.left[idx],self.lower[idx]))
         target_label = target_name.tolist().index(self.condition[idx])
         if self.transform:
