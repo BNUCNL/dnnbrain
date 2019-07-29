@@ -9,12 +9,10 @@ Reviewer:
 import os
 import numpy as np
 import argparse
-import torch
 from torch.utils.data import DataLoader
-import torchvision
 import matplotlib.pyplot as plt
-from dnnbrain.utils import iofiles
-from dnnbrain.viz import model_operation
+from dnnbrain.dnn import io as dnn_io
+from dnnbrain.dnn import representation
 
 
 def main():
@@ -68,22 +66,22 @@ def main():
     args = parser.parse_args()
 
     # select net
-    netloader = iofiles.NetLoader(args.net)
+    netloader = dnn_io.NetLoader(args.net)
     model = netloader.model
 
     # real layer in CNN
     cnn_layer = netloader.layer2indices[args.layer][1]
 
-    picdataset = iofiles.PicDataset(args.stim, transform=None)
+    picdataset = dnn_io.PicDataset(args.stim, transform=None)
     picdataloader = DataLoader(picdataset, batch_size=1, shuffle=False)
 
     for picname, picimg, _ in picdataloader:
         for class_of_interest in range(0,args.topclass):
-            out_image = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[0]
+            out_image = representation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[0]
             out_image = np.array(out_image)
-            lablename = model_operation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[1]
+            lablename = representation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[1]
             imgname = lablename+"_"+args.layer+'_'+str(args.channel)+'_'+picname
-            outpath = os.path.join(args.out,)
+            outpath = os.path.join(args.out, imgname)
             plt.figure()
             plt.imsave(outpath, out_image)
 
