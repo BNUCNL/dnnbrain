@@ -34,12 +34,14 @@ class PicDataset(Dataset):
                         Please organize your information as:
                                      
                         [PICDIR]
-                        stimID          condition   onset(optional) measurement(optional)
-                        download/face1  face        1.1             3
-                        mgh/face2.png   face        3.1             5
-                        scene1.png      scene       5.1             4
+                        stimID          condition   onset(optional) measurement(optional)   left_coord   ...
+                        download/face1  face        1.1             3                           20       ...
+                        mgh/face2.png   face        3.1             5                           30       ...
+                        scene1.png      scene       5.1             4                           40       ...
         
         transform[callable function]: optional transform to be applied on a sample.
+        crop[bool]:crop picture optionally by a bounding box.
+                   The coordinates of bounding box for crop pictures should be measurements in csv_file.
         """
         self.csv_file = pd.read_csv(csv_file, skiprows=1)
         with open(csv_file,'r') as f:
