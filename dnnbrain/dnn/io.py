@@ -2,6 +2,7 @@ import os
 import scipy.io
 import numpy as np
 import pandas as pd
+from dnnbrain.dnn.models import Vgg_face
 
 try:
     from PIL import Image
@@ -226,6 +227,13 @@ class NetLoader:
             self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
                                   'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
                                   'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
+            self.img_size = (224, 224)
+        elif net == 'vggface':
+            self.model = Vgg_face()
+            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
+            self.layer2indices = {'conv1':0,'conv2':2,'conv3':5,'conv4':7,'conv5':10,'conv6':12,'conv7':14,
+                                  'conv8':17,'conv9':19,'conv10':21,'conv11':24,'conv12':26,'conv13':28,
+                                  'fc1':31,'fc2':34,'fc3':37}
             self.img_size = (224, 224)
         else:
             raise Exception('Network was not supported, please contact author for implementation.')
