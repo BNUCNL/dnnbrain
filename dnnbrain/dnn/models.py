@@ -98,9 +98,9 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
         print('Epoch time {}/{}'.format(epoch+1, num_epoches))
         print('-'*10)
         running_loss = 0.0
-        running_correct = 0
         
         for inputs, targets in dataloaders:
+            inputs.requires_grad_(True)
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
@@ -122,14 +122,11 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
                 optimizer.step()
             # Statistics
             running_loss += loss.item() * inputs.size(0)
-            running_correct += torch.sum(pred==targets.data)
         
         epoch_loss = running_loss / len(dataloaders.dataset)
-        epoch_acc = running_correct.double() / len(dataloaders.dataset)
-        print('Loss: {} Acc: {}'.format(epoch_loss, epoch_acc))
-    time_elapsed =  time.time() - time0
+        print('Loss: {}\n'.format(epoch_loss))
+    time_elapsed = time.time() - time0
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best Acc: {}'.format(epoch_acc))
     return model
     
 
@@ -168,7 +165,6 @@ def dnn_test_model(dataloaders, model):
     time_elapsed =  time.time() - time0
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     return model_target, actual_target, test_acc
-
 
 
 class DNN2BrainNet(nn.Module):
