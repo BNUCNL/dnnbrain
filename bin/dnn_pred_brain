@@ -3,22 +3,24 @@
 """
 Use CNN activation to predict brain activation
 
-Author: Taicheng Huang @ BNU
+Author: Taicheng Huang, Xiayu Chen @ BNU
 Email: taicheng_huang@mail.bnu.edu.cn
 Reviewer:
 """
 
-import os
 import argparse
-import subprocess
 import numpy as np
 import pandas as pd
-from torch.utils.data import DataLoader
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 from torchvision import transforms
-from scipy.spatial.distance import cdist
+from os.path import join as pjoin
+from scipy.stats import pearsonr
 from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dnn_io
 from dnnbrain.brain import io as brain_io
+from dnnbrain.dnn.models import dnn_truncate, DNN2BrainNet, dnn_train_model
 
 
 try:
@@ -38,13 +40,16 @@ def main():
                         type=str,
                         required=True,
                         metavar='LayerName',
-                        help='activation for specific layers, please input conv1 or fc1 for activation')
+                        help="The name of the layer whose activation is used to predict brain activity. "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer.")
     parser.add_argument('-channel',
                         type=int,
                         required=False,
                         nargs='*',
                         metavar='Channel',
-                        help='activation for specific channels')
+                        help="The sequence numbers of out_channels of the selected layer. "
+                             "If not specified, use all out_channels' activation to predict brain activity.")
     parser.add_argument('-stim',
                         type=str,
                         required=True,
@@ -71,7 +76,7 @@ def main():
                         type=str,
                         required=False,
                         metavar='MaskFile',
-                        help='brain activation mask')
+                        help='brain mask used to extract activation locally')
     parser.add_argument('-roi',
                         action='store_true',
                         help='Do ROI analysis or not.')
@@ -83,14 +88,12 @@ def main():
                         help='model to predict brain activation by CNN activation. multivariate analysis \
                               calls linear regression or lasso regression with default alpha = 1, and we will \
                               first decompose activation data of DNN into 200 dimension and then calculate \
-                              explained variance by using cross validation. \
-                              ')
+                              explained variance by using cross validation.')
     parser.add_argument('-cvfold',
                         type=int,
                         required=False,
-                        default=2,
                         metavar='FoldNumber',
-                        help='cross validation fold numbers')
+                        help='cross validation fold number')
     parser.add_argument('-out',
                         type=str,
                         required=True,
@@ -101,59 +104,46 @@ def main():
                               variance in each layer.')
     args = parser.parse_args()
 
-	# See below is the framework of this command 
-	# ------------------------------------
-	# Streamline
-	# ------------------------------------
-	# 1 Call Yukun's code (activation extraction from 'core') to get CNN's activations. Parameters: -net, -in, -layer, -channel
-	# 2 Extract brain activation from fMRI data (brainact and mask), and convert it as an array. Parameters: -brainact, -mask
-	# 3 Iterately Call sklearn models to estimate accuracy. Parameters: -model, -cvfold.
-	# 4 Map accuracy to Brain Images. Parameters: -out
-	
-	# DNN activation extraction 
+    # ---prepare data---
+    # prepare pictures
     netloader = dnn_io.NetLoader(args.net)
     imgcropsize = netloader.img_size
-     
     transform = transforms.Compose([transforms.Resize(imgcropsize),
                                     transforms.ToTensor()])                            
     picdataset = dnn_io.PicDataset(args.csv, transform=transform)
-    picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
-    dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
-    if dnn_act.ndim == 3:
-        dnn_act = dnn_act[:,None,...]
-        
-    # Reshape dnn_act and flatten its unit
-    channel_num = dnn_act.shape[1]
-    dnn_act = dnn_act.reshape((dnn_act.shape[0], channel_num*dnn_act.shape[2]*dnn_act.shape[3]))
-
     
-    # Brain image activation extraction
+    # prepare brain images
     brainimg_data_raw, header = brain_io.load_brainimg(args.brainact)
     if args.mask:
-        assert os.path.basename(args.brainact).split('.')[1:] == os.path.basename(args.mask).split('.')[1:], "Brain activation and mask are mismatched."
         brainmask_data_raw, header = brain_io.load_brainimg(args.mask, ismask=True)
     else:
-        brainmask_data_raw = np.ones(brainimg_data_raw.shape[1:])
+        brainmask_data_raw = np.sum(brainimg_data_raw, 0) != 0
     assert brainimg_data_raw.shape[1:] == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
     
-    if args.roi:
-        roilabel = np.unique(brainmask_data_raw)
-        roilabel = roilabel[roilabel!=0]
+    if args.roi and args.mask:
+        roilabel = np.delete(np.unique(brainmask_data_raw), 0).astype(int)
         brainact_list = brain_io.extract_brain_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
         actnode_num = len(roilabel)
     else:
         brainimg_data = brainimg_data_raw*brainmask_data_raw
-        brainact_idx = np.transpose(np.where(brainmask_data_raw!=0))
+        brainact_idx = np.transpose(np.where(brainmask_data_raw != 0))
         # Flatten brainimage as (npic * nvoxel) array
         brainact_list = np.zeros((brainimg_data_raw.shape[0], brainact_idx.shape[0]))
         for i, b_idx in enumerate(brainact_idx):
-            brainact_list[:,i] = brainimg_data_raw[:, b_idx[0], b_idx[1], b_idx[2]]
+            brainact_list[:, i] = brainimg_data_raw[:, b_idx[0], b_idx[1], b_idx[2]]
         actnode_num = brainact_idx.shape[0]
-	   
-    
-    score_array = np.zeros((1, actnode_num))
-    # Multivariate regression analysis
+
+    # ---Multivariate regression analysis---
+    scores = []
     if args.model in ['glm', 'lasso']:
+        # Extract brain activation
+        picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+        dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
+        if dnn_act.ndim == 3:
+            dnn_act = dnn_act[:, None, ...]
+        # Reshape dnn_act and flatten its unit
+        dnn_act = dnn_act.reshape((dnn_act.shape[0], dnn_act.shape[1]*dnn_act.shape[2]*dnn_act.shape[3]))
+
         if args.model == 'glm':
             model = linear_model.LinearRegression()
         elif args.model == 'lasso':
@@ -174,26 +164,111 @@ def main():
             # Decrease dimension using PCA
             dnn_act_pca = pca.fit_transform(dnn_act)
             # Cross validation
-            scores = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:,j][:,None], scoring='explained_variance', cv=args.cvfold)
-            score_array[0, j] = np.mean(scores)
+            cv = 2 if args.cvfold is None else args.cvfold
+            scores_tmp = model_selection.cross_val_score(model, dnn_act_pca, brainact_list[:, j][:, None],
+                                                         scoring='explained_variance', cv=cv)
+            scores.append(np.mean(scores_tmp))
+
     elif args.model == 'nn':
-        pass
+        # truncate the pretrained neural network
+        truncated_net = dnn_truncate(netloader.model, netloader.layer2indices[args.layer], args.layer)
+        for param in truncated_net.parameters():
+            # fix the pretrained parameters
+            param.requires_grad = False
+
+        # process data
+        pics = torch.tensor([pic.numpy() for pic, _ in picdataset])
+        pics = pics.type(torch.float32)
+        truncated_output = truncated_net(pics[0].unsqueeze(0))
+        if 'fc' in args.layer:
+            channel_unit_num = truncated_output.shape[1]
+        elif 'conv' in args.layer:
+            channel_unit_num = truncated_output.shape[2:].numel()
+        else:
+            raise ValueError("Wrong layer name!")
+        acts = torch.tensor(brainact_list, dtype=torch.float32)
+
+        if args.cvfold:
+            # split data to args.cvfold folds
+            # Each fold is then used once as a validation while the remaining folds form the training set.
+            scores_list = []
+            kf = model_selection.KFold(args.cvfold)
+            for train_indices, test_indices in kf.split(pics):
+                # train a new model
+                train_pics = pics[train_indices]
+                train_acts = acts[train_indices]
+                dataset = TensorDataset(train_pics, train_acts)
+                dataloader = DataLoader(dataset=dataset, batch_size=train_pics.shape[0], num_workers=1)
+                net = DNN2BrainNet(
+                    truncated_net=truncated_net,
+                    channel_unit_num=channel_unit_num,
+                    fc_out_num=train_acts.shape[1],
+                    channel=args.channel
+                )
+                optimizer = torch.optim.Adam(net.fc.parameters(), lr=0.01)
+                loss_func = nn.MSELoss()
+                net = dnn_train_model(dataloader, net, loss_func, optimizer, 100)
+
+                # test the trained model
+                test_pics = pics[test_indices]
+                test_acts = acts[test_indices]
+                net.train(False)
+                with torch.no_grad():
+                    predicted_acts = net(test_pics)
+
+                # calculate prediction score
+                scores = []
+                for x, y in zip(test_acts.numpy().T, predicted_acts.numpy().T):
+                    r = pearsonr(x, y)[0]
+                    if np.isnan(r):
+                        r = 0
+                    scores.append(np.power(r, 2))
+                scores_list.append(scores)
+            scores = np.nanmean(scores_list, 0)
+
+        else:
+            # use all data to train a model
+            dataset = TensorDataset(pics, acts)
+            dataloader = DataLoader(dataset=dataset, batch_size=pics.shape[0], num_workers=1)
+            net = DNN2BrainNet(
+                truncated_net=truncated_net,
+                channel_unit_num=channel_unit_num,
+                fc_out_num=acts.shape[1],
+                channel=args.channel
+            )
+            optimizer = torch.optim.Adam(net.fc.parameters(), lr=0.01)
+            loss_func = nn.MSELoss()
+            net = dnn_train_model(dataloader, net, loss_func, optimizer, 100)
+
+            # calculate prediction score
+            net.train(False)
+            with torch.no_grad():
+                predicted_acts = net(pics)
+            for x, y in zip(acts.numpy().T, predicted_acts.numpy().T):
+                r = pearsonr(x, y)[0]
+                if np.isnan(r):
+                    r = 0
+                scores.append(np.power(r, 2))
+
+            # save net
+            net_file = pjoin(args.outdir, 'dnn2brain_net.pkl')
+            torch.save(net, net_file)
+
     else:
         raise Exception('Not support yet, please contact author for implementation.')
     
-    # Save output
-    if args.roi:
-        score_df = pd.DataFrame({'ROI':roilabel, 'scores':score_array.flatten()})
+    # ---save prediction scores---
+    if args.roi and args.mask:
+        score_df = pd.DataFrame({'ROI': roilabel, 'scores': scores})
         # Save behavior measurement into hardware
-        score_df.to_csv(args.outdir, index=False)
+        score_df.to_csv(pjoin(args.outdir, 'roi_score.csv'), index=False)
     else:
         # output image: channel*voxels
-        out_brainimg = np.zeros((channel_num, *brainimg_data.shape[1:]))
-        for i in range(channel_num):
-            for j, b_idx in enumerate(brainact_idx):
-                out_brainimg[i,b_idx[0], b_idx[1], b_idx[2]] = score_array[i,j]
+        out_brainimg = np.zeros((1, *brainimg_data.shape[1:]))
+        for i, b_idx in enumerate(brainact_idx):
+            out_brainimg[0, b_idx[0], b_idx[1], b_idx[2]] = scores[i]
         # Save image into hardware
-        brain_io.save_brainimg(args.outdir, out_brainimg, header)
+        brain_io.save_brainimg(pjoin(args.outdir, 'voxel_score.nii.gz'), out_brainimg, header)
 
 
 if __name__ == '__main__':
