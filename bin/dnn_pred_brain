@@ -20,7 +20,7 @@ from scipy.stats import pearsonr
 from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dnn_io
 from dnnbrain.brain import io as brain_io
-from dnnbrain.dnn.models import dnn_truncate, DNN2BrainNet, dnn_train_model
+from dnnbrain.dnn.models import dnn_truncate, TransferredNet, dnn_train_model
 
 
 try:
@@ -120,7 +120,8 @@ def main():
         brainmask_data_raw = np.sum(brainimg_data_raw, 0) != 0
     assert brainimg_data_raw.shape[1:] == brainmask_data_raw.shape, "Shape of brainact and mask need to be same."
     
-    if args.roi and args.mask:
+    if args.roi:
+        assert args.mask is not None, '-roi must be used with -mask'
         roilabel = np.delete(np.unique(brainmask_data_raw), 0).astype(int)
         brainact_list = brain_io.extract_brain_activation(brainimg_data_raw, brainmask_data_raw, roilabel).T
         actnode_num = len(roilabel)
@@ -170,23 +171,23 @@ def main():
             scores.append(np.mean(scores_tmp))
 
     elif args.model == 'nn':
-        # truncate the pretrained neural network
-        truncated_net = dnn_truncate(netloader.model, netloader.layer2indices[args.layer], args.layer)
-        for param in truncated_net.parameters():
-            # fix the pretrained parameters
-            param.requires_grad = False
-
         # process data
         pics = torch.tensor([pic.numpy() for pic, _ in picdataset])
         pics = pics.type(torch.float32)
-        truncated_output = truncated_net(pics[0].unsqueeze(0))
+        acts = torch.tensor(brainact_list, dtype=torch.float32)
+
+        # truncate the pretrained neural network
+        truncated_net = dnn_truncate(netloader.model, netloader.layer2indices[args.layer], args.layer)
         if 'fc' in args.layer:
-            channel_unit_num = truncated_output.shape[1]
+            assert args.channel is None, 'FC layers have nothing to do with channels!'
+            fc_in_num = list(truncated_net.modules())[-1].out_features
         elif 'conv' in args.layer:
+            truncated_output = truncated_net(pics[0].unsqueeze(0))
+            channel_num = list(truncated_net.modules())[-1].out_channels if args.channel is None else len(args.channel)
             channel_unit_num = truncated_output.shape[2:].numel()
+            fc_in_num = channel_num * channel_unit_num
         else:
             raise ValueError("Wrong layer name!")
-        acts = torch.tensor(brainact_list, dtype=torch.float32)
 
         if args.cvfold:
             # split data to args.cvfold folds
@@ -199,22 +200,17 @@ def main():
                 train_acts = acts[train_indices]
                 dataset = TensorDataset(train_pics, train_acts)
                 dataloader = DataLoader(dataset=dataset, batch_size=train_pics.shape[0], num_workers=1)
-                net = DNN2BrainNet(
-                    truncated_net=truncated_net,
-                    channel_unit_num=channel_unit_num,
-                    fc_out_num=train_acts.shape[1],
-                    channel=args.channel
-                )
-                optimizer = torch.optim.Adam(net.fc.parameters(), lr=0.01)
+                transferred_net = TransferredNet(truncated_net, fc_in_num, train_acts.shape[1], args.channel)
+                optimizer = torch.optim.Adam(transferred_net.fc.parameters(), lr=0.01)
                 loss_func = nn.MSELoss()
-                net = dnn_train_model(dataloader, net, loss_func, optimizer, 100)
+                transferred_net = dnn_train_model(dataloader, transferred_net, loss_func, optimizer, 100)
 
                 # test the trained model
                 test_pics = pics[test_indices]
                 test_acts = acts[test_indices]
-                net.train(False)
+                transferred_net.train(False)
                 with torch.no_grad():
-                    predicted_acts = net(test_pics)
+                    predicted_acts = transferred_net(test_pics)
 
                 # calculate prediction score
                 scores = []
@@ -230,20 +226,15 @@ def main():
             # use all data to train a model
             dataset = TensorDataset(pics, acts)
             dataloader = DataLoader(dataset=dataset, batch_size=pics.shape[0], num_workers=1)
-            net = DNN2BrainNet(
-                truncated_net=truncated_net,
-                channel_unit_num=channel_unit_num,
-                fc_out_num=acts.shape[1],
-                channel=args.channel
-            )
-            optimizer = torch.optim.Adam(net.fc.parameters(), lr=0.01)
+            transferred_net = TransferredNet(truncated_net, fc_in_num, acts.shape[1], args.channel)
+            optimizer = torch.optim.Adam(transferred_net.fc.parameters(), lr=0.01)
             loss_func = nn.MSELoss()
-            net = dnn_train_model(dataloader, net, loss_func, optimizer, 100)
+            transferred_net = dnn_train_model(dataloader, transferred_net, loss_func, optimizer, 100)
 
             # calculate prediction score
-            net.train(False)
+            transferred_net.train(False)
             with torch.no_grad():
-                predicted_acts = net(pics)
+                predicted_acts = transferred_net(pics)
             for x, y in zip(acts.numpy().T, predicted_acts.numpy().T):
                 r = pearsonr(x, y)[0]
                 if np.isnan(r):
@@ -251,14 +242,14 @@ def main():
                 scores.append(np.power(r, 2))
 
             # save net
-            net_file = pjoin(args.outdir, 'dnn2brain_net.pkl')
-            torch.save(net, net_file)
+            net_file = pjoin(args.outdir, 'transferred_net.pkl')
+            torch.save(transferred_net, net_file)
 
     else:
         raise Exception('Not support yet, please contact author for implementation.')
     
     # ---save prediction scores---
-    if args.roi and args.mask:
+    if args.roi:
         score_df = pd.DataFrame({'ROI': roilabel, 'scores': scores})
         # Save behavior measurement into hardware
         score_df.to_csv(pjoin(args.outdir, 'roi_score.csv'), index=False)
