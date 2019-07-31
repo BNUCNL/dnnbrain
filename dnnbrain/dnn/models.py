@@ -43,37 +43,6 @@ def dnn_truncate(net, indices, layer):
     return actmodel
 
 
-def dnn_finetuning(netloader,layer,out_class):
-    """Fine-tuning the neural network, modifying the 1000 classifier to n classifier
-    Parameters:
-    -----------
-    netloader[Netloader]: class netloader
-    layer[str]: fully connected layer name of a DNN network
-    out_features[str]:  specify the class of the new dnn model output
-    Returns:
-    --------
-    dnn_model[torchvision.models]: the reconstructed dnn model.
-    """
-    if 'fc' not in layer:
-        raise ValueError('Fine tuning only support to reconstruct fully connected layer')
-
-    dnn_model = netloader.model
-    # freeze parameters of pretrained network.
-    for param in dnn_model.parameters():
-        param.requires_grad = False
-    # reconstruct the fully connected layer
-    indices = netloader.layer2indices[layer]
-    old_classifier = list(netloader.model.children())[-1][:indices[1]]
-    in_features = list(netloader.model.children())[-1][indices[1]].in_features
-    new_classifier = nn.Sequential(*(list(old_classifier) + [nn.Linear(in_features,out_class)]))
-
-    if hasattr(dnn_model,'classifier'):
-        dnn_model.classifier = new_classifier
-    elif hasattr(dnn_model,'fc'):
-        dnn_model.fc = new_classifier
-    return dnn_model
-
-
 def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, train_method='tradition'):
     """
     Function to train a DNN model
