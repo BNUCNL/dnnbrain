@@ -1,7 +1,9 @@
-import torch
-from torch import nn
-import numpy as np
+import copy
 import time
+import torch
+import numpy as np
+
+from torch import nn
 
 
 def dnn_truncate(net, indices, layer):
@@ -19,15 +21,15 @@ def dnn_truncate(net, indices, layer):
     """
     if 'conv' in layer:
         if len(indices) > 1:
-            tmp  = list(net.children())[:indices[0]]
+            tmp = list(net.children())[:indices[0]]
             next = list(net.children())[indices[0]]
-            actmodel = nn.Sequential(*(tmp+[dnn_truncate(next, indices[1:],layer='conv')]))
+            actmodel = nn.Sequential(*(tmp+[dnn_truncate(next, indices[1:], layer='conv')]))
         elif len(indices) == 1:
             actmodel = nn.Sequential(*list(net.children())[:indices[0]+1])
         else:
             raise ValueError("The network has no this layer.")
     elif 'fc' in layer:
-        actmodel = net
+        actmodel = copy.deepcopy(net)
         new_classifier = nn.Sequential(*list(net.children())[-1][:indices[1] + 1])
         if hasattr(actmodel, 'classifier'):
             actmodel.classifier = new_classifier
