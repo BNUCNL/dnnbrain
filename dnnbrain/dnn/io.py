@@ -84,7 +84,7 @@ class PicDataset(Dataset):
         target_name = np.unique(self.condition)
         picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
         if self.crop:
-            picimg = picimg.crop((self.left[idx],self.upper[idx],self.left[idx],self.lower[idx]))
+            picimg = picimg.crop((self.left[idx],self.upper[idx],self.right[idx],self.lower[idx]))
         target_label = target_name.tolist().index(self.condition[idx])
         if self.transform:
             picimg = self.transform(picimg)

@@ -1,4 +1,5 @@
 import torch
+import copy
 from torch import nn
 import numpy as np
 import time
@@ -27,7 +28,7 @@ def dnn_truncate(net, indices, layer):
         else:
             raise ValueError("The network has no this layer.")
     elif 'fc' in layer:
-        actmodel = net
+        actmodel = copy.deepcopy(net)
         new_classifier = nn.Sequential(*list(net.children())[-1][:indices[1] + 1])
         if hasattr(actmodel, 'classifier'):
             actmodel.classifier = new_classifier
@@ -168,7 +169,6 @@ def dnn_test_model(dataloaders, model):
     time_elapsed =  time.time() - time0
     print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     return model_target, actual_target, test_acc
-
 
 
 class DNN2BrainNet(nn.Module):
