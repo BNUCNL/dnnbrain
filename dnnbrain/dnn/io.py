@@ -109,6 +109,35 @@ class PicDataset(Dataset):
         return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
+def read_Imagefolder(prepath):
+    """
+    The function read from a already organized Image folder and return picname list and condition list
+    for generate csv file more quickly.
+
+    :param prepath[str]:already organized folder
+    :return:
+        picname[list]:contains all name of Images in prepath
+        picpath[list]:contains all subpath of Images in prepath
+        condition[list]:contains the class of all Images
+    """
+    test_set = list(os.walk(prepath))
+    picname = []
+    picpath = []
+    condition = []
+    for label in test_set[1:]:
+        condition_name = label[0].split('\\')[-1]
+        picname_tem = [pic for pic in label[2]]
+        picpath_tem = [condition_name + '/' + pic for pic in label[2]]
+        condition_tem = [condition_name for i in label[2]]
+        picname.append(picname_tem)
+        picpath.append(picpath_tem)
+        condition.append(condition_tem)
+    picname = sum(picname,[])
+    picpath = sum(picpath,[])
+    condition = sum(condition,[])
+    return picname,picpath,condition
+
+
 def generate_stim_csv(parpath, picname_list, condition_list, outpath, onset_list=None, behavior_measure=None):
     """
     Automatically generate stimuli table file.
