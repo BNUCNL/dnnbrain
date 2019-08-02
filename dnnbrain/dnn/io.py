@@ -109,33 +109,25 @@ class PicDataset(Dataset):
         return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
-def read_Imagefolder(prepath):
+def read_Imagefolder(parpath):
     """
-    The function read from a already organized Image folder and return picname list and condition list
-    for generate csv file more quickly.
+    Get picture path and conditions of a Imagefolder directory
 
-    :param prepath[str]:already organized folder
-    :return:
-        picname[list]:contains all name of Images in prepath
-        picpath[list]:contains all subpath of Images in prepath
-        condition[list]:contains the class of all Images
+    Parameters:
+    ------------
+    parpath[str]: Parent path of ImageFolder.
+    
+    Returns:
+    ---------
+    picpath[list]: picture path list
+    conditions[list]: condition list
     """
-    test_set = list(os.walk(prepath))
-    picname = []
-    picpath = []
-    condition = []
-    for label in test_set[1:]:
-        condition_name = label[0].split('\\')[-1]
-        picname_tem = [pic for pic in label[2]]
-        picpath_tem = [condition_name + '/' + pic for pic in label[2]]
-        condition_tem = [condition_name for i in label[2]]
-        picname.append(picname_tem)
-        picpath.append(picpath_tem)
-        condition.append(condition_tem)
-    picname = sum(picname,[])
-    picpath = sum(picpath,[])
-    condition = sum(condition,[])
-    return picname,picpath,condition
+    targets = os.listdir(parpath)
+    picname_tmp = [os.listdir(os.path.join(parpath, tg)) for tg in targets]
+    picnames = [pn for sublist in picname_tmp for pn in sublist]
+    conditions = [tg for tg in targets for _ in picname_tmp]
+    picpath = [os.path.join(parpath, conditions[i], picnames[i]) for i, _ in enumerate(picnames)]
+    return picpath, conditions
 
 
 def generate_stim_csv(parpath, picname_list, condition_list, outpath, onset_list=None, behavior_measure=None):
