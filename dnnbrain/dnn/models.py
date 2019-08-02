@@ -138,8 +138,8 @@ def dnn_test_model(dataloaders, model):
     return model_target, actual_target, test_acc
 
 
-class TransferredNet(nn.Module):
 
+class TransferredNet(nn.Module):
     def __init__(self, truncated_net, fc_in_num, fc_out_num, channel=None, feature_extract=True):
         """
         Connect the truncated_net to a full connection layer.
