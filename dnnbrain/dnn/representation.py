@@ -1,8 +1,7 @@
-#! /usr/bin/env python
-
 """
 Find the optimal stimuli on one unit or layer
 Author: Yiyuan Zhang @ BNU
+Attention: Running in Python3.7
 """
 
 #import some packages needed
@@ -14,7 +13,8 @@ from torch.optim import Adam
 try:
     from misc_functions import preprocess_image, recreate_image
 except ModuleNotFoundError:
-    raise Exception('Please install misc_functions in your work station')
+    pass
+    #raise Exception('Please install misc_functions in your work station')
 
     
     
@@ -164,7 +164,7 @@ class GuidedBackprop():
                 module.register_backward_hook(relu_backward_hook_function)
                 module.register_forward_hook(relu_forward_hook_function)
 
-    def generate_gradients(self, input_image, target_class, cnn_layer, channel):
+    def generate_gradients(self, input_image, cnn_layer, channel):
         self.model.zero_grad()
         # Forward pass
         x = input_image
@@ -186,7 +186,7 @@ class GuidedBackprop():
         return gradients_as_arr
 
 
-def layer_channel_reconstruction(model,picimg,layer,channel,class_of_interest):
+def layer_channel_reconstruction(model, picimg, layer, channel):
     """
     DNN layer_channel reconstruction
 
@@ -196,22 +196,67 @@ def layer_channel_reconstruction(model,picimg,layer,channel,class_of_interest):
     layer[int]: layer number
     channel[int]: channel number
     out[str]: output path
-
     """
-
-    out = model(picimg)
-    _, preds = torch.max(out.data, 1)
-    _, indices = torch.sort(out, descending=True)
-    target_class = indices.numpy()[0,class_of_interest]
-    with open('~/dnnbrain/dnnbrain/data/imagenet_classes.txt') as f:
-        classes = [line.strip() for line in f.readlines()]
-    _, indices = torch.sort(out, descending=True)
-    label =  [(classes[idx]) for idx in indices[0][:class_of_interest+1]][class_of_interest] # get the semantic label of this pic
-
     picimg.requires_grad=True
     GBP = GuidedBackprop(model)
-    guided_grads = GBP.generate_gradients(picimg, target_class, layer, channel)
+    guided_grads = GBP.generate_gradients(picimg, layer, channel)
     all_sal = rescale_grads(guided_grads,gradtype="all")
     out_image = torch.from_numpy(all_sal).permute(1,2,0)
-    return  out_image, label
+    return  out_image
+  
+
+
+'3. Find position of RF'
+###############################################################################
+###############################################################################
+#visulize the receptive field
+import copy
+import sys
+sys.path.append('/home/dell/Desktop/easy-receptive-fields-pytorch-master')
+from Receptivefield import receptivefield
+
+
+def RF_position(model, selected_layer, unit):  
+    
+    net = copy.copy(model)
+    #register a hook
+    def features_only(self, x):
+        return self.features[0:selected_layer](x) 
+    net.forward = features_only.__get__(net)
+    
+    #get RF
+    rf = receptivefield(net, (1, 3, 224, 224))
+    
+    #unit number to unit_x and unit_y position
+    created_data = torch.Tensor(1,3,224,224)
+    layeract = net(created_data)  
+    unit_x = math.floor(unit/layeract.shape[-1])
+    unit_y = unit - (math.floor(unit/layeract.shape[-1]))*layeract.shape[-1]
+    
+    #get x_top, x_bottom, y_top, y_bottom which are 4 bounds of RF
+    if rf.hcenter()[unit_x].item() - rf.rfsize.h/2 >= 0:
+        x_top = rf.hcenter()[unit_x].item() - rf.rfsize.h/2
+        x_top = int(x_top)
+    else:
+        x_top = 0
+    
+    if rf.hcenter()[unit_x].item() + rf.rfsize.h/2 <= 224:
+        x_bottom = rf.hcenter()[unit_x].item() + rf.rfsize.h/2
+        x_bottom = int(x_bottom)
+    else:
+        x_bottom = 224
+        
+    if rf.vcenter()[unit_y].item() - rf.rfsize.w/2 >= 0:
+        y_top = rf.vcenter()[unit_y].item() - rf.rfsize.w/2
+        y_top = int(y_top)
+    else:
+        y_top = 0
+        
+    if rf.vcenter()[unit_y].item() + rf.rfsize.w/2 <= 224:
+        y_bottom = rf.vcenter()[unit_y].item() + rf.rfsize.w/2
+        y_bottom = int(y_bottom)
+    else:
+        y_bottom = 224
+    
+    return x_top, x_bottom, y_top, y_bottom
   

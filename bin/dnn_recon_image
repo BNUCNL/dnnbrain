@@ -1,9 +1,6 @@
-#! /usr/bin/env python
-
 """
 Use CNN activation to recibstruct pictures
-Author: Yang Anmin
-Reviewer:
+Author: Yang Anmin and Zhang Yiyuan @ BNU
 """
 
 import os
@@ -17,12 +14,14 @@ from dnnbrain.dnn import representation
 
 def main():
     parser = argparse.ArgumentParser(description='Visualize what a channel sees in the image')
+    
     parser.add_argument('-net',
                         type=str,
                         required = True,
                         choices=['alexnet', 'vgg11'],
                         metavar = 'NetName',
                         help ="a pretrained neural network's name such as 'alexnet' and 'vgg11'")
+    
     parser.add_argument('-stim',
                         type=str,
                         required=True,
@@ -36,6 +35,7 @@ def main():
                               face2.png  face        3.1             5\
                               scene1.png scene       5.1             4'
                         )
+    
     parser.add_argument('-layer',
                         type=str,
                         required=True,
@@ -43,26 +43,26 @@ def main():
                         help="The name of the layer which is connected to predict brain activity."
                              "For example, 'conv1' represents the first convolution layer, and"
                              "'fc1' represents the first full connection layer.")
+    
     parser.add_argument('-channel',
                         type=int,
                         required = True,
                         metavar = 'ChannelNumber',
                         help = "The sequence numbers of out channels of the selected layer"
                                "If not specificly interested in one or a few channels, that is you are interested only in layer, the sequence number is 0.")
-    parser.add_argument('-topclass',
+    
+    parser.add_argument('-unit',
                         type=int,
-                        required = True,
-                        metavar = 'top class reconstructed picture based on',
-                        help = "Recontructing pictures is based on the class which the CNN has classified.\
-                               Take AlexNet for instance, as the fc3 has 1,000 units,we can reconstruct the picture based on 1,000 classes,in which case there will be 1,000 reconstructed pictures.\
-                               '-topclass' offers you the opportunity to reconstruct the picture based on the top classes a specific CNN has classified.\
-                               Should the number is 5, then we will reconstruct 5 pictures based on 5 different classes. "
-                        )
+                        required = False,
+                        metavar = 'unitNumber',
+                        help = "position for a specific unit")
+    
     parser.add_argument('-out',
                         type=str,
                         required = True,
                         metavar = 'OutputDir',
-                        help = 'output directory where reconstructed pictures are stored')
+                        help = 'out in this dir')
+    
     args = parser.parse_args()
 
     # select net
@@ -74,16 +74,33 @@ def main():
 
     picdataset = dnn_io.PicDataset(args.stim, transform=None)
     picdataloader = DataLoader(picdataset, batch_size=1, shuffle=False)
-
-    for picname, picimg, _ in picdataloader:
-        for class_of_interest in range(0,args.topclass):
-            out_image = representation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[0]
+    
+    try:
+        x_top, x_bottom, y_top, y_bottom = representation.RF_position(model, cnn_layer, args.unit)
+    except:
+        pass
+    
+    unit = args.unit
+    if unit:
+        for picname, picimg, _ in picdataloader:
+            out_image = representation.layer_channel_reconstruction(model, picimg, cnn_layer, args.channel)
             out_image = np.array(out_image)
-            lablename = representation.layer_channel_reconstruction(model,picimg,cnn_layer,args.channel,class_of_interest)[1]
-            imgname = lablename+"_"+args.layer+'_'+str(args.channel)+'_'+picname
+            out_image = out_image[x_top:x_bottom, y_top:y_bottom, :]
+            imgname = args.layer+'_'+str(args.channel)+'_'+str(unit)+'_'+picname
             outpath = os.path.join(args.out, imgname)
             plt.figure()
             plt.imsave(outpath, out_image)
+    else:
+        for picname, picimg, _ in picdataloader:
+            out_image = representation.layer_channel_reconstruction(model, picimg, cnn_layer, args.channel)
+            out_image = np.array(out_image)
+            imgname = args.layer+'_'+str(args.channel)+'_'+picname
+            outpath = os.path.join(args.out, imgname)
+            plt.figure()
+            plt.imsave(outpath, out_image)
+                
 
 if __name__ == '__main__':
     main()
+
+    
