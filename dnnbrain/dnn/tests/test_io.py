@@ -39,7 +39,7 @@ def test_generate_stim_csv(dnnbrain_path):
     
 def test_PicDataset(dnnbrain_path):
     """
-    test methods and attributes of class PicDataset
+    Test methods and attributes of class PicDataset
     """
     pic_dataset_notransform = iofiles.PicDataset(os.path.join(dnnbrain_path, 'data', 'test_data', 'PicStim.csv'))
     # Test method of __len__
@@ -64,4 +64,19 @@ def test_PicDataset(dnnbrain_path):
     picimg1_new, _ = pic_dataset_transform[0]
     picimg2_new, _ = pic_dataset_transform[2]
     assert picimg1_new.shape == picimg2_new.shape
-    
+ 
+ 
+def test_NetLoader():
+    """
+    Test NetLoader
+    """
+    alexnet_loader = iofiles.NetLoader('alexnet')
+    alexnet_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'fc1', 'fc2', 'fc3']
+    assert alexnet_layers == list(alexnet_loader.layer2indices.keys())
+    assert alexnet_loader.img_size == (224,224)
+    vgg11_loader = iofiles.NetLoader('vgg11')
+    vgg11_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6', 'conv7', 'conv8', 'fc1', 'fc2', 'fc3']
+    assert vgg11_layers == list(vgg11_loader.layer2indices.keys())
+    assert vgg11_loader.img_size == (224,224)
+    # vggface_loader = iofiles.NetLoader('vggface')
+      
