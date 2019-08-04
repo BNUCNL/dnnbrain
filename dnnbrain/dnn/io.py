@@ -126,7 +126,7 @@ def read_Imagefolder(parpath):
     picname_tmp = [os.listdir(os.path.join(parpath, tg)) for tg in targets]
     picnames = [pn for sublist in picname_tmp for pn in sublist]
     conditions = [tg for tg in targets for _ in picname_tmp]
-    picpath = [os.path.join(parpath, conditions[i], picnames[i]) for i, _ in enumerate(picnames)]
+    picpath = [os.path.join(conditions[i], picnames[i]) for i, _ in enumerate(picnames)]
     return picpath, conditions
 
 
