@@ -28,7 +28,7 @@ def dnn_activation(input, netname, layer, channel=None):
     """
     loader = iofiles.NetLoader(netname)
     actmodel = dnn_truncate(loader.model, loader.layer2indices[layer], layer)
-
+    actmodel.eval()
     dnnact = []
     for picdata, target in input:
         dnnact_part = actmodel(picdata)
