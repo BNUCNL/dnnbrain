@@ -226,35 +226,60 @@ def save_activation(activation,outpath):
 
 
 class NetLoader:
-
-    def __init__(self, net):
+    def __init__(self, net=None):
         """
-        Load neural network model according to the net name.
-        Meanwhile, hard code each network's information internally.
+        Load neural network model
 
         Parameters:
         -----------
         net[str]: a neural network's name
         """
-        if net == 'alexnet':
-            self.model = torchvision.models.alexnet()
-            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-            self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
-                                  'conv5': (0, 10), 'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6)}
-            self.img_size = (224, 224)
-        elif net == 'vgg11':
-            self.model = torchvision.models.vgg11()
-            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
-            self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
-                                  'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
-                                  'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
-            self.img_size = (224, 224)
-        elif net == 'vggface':
-            self.model = Vgg_face()
-            self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
-            self.layer2indices = {'conv1':0,'conv2':2,'conv3':5,'conv4':7,'conv5':10,'conv6':12,'conv7':14,
-                                  'conv8':17,'conv9':19,'conv10':21,'conv11':24,'conv12':26,'conv13':28,
-                                  'fc1':31,'fc2':34,'fc3':37}
-            self.img_size = (224, 224)
+        netlist = ['alexnet', 'vgg11', 'vggface']
+        if net in netlist:
+            if net == 'alexnet':
+                self.model = torchvision.models.alexnet()
+                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
+                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
+                                      'conv5': (0, 10), 'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6)}
+                self.img_size = (224, 224)
+            elif net == 'vgg11':
+                self.model = torchvision.models.vgg11()
+                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
+                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
+                                      'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
+                                      'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
+                self.img_size = (224, 224)
+            elif net == 'vggface':
+                self.model = Vgg_face()
+                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
+                self.layer2indices = {'conv1':0,'conv2':2,'conv3':5,'conv4':7,'conv5':10,'conv6':12,'conv7':14,
+                                      'conv8':17,'conv9':19,'conv10':21,'conv11':24,'conv12':26,'conv13':28,
+                                      'fc1':31,'fc2':34,'fc3':37}
+                self.img_size = (224, 224)
         else:
-            raise Exception('Network was not supported, please contact author for implementation.')
+            print('Not supported yet, please call netloader function to assign model, layer2indices and picture size.')
+            self.model = None
+            self.layer2indices = None
+            self.img_size = None
+    
+    def load_model(self, dnn_model, model_param = None, layer2indices = None, input_imgsize = None):
+        """
+        Load DNN model
+        
+        Parameters:
+        -----------
+        dnn_model[nn.Modules]: DNN model
+        model_param[string/state_dict]: Parameters of DNN model
+        layer2indices[dict]: Comparison table between layer name and DNN frame layer.
+                             Please make dictionary as following format:
+                             {'conv1': (0, 0), 'conv2': (0, 3), 'fc1': (2, 0)}
+        input_imgsize[tuple]: the input picture size
+        """
+        self.model = dnn_model
+        if model_param is not None:
+            if isinstance(model_param, str):
+                self.model.load_state_dict(torch.load(model_param))
+            else:
+                self.model.load_state_dict(model_param)
+        self.layer2indices = layer2indices
+        self.img_size = input_imgsize

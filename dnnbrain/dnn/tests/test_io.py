@@ -74,9 +74,15 @@ def test_NetLoader():
     alexnet_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'fc1', 'fc2', 'fc3']
     assert alexnet_layers == list(alexnet_loader.layer2indices.keys())
     assert alexnet_loader.img_size == (224,224)
-    vgg11_loader = iofiles.NetLoader('vgg11')
-    vgg11_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6', 'conv7', 'conv8', 'fc1', 'fc2', 'fc3']
-    assert vgg11_layers == list(vgg11_loader.layer2indices.keys())
-    assert vgg11_loader.img_size == (224,224)
+    
+    # vgg11_loader = iofiles.NetLoader('vgg11')
+    # vgg11_layers = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'conv6', 'conv7', 'conv8', 'fc1', 'fc2', 'fc3']
+    # assert vgg11_layers == list(vgg11_loader.layer2indices.keys())
+    # assert vgg11_loader.img_size == (224,224)
     # vggface_loader = iofiles.NetLoader('vggface')
-      
+    
+    # Bad netloader load model, img_size and layer2indices as None
+    bad_loader = iofiles.NetLoader('aaa')
+    assert bad_loader.model is None
+    assert bad_loader.img_size is None
+    assert bad_loader.layer2indices is None  

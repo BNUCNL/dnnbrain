@@ -2,45 +2,42 @@ import copy
 import time
 import torch
 import numpy as np
-
 from torch import nn
 
 
-def dnn_truncate(net, indices, layer):
+def dnn_truncate(netloader, layer):
     """
-    truncate the neural network at the specified convolution layer
+    Truncate the neural network at the specified convolution layer.
+    Notice that all truncated models were consisted of Sequential, which may differ from the orginal model.
 
     Parameters:
     -----------
-    net[torch.nn.Module]: a neural network
-    indices[iterator]: a sequence of raw indices to find a layer
+    netloader[NetLoader]: a neural network netloader, initialized from NetLoader in io module
+    layer[str]: truncated layer.
 
     Returns:
     --------
-    truncated_net[torch.nn.Sequential]
+    truncated_net[torch.nn.Sequential]: truncated model.
     """
-    if 'conv' in layer:
-        if len(indices) > 1:
-            tmp = list(net.children())[:indices[0]]
-            next = list(net.children())[indices[0]]
-            actmodel = nn.Sequential(*(tmp+[dnn_truncate(next, indices[1:], layer='conv')]))
-        elif len(indices) == 1:
-            actmodel = nn.Sequential(*list(net.children())[:indices[0]+1])
-        else:
-            raise ValueError("The network has no this layer.")
-    elif 'fc' in layer:
-        actmodel = copy.deepcopy(net)
-        new_classifier = nn.Sequential(*list(net.children())[-1][:indices[1] + 1])
-        if hasattr(actmodel, 'classifier'):
-            actmodel.classifier = new_classifier
-        elif hasattr(actmodel, 'fc'):
-            actmodel.fc = new_classifier
-        else:
-            raise Exception("The network has no this layer.")
-    else:
-        raise Exception("The input of layer format is not right,input just like conv5 or fc1")
+    assert netloader.model is not None, "Please define netloader by calling NetLoader from module io"
+    assert netloader.layer2indices is not None, "Please define netloader by calling NetLoader from module io"
+    indices = netloader.layer2indices[layer]
+    model_frame = nn.Sequential(*netloader.model.children())
+    truncate_model = _get_truncate_layers(model_frame, indices)
+    return truncate_model
 
-    return actmodel
+
+def _get_truncate_layers(model_frame, indices):
+    """
+    Subfunction of dnn_truncate to access truncated model recursively.
+    """
+    if len(indices) > 1:
+        parent_sequential = nn.Sequential(*model_frame[:indices[0]].children())
+        append_sequential = nn.Sequential(*model_frame[indices[0]].children())
+        truncate_model = nn.Sequential(*parent_sequential, _get_truncate_layers(append_sequential, indices[1:]))
+    else:
+        truncate_model = nn.Sequential(*model_frame[:(indices[0]+1)])
+    return truncate_model
 
 
 def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, train_method='tradition'):
