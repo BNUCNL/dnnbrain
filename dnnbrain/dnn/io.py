@@ -262,7 +262,7 @@ class NetLoader:
             self.layer2indices = None
             self.img_size = None
     
-    def load_model(self, dnn_model, model_param, layer2indices = None, input_imgsize = None):
+    def load_model(self, dnn_model, model_param = None, layer2indices = None, input_imgsize = None):
         """
         Load DNN model
         
@@ -276,9 +276,10 @@ class NetLoader:
         input_imgsize[tuple]: the input picture size
         """
         self.model = dnn_model
-        if isinstance(model_param, str):
-            self.model.load_state_dict(torch.load(model_param))
-        else:
-            self.model.load_state_dict(model_param)
+        if model_param is not None:
+            if isinstance(model_param, str):
+                self.model.load_state_dict(torch.load(model_param))
+            else:
+                self.model.load_state_dict(model_param)
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
