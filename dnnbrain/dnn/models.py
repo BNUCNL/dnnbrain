@@ -150,8 +150,8 @@ class GraftLayer(nn.Module):
 
         Parameters:
         -----------
-        truncated_net[torch.nn.Module]: a truncated neural network from the pretrained network
-        fc_in_num[int]: the number of the in_features of the full connection layer
+        netloader[NetLoader]: a neural network netloader, initialized from NetLoader in io module.
+        layer[str]: truncated layer
         fc_out_num[int]: the number of the out_features of the full connection layer
         channel[iterator]: The indices of out_channels of the selected convolution layer
         feature_extract[bool]: If feature_extract = False, the model is finetuned and all model parameters are updated.
