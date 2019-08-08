@@ -257,7 +257,7 @@ class NetLoader:
                                       'fc1':31,'fc2':34,'fc3':37}
                 self.img_size = (224, 224)
         else:
-            print('Not supported yet, please call netloader function to assign model, layer2indices and picture size.')
+            print('Not internal supported, please call netloader function to assign model, layer2indices and picture size.')
             self.model = None
             self.layer2indices = None
             self.img_size = None
@@ -283,3 +283,4 @@ class NetLoader:
                 self.model.load_state_dict(model_param)
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
+        print('You had assigned a model into netloader.')
