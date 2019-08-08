@@ -18,7 +18,7 @@ def dnn_activation(input, netname, layer, channel=None):
     Parameters:
     ------------
     input[dataloader]: input image dataloader
-    net[str]: DNN network
+    netname[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
 
