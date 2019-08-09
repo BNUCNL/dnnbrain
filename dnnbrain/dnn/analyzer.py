@@ -18,7 +18,7 @@ def dnn_activation(input, netname, layer, channel=None):
     Parameters:
     ------------
     input[dataloader]: input image dataloader
-    net[str]: DNN network
+    netname[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
 
@@ -27,7 +27,7 @@ def dnn_activation(input, netname, layer, channel=None):
     dnnact[numpy.array]: DNN activation, A 4D dataset with its format as pic*channel*unit*unit
     """
     loader = iofiles.NetLoader(netname)
-    actmodel = dnn_truncate(loader.model, loader.layer2indices[layer], layer)
+    actmodel = dnn_truncate(loader, layer)
     actmodel.eval()
     dnnact = []
     for picdata, target in input:

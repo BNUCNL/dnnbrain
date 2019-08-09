@@ -20,3 +20,6 @@ def test_dnn_activation(dnnbrain_path):
     assert dnnact_allchannel_layer1.shape == (4,64,55,55)
     dnnact_channel1_layer1 = analyzer.dnn_activation(pic_dataloader, netname, 'conv1', channel=[1])
     assert dnnact_channel1_layer1.shape == (4,1,55,55)
+    
+    dnnact_allchannel_layer2 = analyzer.dnn_activation(pic_dataloader, netname, 'fc3')
+    assert dnnact_allchannel_layer2.shape == (4,1000)
