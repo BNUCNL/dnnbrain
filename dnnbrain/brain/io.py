@@ -14,6 +14,7 @@ def load_brainimg(imgpath, ismask=False):
       
     Nifti: .nii.gz
     freesurfer: .mgz, .mgh
+    gifti: .func.gii, .shape.gii
     cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
         
     Parameters:
@@ -27,6 +28,7 @@ def load_brainimg(imgpath, ismask=False):
     """
     imgname = os.path.basename(imgpath)
     imgsuffix = imgname.split('.')[1:]
+    assert len(imgsuffix)<4, "Please rename your brain image file for too many . in your filename."
     imgsuffix = '.'.join(imgsuffix)
 
     if imgsuffix == 'nii.gz':
@@ -37,6 +39,8 @@ def load_brainimg(imgpath, ismask=False):
     elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
         brain_img = nib.freesurfer.load(imgpath).get_data()
         if not ismask:
+            if brain_img.ndim == 3:
+                brain_img = brain_img[...,None]
             brain_img = np.transpose(brain_img, (3,0,1,2))
         header = nib.freesurfer.load(imgpath).header
     elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
@@ -45,6 +49,14 @@ def load_brainimg(imgpath, ismask=False):
             brain_img = brain_img[...,None,None]
         else:
             brain_img = brain_img[...,None]
+    elif imgsuffix.endswith('gii'):
+        assert imgsuffix != 'surf.gii', "surf.gii is a geometry file, not an array activation."
+        brain_img = nib.load(imgpath).darrays[0].data
+        if not ismask:
+            brain_img = brain_img[None,:,None,None]
+        else:
+            brain_img = brain_img[None,:,None]
+        header = nib.load(imgpath).header
     else:
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')
     return brain_img, header
@@ -58,6 +70,9 @@ def save_brainimg(imgpath, data, header):
     Nifti: .nii.gz
     freesurfer: .mgz, .mgh
     cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
+    
+    Note that due to ways to store gifti image are differ from other images, 
+    we didn't support to save data as a gifti image.
         
     Parameters:
     ------------
@@ -70,6 +85,7 @@ def save_brainimg(imgpath, data, header):
     """
     imgname = os.path.basename(imgpath)
     imgsuffix = imgname.split('.')[1:]
+    assert len(imgsuffix)<4, "Please rename your brain image file for too many . in your filename."
     imgsuffix = '.'.join(imgsuffix)
     
     if imgsuffix == 'nii.gz':
@@ -102,7 +118,10 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     
     Returns:
     ---------
-    roisignals[array]: extracted brain activation
+    roisignals[list]: Extracted brain activation. 
+                      Each element in the list is the extracted activation of the roilabels.
+                      Due to different label may contain different number of activation voxels, 
+                      the output activation could not stored as numpy array list.
     """
     if method == 'mean':
         calc_way = partial(np.mean, axis=0)
@@ -121,5 +140,4 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
         act_idx = np.transpose(np.where(mask==lbl))
         roisignal_tmp = [brainimg[:, act_idx[j][0], act_idx[j][1], act_idx[j][2]] for j in range(len(act_idx))]
         roisignals.append(calc_way(roisignal_tmp))
-    roisignals = np.array(roisignals)
     return roisignals
