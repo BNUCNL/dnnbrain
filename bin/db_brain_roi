@@ -1,0 +1,59 @@
+#! /usr/bin/env python
+
+"""
+Extract brain roi signals
+
+Author: Taicheng Huang @ BNU
+Email: taicheng_huang@mail.bnu.edu.cn
+Reviewer:
+"""
+
+import argparse
+import numpy as np
+import pandas as pd
+from dnnbrain.brain import io as brain_io
+
+def main():
+    parser = argparse.ArgumentParser(description='Extract ROI signals from brain activation')
+    parser.add_argument('-nif',
+                        type=str,
+                        required=True,
+                        metavar='BrainAct',
+                        help='brain activation image')
+    parser.add_argument('-mask',
+                        type=str,
+                        required=True,
+                        metavar='Mask',
+                        help='brain mask image')
+    parser.add_argument('-method',
+                        type=str,
+                        default='mean',
+                        choices=['mean', 'max', 'std'],
+                        metavar='Method',
+                        help='Method to extract brain roi signals, by default is mean')
+    parser.add_argument('-out',
+                        type=str,
+                        dest='outdir',
+                        metavar='OutDir',
+                        help='Output directory, output is a comma separated values (CSV) file with each'
+                              'row related to a volume and each column related to a label. Note that the'
+                              'suffix of the output is .csv')
+
+    args = parser.parse_args()
+    # Get brain image data
+    brainact, _ = brain_io.load_brainimg(args.nif, ismask=False)
+    brainmask, _ = brain_io.load_brainimg(args.mask, ismask=True)
+    brainmask = brainmask.astype('int32')
+    masklabels = np.unique(brainmask[brainmask!=0])
+    # Extract brain signals
+    extsignals = brain_io.extract_brain_activation(brainact, brainmask, masklabels, method=args.method)
+    extsignals = np.array(extsignals).T
+    # Save as a csv file
+    assert args.outdir.endswith('csv'), "The suffix of the output is .csv"
+    label_list = ['ROI'+str(ml) for ml in masklabels]
+    assert len(label_list) == extsignals.shape[1], 'ROI label mismatched.'
+    extsignals_pd = pd.DataFrame(data=extsignals, columns=label_list)
+    extsignals_pd.to_csv(args.outdir, index=False)
+
+if __name__ == "__main__":
+    main()
