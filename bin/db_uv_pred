@@ -153,6 +153,8 @@ def main():
         model = linear_model.LinearRegression()
         score_evl = 'explained_variance'
     elif args.model == 'lmc':
+        if args.response.endswith('nii'):
+            raise Exception('Classification is not supported with input as brain images.')
         model = linear_model.LogisticRegression()
         score_evl = 'accuracy'
     else:
