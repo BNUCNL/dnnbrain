@@ -28,7 +28,13 @@ def load_brainimg(imgpath, ismask=False):
     """
     imgname = os.path.basename(imgpath)
 
-    if ('nii.gz' in imgname) or (imgname.split('.')[-1]=='nii'):
+    if imgname.endswith('dscalar.nii') or imgname.endswith('dlabel.nii') or imgname.endswith('dtseries.nii'):
+        brain_img, header = cifti.read(imgpath)
+        if not ismask:
+            brain_img = brain_img[...,None,None]
+        else:
+            brain_img = brain_img[...,None]
+    elif ('nii.gz' in imgname) or (imgname.split('.')[-1]=='nii'):
         brain_img = nib.load(imgpath).get_data()
         if not ismask:
             brain_img = np.transpose(brain_img,(3,0,1,2))
@@ -40,12 +46,6 @@ def load_brainimg(imgpath, ismask=False):
                 brain_img = brain_img[...,None]
             brain_img = np.transpose(brain_img, (3,0,1,2))
         header = nib.freesurfer.load(imgpath).header
-    elif imgname.endswith('dscalar.nii') or imgname.endswith('dlabel.nii') or imgname.endswith('dtseries.nii'):
-        brain_img, header = cifti.read(imgpath)
-        if not ismask:
-            brain_img = brain_img[...,None,None]
-        else:
-            brain_img = brain_img[...,None]
     elif imgname.endswith('gii'):
         assert not imgname.endswith('surf.gii'), "surf.gii is a geometry file, not an array activation."
         brain_img = nib.load(imgpath).darrays[0].data
@@ -97,7 +97,7 @@ def save_brainimg(imgpath, data, header):
         data = data[...,0,0]
         map_name = ['']*data.shape[0]
         bm_full = header[1]
-        cifti.write(imgpath, data, (cifti.Scalar.from_names(map_names), bm_full))
+        cifti.write(imgpath, data, (cifti.Scalar.from_names(map_name), bm_full))
     else:
         raise Exception('Not support this format of brain image data, please contact with author to update this function.')   
 
