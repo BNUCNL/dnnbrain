@@ -44,15 +44,15 @@ def generate_bold_regressor(X,onset,duration,vol_num,tr):
     
     parameters:
     ----------
-        X[array]: [n_event] or [n_event,n_sample]
-        onset[list or array]: in sec. size = n_event 
-        duration[list or array]: list or array. in sec. size = n_event         
-        vol_num[int]: total volume number of BOLD signal
-        tr[float]: in sec
+    X[array]: [n_event] or [n_event,n_sample]
+    onset[list or array]: in sec. size = n_event 
+    duration[list or array]: list or array. in sec. size = n_event         
+    vol_num[int]: total volume number of BOLD signal
+    tr[float]: in sec
     
 	Returns:
 	---------
-		X_hrfed[array]: same shape with X
+	X_hrfed[array]: same shape with X
     '''        
 
     if isinstance(onset,list):
