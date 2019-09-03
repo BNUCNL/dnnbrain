@@ -284,3 +284,14 @@ class NetLoader:
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
         print('You had assigned a model into netloader.')
+        
+        
+    def read_dmask_csv(dmask_file):
+        'read the dnn mask csv file'
+        with open(dmask_file,'r') as f:
+            meta_data = [x.rstrip() for i, x in enumerate(f) if i<=2]
+            resp_type = meta_data[0]
+            tr = np.float(meta_data[1])
+        
+        resp_data = pd.read_csv(dmask_file, skiprows=2)
+        return resp_type, tr, list(resp_data.keys()), resp_data.values
