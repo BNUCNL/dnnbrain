@@ -9,13 +9,13 @@ CNL @ BNU
 
 import argparse
 import numpy as np
-import pandas as pd
-import torch
+#import pandas as pd
+#import torch
 from torch.utils.data import DataLoader, TensorDataset
+#from scipy.stats import pearsonr
+#from scipy.signal import convovle
 from torchvision import transforms
 from os.path import join as pjoin
-from scipy.stats import pearsonr
-from scipy.signal import convovle
 from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dio
 from dnnbrain.brain import io as bio
@@ -167,8 +167,7 @@ def main():
         bmask = bmask.reshape(-1)    
         assert bmask.shape[0] == resp.shape[1], "mask and response mismatched in space"
         
-    resp = resp[:, bmask] # n_stim x n_roi or n_vox
-    n_vox = resp.shape[1]    
+    Y = resp[:, bmask] # n_stim x n_roi or n_vox
     
     #%% CNN activation
     """
@@ -182,8 +181,8 @@ def main():
                                     transforms.ToTensor()])  
     # Load stimulus
     stim = dio.read_dbcsv(args.stim)
-    stim_path, stim_picid = stim['picpath'], stim['VariableName']            
-    picdataset = dio.PicDataset(stim_path,stim_picid,transform=transform)
+    stim_path, stim_id = stim['picpath'], stim['VariableName']            
+    picdataset = dio.PicDataset(stim_path,stim_id,transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
     
     # calculate dnn activation: n_stim * n_channel * unit * unit
@@ -224,28 +223,7 @@ def main():
     # size of cnn activation            
     n_stim,n_chn,n_unit = dnn_act.shape
   
-
-   
-    #%% multivariate analysis
-    """
-    Third, we use multivariate model to explore the relations between 
-    CNN activation and brain/behavior responses. 
-    
-    """
-    
-    if args.model == 'glm':
-        model = linear_model.LinearRegression()
-    elif args.model == 'lasso':
-        model = linear_model.Lasso()
-    elif args.model == 'svc':
-        model = svm.SVC(kernel="linear", C=0.025)
-    elif args.model == 'lrc': 
-        model = linear_model.LogisticRegression()
-    else:
-        raise Exception('Please use glm and lasso for linear regression and \
-                            use svc and lrc for linear classification')
-    
-    # PCA on dnn features
+  # PCA on dnn features
     if args.pca is not None:             
         pca = decomposition.PCA(n_components=args.pca)
         if args.axis == 'layer':       
@@ -269,27 +247,51 @@ def main():
          X = analyzer.generate_bold_regressor(X,onset,
                                               duration,resp.shape[0],tr)
          
-     # run mv model
-     m_score = [model_selection.cross_val_score(
-                model,X,Y[:,Yi],scoring='explained_variance',cv=cvfold
-                ) for Yi in range(Y.shape[1])]
-     m_score = dim2(np.asarray(m_score).mean(-1),axis=0)
-        
-    # output data
+   
+    #%% multivariate analysis
+    """
+    Third, we use multivariate model to explore the relations between 
+    CNN activation and brain/behavior responses. 
+    
+    """
+    
+    if args.model == 'glm':
+        model = linear_model.LinearRegression()
+    elif args.model == 'lasso':
+        model = linear_model.Lasso()
+    elif args.model == 'svc':
+        model = svm.SVC(kernel="linear", C=0.025)
+    elif args.model == 'lrc': 
+        model = linear_model.LogisticRegression()
+    else:
+        raise Exception('Please use glm and lasso for linear regression and \
+                            use svc and lrc for linear classification')
+    
+  
+    # run mv model to do prediction
     model.fit(X,Y)
-    m_pred = model.predict(X)
+    pred = model.predict(X)
+    
+    
+    # validate the mv model
+    if args.model == 'glm' or args.model == 'lasso':        
+         scoring='explained_variance'
+    else:
+         scoring='accuracy'
+    score = [model_selection.cross_val_score(
+            model,X,Y[:,i],scoring,cv=args.cvfold) for i in range(Y.shape[1])]
     
     
      #%% save the results to disk
-     """
-     Finally, we save the related results to the outdir.
+    """
+    Finally, we save the related results to the outdir.
      
-     """
-    
+    """
     if args.response.endswith('db.csv'):
-          resp = dio.save(fname)
+          resp = dio.save_dbcsv(fname)
             
     else:
+        
         bio.save_brainimg(pjoin(args.outdir, 'voxel_score.nii.gz'), out_brainimg, header)
         
 if __name__ == '__main__':
