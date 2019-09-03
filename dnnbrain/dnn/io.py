@@ -252,9 +252,9 @@ class NetLoader:
             elif net == 'vggface':
                 self.model = Vgg_face()
                 self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
-                self.layer2indices = {'conv1':0,'conv2':2,'conv3':5,'conv4':7,'conv5':10,'conv6':12,'conv7':14,
-                                      'conv8':17,'conv9':19,'conv10':21,'conv11':24,'conv12':26,'conv13':28,
-                                      'fc1':31,'fc2':34,'fc3':37}
+                self.layer2indices = {'conv1':(0,),'conv2':(2,),'conv3':(5,),'conv4':(7,),'conv5':(10,),'conv6':(12,),
+                                      'conv7':(14,),'conv8':(17,),'conv9':(19,),'conv10':(21,),'conv11':(24,),
+                                      'conv12':(26,),'conv13':(28,),'fc1':(31,),'fc2':(34,),'fc3':(37,)}
                 self.img_size = (224, 224)
         else:
             print('Not internal supported, please call netloader function to assign model, layer2indices and picture size.')
@@ -284,3 +284,12 @@ class NetLoader:
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
         print('You had assigned a model into netloader.')
+        
+            
+    def read_dnn_csv(fname):
+        return dbcsv
+    
+    def save_dnncsv(dbcsv,fname):
+        pass
+
+           
