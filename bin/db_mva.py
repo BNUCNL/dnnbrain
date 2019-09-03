@@ -59,26 +59,32 @@ def main():
                         required=False,
                         metavar='DnnMaskFile',
                         help='a csv file contains channels or \
-                        units of interest to build the model. \
-		                axis_str \
-                        1    \
-                        3 ')
+                        units of interest to build the model in two rows. \
+                        the first row is channel of interest, the second rows \
+                        is column of intereset.')
     
     parser.add_argument('-dfe', 
                         type=str,
                         required=False,
                         metavar='DnnFeatureExtraction',
-                        choices=['raw', 'hist', 'max', 'mean','median'],
-                        help='Do feature extraction from raw dnn activation.\
-                        raw: use raw activation as features,\
+                        choices=['hist', 'max', 'mean','median'],
+                        help='Do feature extraction from raw dnn activation in \
+                        the specified axis \
                         max: use max activiton as feature, \
                         median: use median activation as feature, \
                         mean: use mean activtion as feature, \
-                        hist: use hist proflies as features.')   
+                        hist: use hist proflies as features.')  
+    
+    
+    parser.add_argument('-dpca',
+                        type=int,
+                        required=False,
+                        metavar='PCA',
+                        help='The number of PC to be kept.') 
     
     parser.add_argument('-stim',
                         type=str,
-                        required=True,
+                        required=False,
                         metavar='StimuliInfoFile',
                         help='a csv file contains picture stimuli path and \
                         picture onset time. \
@@ -90,7 +96,8 @@ def main():
     
     parser.add_argument('-movie',
                         type=str,
-                        required=True,
+                        required=False,
+                        action='append',
                         metavar='MoiveStimulusFile',
                         help='a mp4 video file')
     
@@ -128,13 +135,6 @@ def main():
                         lasso: lasso regression \
                         svc: support vector machine classification \
                         lrc: logistic regression for classification.')
-    
-    parser.add_argument('-pca',
-                        default=10,
-                        type=int,
-                        required=False,
-                        metavar='PCA',
-                        help='The number of PC to be kept.Default is 10.') 
         
     parser.add_argument('-cvfold',
                         default=2,
@@ -153,9 +153,53 @@ def main():
 
 
     
+    #%% Brain/behavior response(i.e.,Y)
+    """
+    First, we prepare the response data for exploring relations betwwen 
+    the CNN activation and brain/behavior responses.  
+    
+    """
+    if response.endswith('csv'):
+          resp_type,tr,roi_keys,resp = bio.load_resp_csv(response)    
+          if bmask:
+              print('Brain mask is ignored')
+            
+    elif response.endswith('nii') or response.endswith('nii.gz'):
+        # Load nii images
+        resp_raw, header = bio.load_brainimg(response)
+        
+        # Get tr from nii header
+        if args.hrf is not None:
+            assert header.get_xyzt_units()[-1] is not None,...
+            "TR was not provided in the brain imaging file header"           
+            if header.get_xyzt_units()[-1] in ['s','sec']:
+                tr = header['pixdim'][4]
+            elif header.get_xyzt_units()[-1] == 'ms':
+                tr = header['pixdim'][4] / 1000
+        
+        # Get resp data within bmask
+        resp_raw_shape = np.shape(resp_raw)
+        resp_raw = resp_raw.reshape(resp_raw_shape[0],-1)       
+        if args.bmask is not None:
+            brain_mask, _ = bio.load_brainimg(mask, ismask=True)
+            assert np.shape(brain_mask) == resp_raw_shape[1:], ...
+            "Mask and brainimg should have the same geometry shape"
+            brain_mask = brain_mask.reshape(-1)    
+        else:
+            brain_mask = np.zeros(resp_raw.shape[1])
+            brain_mask[resp_raw.mean(0)!=0] = 1        
+        resp = resp_raw[:,brain_mask!=0]
+        
+    else:
+        raise Exception('Please provide csv file for roi analyais, \
+                        nii or nii.gz for brain voxel-wise mapping')
+    brain_roi_size = resp.shape[1]    
+    
+    
+    
     #%% CNN activation
     """
-    First, we prepare CNN activation(i.e., X) for exploring relations betwwen 
+    Second, we prepare CNN activation(i.e., X) for exploring relations betwwen 
     the CNN activation and brain/behavior responses. 
     
     """
@@ -216,48 +260,7 @@ def main():
     # size of cnn activation            
     n_stim,n_chn,n_unit = dnn_act.shape
   
-    #%% Brain/behavior response(i.e.,Y)
-    """
-    Second, we prepare the response data for exploring relations betwwen 
-    the CNN activation and brain/behavior responses.  
-    
-    """
-    if response.endswith('csv'):
-          resp_type,tr,roi_keys,resp = bio.load_resp_csv(response)    
-          if bmask:
-              print('Brain mask is ignored')
-            
-    elif response.endswith('nii') or response.endswith('nii.gz'):
-        # Load nii images
-        resp_raw, header = bio.load_brainimg(response)
-        
-        # Get tr from nii header
-        if args.hrf is not None:
-            assert header.get_xyzt_units()[-1] is not None,...
-            "TR was not provided in the brain imaging file header"           
-            if header.get_xyzt_units()[-1] in ['s','sec']:
-                tr = header['pixdim'][4]
-            elif header.get_xyzt_units()[-1] == 'ms':
-                tr = header['pixdim'][4] / 1000
-        
-        # Get resp data within bmask
-        resp_raw_shape = np.shape(resp_raw)
-        resp_raw = resp_raw.reshape(resp_raw_shape[0],-1)       
-        if args.bmask is not None:
-            brain_mask, _ = bio.load_brainimg(mask, ismask=True)
-            assert np.shape(brain_mask) == resp_raw_shape[1:], ...
-            "Mask and brainimg should have the same geometry shape"
-            brain_mask = brain_mask.reshape(-1)    
-        else:
-            brain_mask = np.zeros(resp_raw.shape[1])
-            brain_mask[resp_raw.mean(0)!=0] = 1        
-        resp = resp_raw[:,brain_mask!=0]
-        
-    else:
-        raise Exception('Please provide csv file for roi analyais, \
-                        nii or nii.gz for brain voxel-wise mapping')
-    brain_roi_size = resp.shape[1]    
-    
+
    
     #%% multivariate analysis
     """
@@ -282,7 +285,7 @@ def main():
     if args.pca is not None:             
         pca = decomposition.PCA(n_components=args.pca)
         if args.axis == 'layer':       
-            X = dnn_act.reshape(n_stim,-1) # dnn_act: n_stim, n_chn * n_unit
+            X = dnn_act.reshape(n_stim,-1) 
             X = pca.fit_transform(X)
 
         elif args.axis == 'channel':
@@ -298,7 +301,7 @@ def main():
             
      # Convert dnn activtaion to bold response
      if args.hrf is not None:
-         X = analyzer.dnn_bold_regressor(X, onset,tr)
+         X = analyzer.dnn_bold_regressor(X, timing,tr)
          
      # run mv model
      m_score = [model_selection.cross_val_score(
@@ -308,8 +311,9 @@ def main():
         
     # output data
     model.fit(X,Y)
-    m_pred = model.predict(X)  
-        
+    m_pred = model.predict(X)
+    
+    
      #%% save the results to disk
      """
      Finally, we save the related results to the outdir.
