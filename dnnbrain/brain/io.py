@@ -27,30 +27,27 @@ def load_brainimg(imgpath, ismask=False):
     header[header]: header of brain image
     """
     imgname = os.path.basename(imgpath)
-    imgsuffix = imgname.split('.')[1:]
-    assert len(imgsuffix)<4, "Please rename your brain image file for too many . in your filename."
-    imgsuffix = '.'.join(imgsuffix)
 
-    if imgsuffix == 'nii.gz':
+    if ('nii.gz' in imgname) or (imgname.split('.')[-1]=='nii'):
         brain_img = nib.load(imgpath).get_data()
         if not ismask:
             brain_img = np.transpose(brain_img,(3,0,1,2))
         header = nib.load(imgpath).header
-    elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
+    elif imgname.endswith('mgz') or imgname.endswith('mgh'):
         brain_img = nib.freesurfer.load(imgpath).get_data()
         if not ismask:
             if brain_img.ndim == 3:
                 brain_img = brain_img[...,None]
             brain_img = np.transpose(brain_img, (3,0,1,2))
         header = nib.freesurfer.load(imgpath).header
-    elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
+    elif imgname.endswith('dscalar.nii') or imgname.endswith('dlabel.nii') or imgname.endswith('dtseries.nii'):
         brain_img, header = cifti.read(imgpath)
         if not ismask:
             brain_img = brain_img[...,None,None]
         else:
             brain_img = brain_img[...,None]
-    elif imgsuffix.endswith('gii'):
-        assert imgsuffix != 'surf.gii', "surf.gii is a geometry file, not an array activation."
+    elif imgname.endswith('gii'):
+        assert not imgname.endswith('surf.gii'), "surf.gii is a geometry file, not an array activation."
         brain_img = nib.load(imgpath).darrays[0].data
         if not ismask:
             brain_img = brain_img[None,:,None,None]
