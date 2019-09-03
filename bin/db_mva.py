@@ -79,7 +79,6 @@ def main():
     parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        dest='csv',
                         metavar='StimuliInfoFile',
                         help='a csv file contains picture stimuli path and \
                         picture onset time. \
@@ -88,6 +87,12 @@ def main():
 		                face1.png,	1.1 \
 		                face2.png,	3.1 \
 		                scene1.png,	5.1')
+    
+    parser.add_argument('-movie',
+                        type=str,
+                        required=True,
+                        metavar='MoiveStimulusFile',
+                        help='a mp4 video file')
     
     parser.add_argument('-response',
                         type=str,
@@ -205,7 +210,7 @@ def main():
             elif args.dfe == 'median':
                 dnn_act = dnn_act.max(1)
             elif args.dfe == 'hist':
-                dnn_act = np.histogramdd(dnn_act)
+                dnn_act = np.histogramdd(dnn_act,15)
                 
                 
     # size of cnn activation            
@@ -291,19 +296,15 @@ def main():
                 X(:,:,unit) = pca.fit_transform(X(:,:,unit))
             
             
-            
-     # hrf convolve, should be performed after pca
+     # Convert dnn activtaion to bold response
      if args.hrf is not None:
-         hrf = [1,2,3];
-         X =  convolve(X, hrf)
+         X = analyzer.dnn_bold_regressor(X, onset,tr)
          
-                 
-     
      # run mv model
      m_score = [model_selection.cross_val_score(
                 model,X,Y[:,Y_i],scoring='explained_variance',cv=cvfold
                 ) for Y_i in range(Y.shape[1])]
-        m_score = dim2(np.asarray(m_score).mean(-1),axis=0)
+     m_score = dim2(np.asarray(m_score).mean(-1),axis=0)
         
     # output data
     model.fit(X,Y)
@@ -315,8 +316,7 @@ def main():
      
      """
      
-     # ---save prediction scores---
-    if args.roi:
+     if args.roi:
         score_df = pd.DataFrame({'ROI': roilabel, 'scores': scores})
         # Save behavior measurement into hardware
         score_df.to_csv(pjoin(args.outdir, 'roi_score.csv'), index=False)
