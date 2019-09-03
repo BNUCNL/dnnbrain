@@ -1,7 +1,6 @@
 Type: resp
 Title: visual roi
-MetaVariable: tr
-2 
+tr:2 
 VariableAxis col
 VariableName OFA FFA
 51741.1,57739.1 
