@@ -44,37 +44,34 @@ def main():
     
     parser.add_argument('-axis',
                         type=str,
+                        default='layer',
                         required=True,
                         choices=['layer','channel', 'column'],
                         metavar='AxisName',
-                        help='specify an axis to organize the predictors \
-                        channel：A model will be built for each channel using \
-                        all the units in that channel. \
-                        column: A model will be built for each column using \
-                        all the channels in that column. \
-                        default is None.')
+                        help='Target axis to organize the predictors. \
+                        layer: do mva using all unit within a layer\
+                        channel：do mva using all units within each channel. \
+                        column: do mva using all units within each column. \
+                        default is layer.')
     
     parser.add_argument('-dmask', 
                         type=str,
                         required=False,
                         metavar='DnnMaskFile',
-                        help='a csv file contains channels or \
-                        units of interest to build the model in two rows. \
-                        the first row is channel of interest, the second rows \
-                        is column of intereset.')
+                        help='a db.csv file in which channles of intereset \
+                        and columns of interest are listed.')
     
     parser.add_argument('-dfe', 
                         type=str,
                         required=False,
                         metavar='DnnFeatureExtraction',
                         choices=['hist', 'max', 'mean','median'],
-                        help='Do feature extraction from raw dnn activation in \
+                        help='Feature extraction for dnn activation in \
                         the specified axis \
                         max: use max activiton as feature, \
                         median: use median activation as feature, \
                         mean: use mean activtion as feature, \
                         hist: use hist proflies as features.')  
-    
     
     parser.add_argument('-dpca',
                         type=int,
@@ -86,13 +83,7 @@ def main():
                         type=str,
                         required=False,
                         metavar='StimuliInfoFile',
-                        help='a csv file contains picture stimuli path and \
-                        picture onset time. \
-                        [PicPath] \
-                        stimID,		onset \
-		                face1.png,	1.1 \
-		                face2.png,	3.1 \
-		                scene1.png,	5.1')
+                        help='a db.csv file provide stimuli information')
     
     parser.add_argument('-movie',
                         type=str,
@@ -104,16 +95,10 @@ def main():
     parser.add_argument('-response',
                         type=str,
                         required=True,
-                        metavar='BrainActFile',
-                        help='response: variale(s) to be predicted.\
-                        format: csv files or nifti files.\
-		                csv file format: \
-			            [data type: time course or ramdom samples] \
-			            [tr: in sec] \
-			            roiname,		roiname \
-			            51741.1,		57739.1 \
-			            51823.3,		57831.5 \
-			            52353.2,		57257.3')
+                        metavar='ResponseFile',
+                        help='a db.csv file to provide target response. \
+			            The target reponse could be behavior measures or \
+                         brain response from some rois')
     
     parser.add_argument('-hrf',
                         action='store_true',
@@ -124,7 +109,9 @@ def main():
                         type=str,
                         required=False,
                         metavar='BrainMaskFile',
-                        help='brain mask used to extract activation locally.')
+                        help='Brain mask(nii or nii.gz) to indicate \
+                        the voxel of interest.It works only when response \
+                        is nii or nii.gz file')
           
     parser.add_argument('-model',
                         type=str,
@@ -150,8 +137,6 @@ def main():
                         help='output directory. Model, accuracy, and related.')
     
     args = parser.parse_args()
-
-
     
     #%% Brain/behavior response(i.e.,Y)
     """
@@ -159,43 +144,31 @@ def main():
     the CNN activation and brain/behavior responses.  
     
     """
-    if response.endswith('csv'):
-          resp_type,tr,roi_keys,resp = bio.load_resp_csv(response)    
-          if bmask:
-              print('Brain mask is ignored')
+    if args.response.endswith('db.csv'):
+          resp = dio.read_dbcsv(args.response)
+          resp = resp['VariableName'].values() # n_stim x n_roi
             
-    elif response.endswith('nii') or response.endswith('nii.gz'):
-        # Load nii images
-        resp_raw, header = bio.load_brainimg(response)
-        
-        # Get tr from nii header
-        if args.hrf is not None:
-            assert header.get_xyzt_units()[-1] is not None,...
-            "TR was not provided in the brain imaging file header"           
-            if header.get_xyzt_units()[-1] in ['s','sec']:
-                tr = header['pixdim'][4]
-            elif header.get_xyzt_units()[-1] == 'ms':
-                tr = header['pixdim'][4] / 1000
-        
-        # Get resp data within bmask
-        resp_raw_shape = np.shape(resp_raw)
-        resp_raw = resp_raw.reshape(resp_raw_shape[0],-1)       
-        if args.bmask is not None:
-            brain_mask, _ = bio.load_brainimg(mask, ismask=True)
-            assert np.shape(brain_mask) == resp_raw_shape[1:], ...
-            "Mask and brainimg should have the same geometry shape"
-            brain_mask = brain_mask.reshape(-1)    
-        else:
-            brain_mask = np.zeros(resp_raw.shape[1])
-            brain_mask[resp_raw.mean(0)!=0] = 1        
-        resp = resp_raw[:,brain_mask!=0]
-        
+    elif args.response.endswith('nii') or args.response.endswith('nii.gz'):
+        resp, header = bio.load_brainimg(args.response)
     else:
-        raise Exception('Please provide csv file for roi analyais, \
-                        nii or nii.gz for brain voxel-wise mapping')
-    brain_roi_size = resp.shape[1]    
-    
-    
+        raise Exception('Only db.csv and nii vloume are supported')
+        
+    # Get tr from nii header                
+    tr = header['pixdim'][4]
+    if header.get_xyzt_units()[-1] == 'ms':
+                tr = tr/ 1000
+        
+    # Get resp data within brain mask
+    resp = resp.reshape(resp.shape[0],-1)  # n_stim x n_vox
+    if args.bmask is None:    
+        bmask = np.any(resp,0)
+    else:
+        bmask, _ = bio.load_brainimg(args.bmask, ismask=True)            
+        bmask = bmask.reshape(-1)    
+        assert bmask.shape[0] == resp.shape[1], "mask and response mismatched in space"
+        
+    resp = resp[:, bmask] # n_stim x n_roi or n_vox
+    n_vox = resp.shape[1]    
     
     #%% CNN activation
     """
@@ -205,57 +178,48 @@ def main():
     """
     # Load CNN
     netloader = dio.NetLoader(args.net)
-    imgcropsize = netloader.img_size     
-    transform = transforms.Compose([transforms.Resize(imgcropsize),
+    transform = transforms.Compose([transforms.Resize(netloader.img_size),
                                     transforms.ToTensor()])  
-    # Load stimulus                      
-    picdataset = dio.PicDataset(args.stim, transform=transform)
-    assert 'stimID' in picdataset.csv_file.keys(), ...
-    'stimID must be provided in stimuli csv file'
-    assert 'onset' in picdataset.csv_file.keys(), ...
-    'onset must be provided in stimuli csv file'
-    assert 'duration' in picdataset.csv_file.keys(), ...
-    'duration must be provided in stimuli csv file'
+    # Load stimulus
+    stim = dio.read_dbcsv(args.stim)
+    stim_path, stim_picid = stim['picpath'], stim['VariableName']            
+    picdataset = dio.PicDataset(stim_path,stim_picid,transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
     
-   
-    # calculate dnn activation: pic * channel * unit * unit
+    # calculate dnn activation: n_stim * n_channel * unit * unit
     dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer)
+    # n_stim * n_channel * n_unit
     dnn_act = dnn_act.reshape(dnn_act.shape[0], dnn_act.shape[1], -1)
     
      # define dnn mask
     if args.dmask is not None:
-        dmask = dio.read_dmask_csv(args.dmask)
+        dmask = dio.read_dbcsv(args.dmask)
+        chnoi = dmask['VariableName']['chn']
+        coloi = dmask['VariableName']['col']
+        dnn_act = dnn_act[:,chnoi,coloi] # n_stim x n_chnoi x n_coloi
 
-    # data within dmask
-    if args.axis == 'channel':
-        dnn_act = dnn_act[:,:,dmask]
-    elif args.axis == 'column':
-        dnn_act = dnn_act[:,dmask,:]
-    
     # dnn feature extraction
     if args.dfe is not None:    
         if args.axis == 'channel':
             if args.dfe == 'mean':
-                dnn_act = dnn_act.mean(-1)[:,:,np.newaxis]
+                dnn_act = np.mean(dnn_act,axis=-1)[...,None]
             elif args.dfe == 'max':
-                dnn_act = dnn_act.max(-1)[:,:,np.newaxis]
+                dnn_act = np.max(dnn_act,axis=-1)[...,None]
             elif args.dfe == 'median':
-                dnn_act = dnn_act.max(-1)[:,:,np.newaxis]
+                dnn_act = np.median(dnn_act,axis=-1)[...,None]
             elif args.dfe == 'hist':
                 dnn_act = np.histogramdd(dnn_act)
 
                 
-        elif args.axis == 'channel':
+        elif args.axis == 'column':
             if args.dfe == 'mean':
-                dnn_act = dnn_act.mean(1)
+                dnn_act = np.mean(dnn_act,axis=1)[...,None]
             elif args.dfe == 'max':
-                dnn_act = dnn_act.max(1)
+                dnn_act = np.max(dnn_act,axis=1)[...,None]
             elif args.dfe == 'median':
-                dnn_act = dnn_act.max(1)
+                dnn_act = np.median(dnn_act,axis=1)[...,None]
             elif args.dfe == 'hist':
-                dnn_act = np.histogramdd(dnn_act,15)
-                
+                dnn_act = np.histogramdd(dnn_act)
                 
     # size of cnn activation            
     n_stim,n_chn,n_unit = dnn_act.shape
@@ -278,8 +242,8 @@ def main():
     elif args.model == 'lrc': 
         model = linear_model.LogisticRegression()
     else:
-        raise Exception('Please use glm and lasso for regression and \
-                            use svc and lrc for classification')
+        raise Exception('Please use glm and lasso for linear regression and \
+                            use svc and lrc for linear classification')
     
     # PCA on dnn features
     if args.pca is not None:             
@@ -291,22 +255,24 @@ def main():
         elif args.axis == 'channel':
             X = np.zeros((n_stim, n_chn, args.pca))
             for chn in range(n_chn):
-                X(:,chn,:) = pca.fit_transform(X(:,chn,:)
+                X[:,chn,:] = pca.fit_transform(X[:,chn,:])
                 
         elif args.axis == 'column':
             X = np.zeros((n_stim, args.pca, n_unit))
             for unit in range(n_unit):
-                X(:,:,unit) = pca.fit_transform(X(:,:,unit))
+                X[:,:,unit] = pca.fit_transform(X[:,:,unit])
             
             
-     # Convert dnn activtaion to bold response
-     if args.hrf is not None:
-         X = analyzer.dnn_bold_regressor(X, timing,tr)
+     # Convert dnn activtaion to bold response.
+    if args.hrf is not None:
+         onset,duration = stim_id['onset'], stim_id['duration']
+         X = analyzer.generate_bold_regressor(X,onset,
+                                              duration,resp.shape[0],tr)
          
      # run mv model
      m_score = [model_selection.cross_val_score(
-                model,X,Y[:,Y_i],scoring='explained_variance',cv=cvfold
-                ) for Y_i in range(Y.shape[1])]
+                model,X,Y[:,Yi],scoring='explained_variance',cv=cvfold
+                ) for Yi in range(Y.shape[1])]
      m_score = dim2(np.asarray(m_score).mean(-1),axis=0)
         
     # output data
@@ -319,19 +285,12 @@ def main():
      Finally, we save the related results to the outdir.
      
      """
-     
-     if args.roi:
-        score_df = pd.DataFrame({'ROI': roilabel, 'scores': scores})
-        # Save behavior measurement into hardware
-        score_df.to_csv(pjoin(args.outdir, 'roi_score.csv'), index=False)
+    
+    if args.response.endswith('db.csv'):
+          resp = dio.save(fname)
+            
     else:
-        # output image: channel*voxels
-        out_brainimg = np.zeros((1, *brainimg_data.shape[1:]))
-        for i, b_idx in enumerate(brainact_idx):
-            out_brainimg[0, b_idx[0], b_idx[1], b_idx[2]] = scores[i]
-        # Save image into hardware
         bio.save_brainimg(pjoin(args.outdir, 'voxel_score.nii.gz'), out_brainimg, header)
-
-
+        
 if __name__ == '__main__':
     main()
