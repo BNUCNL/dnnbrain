@@ -286,10 +286,64 @@ class NetLoader:
         print('You had assigned a model into netloader.')
         
             
-    def read_dnn_csv(fname):
-        return dbcsv
+def read_dnn_csv(dnn_csvfiles):
+    """
+    Read pre-designed dnn csv file.
     
-    def save_dnncsv(dbcsv,fname):
-        pass
+    Parameters:
+    -----------
+    dnn_csvfiles[str]: Path of csv files. Note that the suffix of dnn_csvfiles is .db.csv.
+                       Format of dnn_csvfiles is
+                       --------------------------
+                       Type: resp [stim/dmask]
+                       Title: visual roi
+                       [Several optional keys]
+                       VariableAxis: col
+                       VariableName: OFA FFA
+                       123,312
+                       222,331
+                       342,341
+    Return:
+    -------
+    dbcsv[dict]: Directory of the output variable
+    """
+    assert '.db.csv' in dnn_csvfiles, 'Suffix of dnn_csvfiles should be .db.csv'
+    with open(dnn_csvfiles, 'r') as f:
+        csvstr = f.read()
+    dbcsv = {}
+    csvdata = csvstr.split('\n')
+    metalbl = ['VariableName' in i for i in csvdata].index(True)
+    csvmeta = csvdata[:(metalbl)]
+    csvval = csvdata[(metalbl):]
+    # Handling csv data
+    for i, cm in enumerate(csvmeta):
+        if cm == '':
+            continue
+        dbcsv[cm.split(':')[0]] = cm.split(':')[1]
+    assert 'Type' in dbcsv.keys(), 'Type needs to be included in csvfiles.'
+    assert 'Title' in dbcsv.keys(), 'Title needs to be included in csvfiles.'
+    assert 'VariableAxis' in dbcsv.keys(), 'VariableAxis needs to be included in csvfiles.'
+    
+    # Judge type
+    assert dbcsv['Type'] in ['Stimulus', 'Dmask', 'Response'], "Type must named as one of Stimulus, Dmask and Response."
+    
+    # Operate csvval
+    variable_keys = csvval[0].split(':')[1].split()
+    variable_data = np.array([i.split(',') for i in csvval[1:]]).astype('float')
+    if dbcsv['VariableAxis'] == 'col':
+        dict_variable = {variable_keys[i]:variable_data[:,i] for i in range(len(variable_keys))}
+    elif dbcsv['VariableAxis'] == 'row':
+        dict_variable = {variable_keys[i]:variable_data[i,:] for i in range(len(variable_keys))}
+    else:
+        raise Exception('VariableAxis could only be col or row.')
+    if dbcsv['Type'] == 'Stimulus':
+        assert ('id' in dict_variable.keys()) & ('onset' in dict_variable.keys()), "id and onset must be in VariableName because your csv type is Stimulus."
+    if dbcsv['Type'] == 'Dmask':
+        assert ('channel' in dict_variable.keys()) & ('column' in dict_variable.keys()), "channel and column must be in VariableName because your csv type is Dmask."
+    dbcsv['VariableName'] = dict_variable
+    return dbcsv
+    
+def save_dnncsv(dbcsv,fname):
+    pass
 
            
