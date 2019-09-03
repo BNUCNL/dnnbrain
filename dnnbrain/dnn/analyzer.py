@@ -1,26 +1,9 @@
 
-import torch
-import torchvision
-from torch import nn
-from torchvision import models
-from torchvision import transforms, utils
-from torch.utils.data import DataLoader, TensorDataset
-from torchvision import transforms
-
-
-import os
-import pandas as pd    
 import numpy as np
-from dnnbrain.dnn.models import dnn_truncate, TransferredNet, dnn_train_model
 from dnnbrain.dnn import io as iofiles
-from scipy.stats import pearsonr
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
-from dnnbrain.dnn import io as dnn_io
-from dnnbrain.brain import io as brain_io
-from scipy.signal import convovle
-from sklearn import linear_model, model_selection, decomposition, svm
+from scipy.signal import convolve, resample
 
-    
 
 
 def dnn_activation(input, netname, layer, channel=None):
@@ -52,25 +35,56 @@ def dnn_activation(input, netname, layer, channel=None):
         dnnact = dnnact[:, channel_new, :, :]
     return dnnact
 	
-    #%% multivarient prediction analysis 
-    # func
-    def dnn_bold_regressor(activation,timing,n_vol,tr):
-        '''convolve dnn_act with hrf and align with timeline of response
+    
+
+
+
+def generate_bold_regressor(X,onset,duration,vol_num,tr):
+    '''convolve event-format X with hrf and align with timeline of BOLD signal
+	parameters:
+	----------
+	X[array]: [n_event] or [n_event,n_sample]
+	onset[list or array]: in sec. size = n_event 
+	duration[list or array]: list or array. in sec. size = n_event         
+	vol_num[int]: total volume number of BOLD signal
+	tr[float]: in sec
+	
+	Returns:
+	---------
+	X_hrfed[array]: same shape with X
+    '''        
+
+    if isinstance(onset,list):
+        onset = np.round(np.asarray(onset),decimals=3)
         
-        parameters:
-        ----------
-            cond: Nx2 np array, the first column is timing, second column is 
-            cond id
-            n_vol: int, number of volume
-            tr: double, sampling time in sec for a volume
-            
-            x: [n_event,n_sample]
-                Onset, duration and x' 1st dim should have the same size.
-            resp: total 1-d array
-            tr: in sec
-            
-        '''
-        hrf = spm_hrf(tr,25)
-        reg =  convolve(X, hrf)
-        reg_names = 'cond_name'
+    if isinstance(duration,list):
+        duration = np.round(np.asarray(duration),decimals=3)
+    
+    if np.ndim(X) == 1:
+        X = X[:,np.newaxis]
+    
+    
+    # generate X raw time course in ms
+    X_tc = np.zeros([int((onset+duration).max()*1000), X.shape[-1]])
+    for i, onset_i in enumerate(onset):
+        onset_i_start = int(onset_i*1000)
+        onset_i_end = int(onset_i_start + duration[i] *1000)
+        X_tc[onset_i_start:onset_i_end,:] = X[i]
         
+    # generate hrf kernal
+    hrf = spm_hrf(tr,oversampling=tr*1000,time_length=32,onset=0)
+    hrf = hrf[:,np.newaxis]
+    
+    # convolve X raw time course with hrf kernal
+    X_tc_hrfed =  convolve(X_tc, hrf, method='fft')
+
+    # compute volume acqusition timing    
+    vol_t = np.arange(vol_num) * tr *1000
+    
+    # down sampling to volume timing
+    X_hrfed = resample(X_tc_hrfed, num=vol_num, t=vol_t)[0]
+    
+    if np.ndim(X) == 1:
+        X_hrfed = np.squeeze(X_hrfed)
+    
+    return X_hrfed
