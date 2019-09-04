@@ -20,39 +20,32 @@ except ModuleNotFoundError:
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
-class PicDataset(Dataset):
+class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, csv_file, transform=None, crop=None):
+    def __init__(self, picPath, stimID, condition=None, 
+                 transform=None, crop=None):
         """
         Initialize PicDataset
         
         Parameters:
         ------------
-        csv_file[str]:  table contains picture names, conditions and picture onset time.
-                        This csv_file helps us connect cnn activation to brain images.
-                        Please organize your information as:
-                                     
-                        [PICDIR]
-                        stimID          condition   onset(optional) measurement(optional)
-                        download/face1  face        1.1             3
-                        mgh/face2.png   face        3.1             5
-                        scene1.png      scene       5.1             4
-        
+        picPath[str]: parent path of picture sitmuli
+        stimID[list or array of str]: picture name
+        condition[list or array of str]: condition of corresponding picture
         transform[callable function]: optional transform to be applied on a sample.
         crop[bool]:crop picture optionally by a bounding box.
                    The coordinates of bounding box for crop pictures should be measurements in csv_file.
                    The label of coordinates in csv_file should be left_coord,upper_coord,right_coord,lower_coord.
         """
-        self.csv_file = pd.read_csv(csv_file, skiprows=1)
-        with open(csv_file,'r') as f:
-            self.picpath = f.readline().rstrip()
+        self.picpath = np.asarray(picPath,dtype=np.str)
+        self.picname = np.asarray(stimID,dtype=np.str)
+        if condition is not None:
+            self.condition = np.asarray(condition,dtype=np.str)
+        
         self.transform = transform
-        picname = np.array(self.csv_file['stimID'])
-        condition = np.array(self.csv_file['condition'])
-        self.picname = picname
-        self.condition = condition
+
         self.crop = crop
         if self.crop:
             self.left = np.array(self.csv_file['left_coord'])
@@ -106,7 +99,10 @@ class PicDataset(Dataset):
         picname: picture name
         condition: target condition
         """
-        return os.path.basename(self.picname[idx]), self.condition[idx]
+        if hasattr(self,'condition'):
+            return os.path.basename(self.picname[idx]), self.condition[idx]
+        else:
+            return os.path.basename(self.picname[idx])
 
 
 def read_Imagefolder(parpath):
@@ -286,7 +282,7 @@ class NetLoader:
         print('You had assigned a model into netloader.')
         
             
-def read_dnn_csv(dnn_csvfiles):
+def read_dnn_csv(dnn_csvfile):
     """
     Read pre-designed dnn csv file.
     
@@ -307,9 +303,9 @@ def read_dnn_csv(dnn_csvfiles):
     -------
     dbcsv[dict]: Directory of the output variable
     """
-    assert '.db.csv' in dnn_csvfiles, 'Suffix of dnn_csvfiles should be .db.csv'
-    with open(dnn_csvfiles, 'r') as f:
-        csvstr = f.read()
+    assert '.db.csv' in dnn_csvfile, 'Suffix of dnn_csvfile should be .db.csv'
+    with open(dnn_csvfile, 'r') as f:
+        csvstr = f.read().rstrip
     dbcsv = {}
     csvdata = csvstr.split('\n')
     metalbl = ['VariableName' in i for i in csvdata].index(True)
@@ -319,28 +315,48 @@ def read_dnn_csv(dnn_csvfiles):
     for i, cm in enumerate(csvmeta):
         if cm == '':
             continue
-        dbcsv[cm.split(':')[0]] = cm.split(':')[1]
-    assert 'Type' in dbcsv.keys(), 'Type needs to be included in csvfiles.'
-    assert 'Title' in dbcsv.keys(), 'Title needs to be included in csvfiles.'
-    assert 'VariableAxis' in dbcsv.keys(), 'VariableAxis needs to be included in csvfiles.'
+        key_name = cm.split(':')[0][0].lower() + cm.split(':')[0][1:]
+        dbcsv[key_name] = cm.split(':')[1]
+    assert 'type' in dbcsv.keys(), 'Type needs to be included in csvfiles.'
+    assert 'title' in dbcsv.keys(), 'Title needs to be included in csvfiles.'
+    assert 'variableAxis' in dbcsv.keys(), 'VariableAxis needs to be included in csvfiles.'
     
-    # Judge type
-    assert dbcsv['Type'] in ['Stimulus', 'Dmask', 'Response'], "Type must named as one of Stimulus, Dmask and Response."
+    # identify the type of data
+    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], "Type must named as one of Stimulus, Dmask and Response."
     
-    # Operate csvval
-    variable_keys = csvval[0].split(':')[1].split()
-    variable_data = np.array([i.split(',') for i in csvval[1:]]).astype('float')
-    if dbcsv['VariableAxis'] == 'col':
-        dict_variable = {variable_keys[i]:variable_data[:,i] for i in range(len(variable_keys))}
-    elif dbcsv['VariableAxis'] == 'row':
-        dict_variable = {variable_keys[i]:variable_data[i,:] for i in range(len(variable_keys))}
+    # Operate csvval of stimulus
+    if dbcsv['type'] == 'stimulus':
+        variable_keys = csvval[0].split(':')[1].split(',')
+        variable_data = np.asarray([i.split(',') for i in csvval[1:]], dtype=np.str)
+        if dbcsv['variableAxis'] == 'col':
+            dict_variable = {variable_keys[i]:variable_data[:,i] for i in range(len(variable_keys))}
+        elif dbcsv['variableAxis'] == 'row':
+            dict_variable = {variable_keys[i]:variable_data[i,:] for i in range(len(variable_keys))}
+        else:
+            raise Exception('VariableAxis could only be col or row.')
+                
+    # Operate csvval of other types
     else:
-        raise Exception('VariableAxis could only be col or row.')
-    if dbcsv['Type'] == 'Stimulus':
-        assert ('id' in dict_variable.keys()) & ('onset' in dict_variable.keys()), "id and onset must be in VariableName because your csv type is Stimulus."
-    if dbcsv['Type'] == 'Dmask':
+        variable_keys = csvval[0].split(':')[1].split(',')
+        variable_data = np.array([i.split(',') for i in csvval[1:]]).astype('float')
+        if dbcsv['variableAxis'] == 'col':
+            dict_variable = {variable_keys[i]:variable_data[:,i] for i in range(len(variable_keys))}
+        elif dbcsv['variableAxis'] == 'row':
+            dict_variable = {variable_keys[i]:variable_data[i,:] for i in range(len(variable_keys))}
+        else:
+            raise Exception('VariableAxis could only be col or row.')
+    
+    if dbcsv['type'] == 'stimulus':
+        assert ('stimID' in dict_variable.keys()), "stimID must be in VariableName because your csv type is Stimulus."
+    if dbcsv['type'] == 'response':
+        assert ('stimID' in dict_variable.keys()) & (
+                'onset' in dict_variable.keys()) & (
+                        'duration' in dict_variable.keys()), "stimID, onset and duration must be in VariableName because your csv type is Stimulus."
+
+    if dbcsv['type'] == 'dmask':
         assert ('channel' in dict_variable.keys()) & ('column' in dict_variable.keys()), "channel and column must be in VariableName because your csv type is Dmask."
-    dbcsv['VariableName'] = dict_variable
+    
+    dbcsv['variable'] = dict_variable
     return dbcsv
     
 def save_dnncsv(dbcsv,fname):

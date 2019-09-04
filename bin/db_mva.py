@@ -136,11 +136,22 @@ def main():
                         metavar='OutputDir',
                         help='output directory. Model, accuracy, and related.')
     
-    args = parser.parse_args()
+    args = parser.parse_args(['-net', 'alexnet',
+                              '-layer', 'conv5',
+                              '-axis', 'layer',
+                              '-dmask', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/dmask.db.csv',
+                              '-dpca', '10',
+                              '-stim', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/stim.db.csv',
+                              '-response', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/resp.sm5.nii.gz',
+                              '-bmask', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/bmask.nii.gz',
+                              '-hrf',
+                              '-model', 'glm',
+                              '-cvfold', '2',
+                              '-outdir', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/results'])
     
     #%% Brain/behavior response(i.e.,Y)
     """
-    First, we prepare the response data for exploring relations betwwen 
+    First, we prepare the response data for exploring relations between 
     the CNN activation and brain/behavior responses.  
     
     """
@@ -156,7 +167,7 @@ def main():
     # Get tr from nii header                
     tr = header['pixdim'][4]
     if header.get_xyzt_units()[-1] == 'ms':
-                tr = tr/ 1000
+        tr = tr/ 1000
         
     # Get resp data within brain mask
     resp = resp.reshape(resp.shape[0],-1)  # n_stim x n_vox
@@ -164,14 +175,14 @@ def main():
         bmask = np.any(resp,0)
     else:
         bmask, _ = bio.load_brainimg(args.bmask, ismask=True)            
-        bmask = bmask.reshape(-1)    
+        bmask = bmask.reshape(-1).astype(np.int)
         assert bmask.shape[0] == resp.shape[1], "mask and response mismatched in space"
         
-    Y = resp[:, bmask] # n_stim x n_roi or n_vox
+    Y = resp[:, bmask!=0] # n_stim x n_roi or n_vox
     
     #%% CNN activation
     """
-    Second, we prepare CNN activation(i.e., X) for exploring relations betwwen 
+    Second, we prepare CNN activation(i.e., X) for exploring relations between 
     the CNN activation and brain/behavior responses. 
     
     """
@@ -180,8 +191,8 @@ def main():
     transform = transforms.Compose([transforms.Resize(netloader.img_size),
                                     transforms.ToTensor()])  
     # Load stimulus
-    stim = dio.read_dbcsv(args.stim)
-    stim_path, stim_id = stim['picpath'], stim['VariableName']            
+    stim = dio.read_dnn_csv(args.stim)
+    stim_path, stim_id = stim['picPath'], stim['variable']['stimID']            
     picdataset = dio.PicDataset(stim_path,stim_id,transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
     
@@ -192,7 +203,7 @@ def main():
     
      # define dnn mask
     if args.dmask is not None:
-        dmask = dio.read_dbcsv(args.dmask)
+        dmask = dio.read_dnn_csv(args.dmask)
         chnoi = dmask['VariableName']['chn']
         coloi = dmask['VariableName']['col']
         dnn_act = dnn_act[:,chnoi,coloi] # n_stim x n_chnoi x n_coloi
