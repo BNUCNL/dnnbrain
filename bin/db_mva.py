@@ -136,18 +136,7 @@ def main():
                         metavar='OutputDir',
                         help='output directory. Model, accuracy, and related.')
     
-    args = parser.parse_args(['-net', 'alexnet',
-                              '-layer', 'conv5',
-                              '-axis', 'layer',
-                              '-dmask', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/dmask.db.csv',
-                              '-dpca', '10',
-                              '-stim', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/stim.db.csv',
-                              '-response', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/resp.sm5.nii.gz',
-                              '-bmask', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/bmask.nii.gz',
-                              '-hrf',
-                              '-model', 'glm',
-                              '-cvfold', '2',
-                              '-outdir', '/nfs/s2/userhome/liuxingyu/Desktop/db_mv_test/results'])
+    args = parser.parse_args()
     
     #%% Brain/behavior response(i.e.,Y)
     """
