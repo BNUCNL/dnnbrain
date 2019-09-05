@@ -1,7 +1,7 @@
 import os
 import scipy.io
 import numpy as np
-import pandas as pd
+from torchvision import transforms
 from dnnbrain.dnn.models import Vgg_face
 
 try:
@@ -12,51 +12,60 @@ except ModuleNotFoundError:
 try:
     import torch
     import torchvision
-    from torchvision import datasets, transforms
-    from torch.utils.data import DataLoader, Dataset
 except ModuleNotFoundError:
-    raise Exception('Please install pytorch and torchvision in your work station')
+    raise Exception(
+            'Please install pytorch and torchvision in your work station')
 
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
-class PicDataset(Dataset):
+class PicDataset():
     """
     Build a dataset to load pictures
     """
     def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
         """
         Initialize PicDataset
-        
+
         Parameters:
         ------------
-        parpath[str]: parent path
-        stimulus_dict[dict]:  
-                        dictionary contains picture names, conditions and picture onset time, etc.
-                        This dictionary helps us connect cnn activation to brain images.
-                        Please organize your information as:
-                        
-                        stimID          condition   onset(optional) measurement(optional)
-                        download/face1  face        1.1             3
-                        mgh/face2.png   face        3.1             5
-                        scene1.png      scene       5.1             4
-                        
-                        stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
+        parpath[str]: picture parent path
+
+        stimulus_dict[dict]:
+            dictionary contains picture names, and other optional keys.
+            This dictionary helps us connect cnn activation to brain images.
+            Please organize your information as:
+
+                stimID          condition(optional)   ...
+                download/face1  face                  ...
+                mgh/face2.png   face                  ...
+                scene1.png      scene                 ...
+
+                stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
                                         'condition': ['face', 'face'],
                                         'onset': [1.1, 3.1, 5.1]}
-        
-        transform[callable function]: optional transform to be applied on a sample.
-        crop[bool]:crop picture optionally by a bounding box.
-                   The coordinates of bounding box for crop pictures should be measurements in csv_file.
-                   The label of coordinates in csv_file should be left_coord,upper_coord,right_coord,lower_coord.
+
+        transform[callable function]: optional transform to be applied
+            on a sample.
+
+        crop[bool]: crop picture optionally by a bounding box.
+            The coordinates of bounding box for crop pictures should be
+                measurements in stimulus_dict.
+            The keys of coordinates in stimulus_dict should be
+                left_coord,upper_coord,right_coord,lower_coord.
         """
+
         self.stimulus_dict = stimulus_dict
         self.picpath = parpath
+        self.picname = np.asarray(self.stimulus_dict['stimID'], dtype=np.str)
+
+        if hasattr(self.stimulus_dict, 'condition'):
+            self.condition = self.stimulus_dict['condition']
+        else:
+            self.condition = np.ones(np.size(self.picname))
+
         self.transform = transform
-        picname = np.array(self.stimulus_dict['stimID'])
-        condition = np.array(self.stimulus_dict['condition'])
-        self.picname = picname
-        self.condition = condition
+
         self.crop = crop
         if self.crop:
             self.left = np.array(self.stimulus_dict['left_coord'])
@@ -69,15 +78,15 @@ class PicDataset(Dataset):
         Return sample size
         """
         return len(self.picname)
-    
+
     def __getitem__(self, idx):
         """
         Get picture name, picture data and target of each sample
-        
+
         Parameters:
         -----------
         idx: index of sample
-        
+
         Returns:
         ---------
         picname: picture name
@@ -86,9 +95,12 @@ class PicDataset(Dataset):
         """
         # load pictures
         target_name = np.unique(self.condition)
-        picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        picimg = Image.open(
+                os.path.join(self.picpath, self.picname[idx])).convert('RGB')
         if self.crop:
-            picimg = picimg.crop((self.left[idx],self.upper[idx],self.right[idx],self.lower[idx]))
+            picimg = picimg.crop(
+                    (self.left[idx], self.upper[idx],
+                     self.right[idx], self.lower[idx]))
         target_label = target_name.tolist().index(self.condition[idx])
         if self.transform:
             picimg = self.transform(picimg)
@@ -96,15 +108,15 @@ class PicDataset(Dataset):
             self.transform = transforms.Compose([transforms.ToTensor()])
             picimg = self.transform(picimg)
         return picimg, target_label
-        
+
     def get_picname(self, idx):
         """
         Get picture name and its condition (target condition)
-        
+
         Parameters:
         -----------
         idx: index of sample
-        
+
         Returns:
         ---------
         picname: picture name
@@ -113,14 +125,14 @@ class PicDataset(Dataset):
         return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
-def read_Imagefolder(parpath):
+def read_imagefolder(parpath):
     """
     Get picture path and conditions of a Imagefolder directory
 
     Parameters:
     ------------
     parpath[str]: Parent path of ImageFolder.
-    
+
     Returns:
     ---------
     picpath[list]: picture path list
@@ -130,38 +142,46 @@ def read_Imagefolder(parpath):
     picname_tmp = [os.listdir(os.path.join(parpath, tg)) for tg in targets]
     picnames = [pn for sublist in picname_tmp for pn in sublist]
     conditions = [tg for tg in targets for _ in picname_tmp]
-    picpath = [os.path.join(conditions[i], picnames[i]) for i, _ in enumerate(picnames)]
+    picpath = [os.path.join(conditions[i], picnames[i]) for i, _
+               in enumerate(picnames)]
     return picpath, conditions
 
 
-def generate_stim_csv(parpath, picname_list, condition_list, outpath, onset_list=None, behavior_measure=None):
+def generate_stim_csv(parpath, picname_list, condition_list,
+                      outpath, onset_list=None, behavior_measure=None):
     """
     Automatically generate stimuli table file.
-    Noted that the stimuli table file satisfied follwing structure and sequence needs to be consistent:
-    
+    Noted that the stimuli table file satisfied follwing structure and
+    sequence needs to be consistent:
+
     [PICDIR]
     stimID              condition   onset(optional) measurement(optional)
     download/face1.png  face        1.1             3
     mgh/face2.png       face        3.1             5
     scene1.png          scene       5.1             4
-    
+
     Parameters:
     ------------
     parpath[str]: parent path contains stimuli pictures
-    picname_list[list]: picture name list, each element is a relative path (string) of a picture
+    picname_list[list]: picture name list
+        each element is a relative path (str) of a picture
     condition_list[list]: condition list
     outpath[str]: output path
     onset_list[list]: onset time list
     behavior_measure[dictionary]: behavior measurement dictionary
-    """    
-    assert len(picname_list) == len(condition_list), 'length of picture name list must be equal to condition list.'
-    assert os.path.basename(outpath).endswith('csv'), 'Suffix of outpath should be .csv'
+    """
+
+    assert len(picname_list) == len(condition_list), (
+            'length of picture name''list must be equal to condition list.')
+    assert os.path.basename(outpath).endswith('csv'), (
+            'Suffix of outpath should be .csv')
     picnum = len(picname_list)
     if onset_list is not None:
         onset_list = [str(ol) for ol in onset_list]
     if behavior_measure is not None:
         list_int2str = lambda v: [str(i) for i in v]
-        behavior_measure = {k:list_int2str(v) for k, v in behavior_measure.items()}
+        behavior_measure = {
+                k: list_int2str(v) for k, v in behavior_measure.items()}
     with open(outpath, 'w') as f:
         # First line, parent path
         f.write(parpath+'\n')
@@ -185,16 +205,17 @@ def generate_stim_csv(parpath, picname_list, condition_list, outpath, onset_list
                     data += ','
                     data += behavior_measure[bm_keys][i]
             f.write(data+'\n')
-            
-        
-def save_activation(activation,outpath):
+
+
+def save_activation(activation, outpath):
     """
     Save activaiton data as a csv file or mat format file to outpath
          csv format save a 2D.
             The first column is stimulus indexs
             The second column is channel indexs
             Each row is the activation of a filter for a picture
-         mat format save a 2D or 4D array depend on the activation from convolution layer or fully connected layer.
+         mat format save a 2D or 4D array depend on the activation from
+             convolution layer or fully connected layer.
             4D array Dimension:sitmulus x channel x pixel x pixel
             2D array Dimension:stimulus x activation
     Parameters:
@@ -208,8 +229,12 @@ def save_activation(activation,outpath):
 
     if imgsuffix == 'csv':
         if len(activation.shape) == 4:
-            activation2d = np.reshape(activation, (np.prod(activation.shape[0:2]), -1,), order='C')
-            channelline = np.array([channel + 1 for channel in range(activation.shape[1])] * activation.shape[0])
+            activation2d = np.reshape(
+                    activation, (np.prod(activation.shape[0:2]), -1,),
+                    order='C')
+            channelline = np.array(
+                    [channel + 1 for channel
+                     in range(activation.shape[1])] * activation.shape[0])
             stimline = []
             for i in range(activation.shape[0]):
                 a = [i + 1 for j in range(activation.shape[1])]
@@ -217,16 +242,17 @@ def save_activation(activation,outpath):
             stimline = np.array(stimline)
             channelline = np.reshape(channelline, (channelline.shape[0], 1))
             stimline = np.reshape(stimline, (stimline.shape[0], 1))
-            activation2d = np.concatenate((stimline, channelline, activation2d), axis=1)
+            activation2d = np.concatenate(
+                    (stimline, channelline, activation2d), axis=1)
         elif len(activation.shape) == 2:
             stim_indexs = np.arange(1, activation.shape[0] + 1)
             stim_indexs = np.reshape(stim_indexs, (-1, stim_indexs[0]))
             activation2d = np.concatenate((stim_indexs, activation), axis=1)
         np.savetxt(outpath, activation2d, delimiter=',')
     elif imgsuffix == 'mat':
-        scipy.io.savemat(outpath,mdict={'activation':activation})
+        scipy.io.savemat(outpath, mdict={'activation': activation})
     else:
-        np.save(outpath,activation)
+        np.save(outpath, activation)
 
 
 class NetLoader:
@@ -242,41 +268,57 @@ class NetLoader:
         if net in netlist:
             if net == 'alexnet':
                 self.model = torchvision.models.alexnet()
-                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 10), 'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6)}
+                self.model.load_state_dict(torch.load(
+                        os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
+                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3),
+                                      'conv3': (0, 6), 'conv4': (0, 8),
+                                      'conv5': (0, 10), 'fc1': (2, 1),
+                                      'fc2': (2, 4), 'fc3': (2, 6)}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
-                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
-                                      'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
+                self.model.load_state_dict(torch.load(
+                        os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
+                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3),
+                                      'conv3': (0, 6), 'conv4': (0, 8),
+                                      'conv5': (0, 11), 'conv6': (0, 13),
+                                      'conv7': (0, 16), 'conv8': (0, 18),
+                                      'fc1': (2, 0), 'fc2': (2, 3),
+                                      'fc3': (2, 6)}
                 self.img_size = (224, 224)
             elif net == 'vggface':
                 self.model = Vgg_face()
-                self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
-                self.layer2indices = {'conv1':(0,),'conv2':(2,),'conv3':(5,),'conv4':(7,),'conv5':(10,),'conv6':(12,),
-                                      'conv7':(14,),'conv8':(17,),'conv9':(19,),'conv10':(21,),'conv11':(24,),
-                                      'conv12':(26,),'conv13':(28,),'fc1':(31,),'fc2':(34,),'fc3':(37,)}
+                self.model.load_state_dict(torch.load(
+                        os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
+                self.layer2indices = {'conv1': (0,), 'conv2': (2,),
+                                      'conv3': (5,), 'conv4': (7,),
+                                      'conv5': (10,), 'conv6': (12,),
+                                      'conv7': (14,), 'conv8': (17,),
+                                      'conv9': (19,), 'conv10': (21,),
+                                      'conv11': (24,), 'conv12': (26,),
+                                      'conv13': (28,), 'fc1': (31,),
+                                      'fc2': (34,), 'fc3': (37,)}
                 self.img_size = (224, 224)
         else:
-            print('Not internal supported, please call netloader function to assign model, layer2indices and picture size.')
+            print('Not internal supported, please call netloader function'
+                  'to assign model, layer2indices and picture size.')
             self.model = None
             self.layer2indices = None
             self.img_size = None
-    
-    def load_model(self, dnn_model, model_param = None, layer2indices = None, input_imgsize = None):
+
+    def load_model(self, dnn_model, model_param=None,
+                   layer2indices=None, input_imgsize=None):
         """
         Load DNN model
-        
+
         Parameters:
         -----------
         dnn_model[nn.Modules]: DNN model
         model_param[string/state_dict]: Parameters of DNN model
-        layer2indices[dict]: Comparison table between layer name and DNN frame layer.
-                             Please make dictionary as following format:
-                             {'conv1': (0, 0), 'conv2': (0, 3), 'fc1': (2, 0)}
+        layer2indices[dict]: Comparison table between layer name and
+            DNN frame layer.
+            Please make dictionary as following format:
+                {'conv1': (0, 0), 'conv2': (0, 3), 'fc1': (2, 0)}
         input_imgsize[tuple]: the input picture size
         """
         self.model = dnn_model
@@ -288,37 +330,42 @@ class NetLoader:
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
         print('You had assigned a model into netloader.')
-        
-            
-def read_dnn_csv(dnn_csvfiles):
+
+
+def read_dnn_csv(dnn_csvfile):
     """
     Read pre-designed dnn csv file.
-    
+
     Parameters:
     -----------
-    dnn_csvfiles[str]: Path of csv files. Note that the suffix of dnn_csvfiles is .db.csv.
-                       Format of dnn_csvfiles is
-                       --------------------------
-                       Type: resp [stim/dmask]
-                       Title: visual roi
-                       [Several optional keys]
-                       variableAxis: col
-                       variableName: OFA,FFA
-                       123,312
-                       222,331
-                       342,341
+    dnn_csvfiles[str]: Path of csv files.
+        Note that the suffix of dnn_csvfiles is .db.csv.
+        Format of dnn_csvfiles is
+        --------------------------
+        Type:resp [stim/dmask]
+        Title:visual roi
+
+        [Several optional keys] (eg., tr:2)
+
+        VariableAxis:col
+        VariableName:OFA,FFA
+        123,312
+        222,331
+        342,341
+        ...,...
     Return:
     -------
-    dbcsv[dict]: Directory of the output variable
+    dbcsv[dict]: Dictionary of the output variable
     """
-    assert '.db.csv' in dnn_csvfiles, 'Suffix of dnn_csvfiles should be .db.csv'
-    with open(dnn_csvfiles, 'r') as f:
-        csvstr = f.read()
+    assert '.db.csv' in dnn_csvfile, 'Suffix of dnn_csvfile should be .db.csv'
+    with open(dnn_csvfile, 'r') as f:
+        csvstr = f.read().rstrip()
     dbcsv = {}
     csvdata = csvstr.split('\n')
     metalbl = ['variableName' in i for i in csvdata].index(True)
     csvmeta = csvdata[:(metalbl)]
     csvval = csvdata[(metalbl):]
+
     # Handling csv data
     for i, cm in enumerate(csvmeta):
         if cm == '':
@@ -326,42 +373,54 @@ def read_dnn_csv(dnn_csvfiles):
         dbcsv[cm.split(':')[0]] = cm.split(':')[1]
     assert 'type' in dbcsv.keys(), 'type needs to be included in csvfiles.'
     assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
-    assert 'variableAxis' in dbcsv.keys(), 'variableAxis needs to be included in csvfiles.'
-    
-    # Judge type
-    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], "Type must named as one of Stimulus, Dmask and Response."
-    
+    assert 'variableAxis' in dbcsv.keys(), (
+            'VvriableAxis needs to be included in csvfiles.')
+
+    # identify the type of data
+    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], (
+            "Type must named as one of Stimulus, Dmask and Response.")
+
     # Operate csvval
     variable_keys = csvval[0].split(':')[1].split(',')
-    variable_data = np.array([i.split(',') for i in csvval[1:]]).astype('float')
+    variable_data = np.array([i.split(',') for i in csvval[1:]])
+    if dbcsv['type'] != 'stimulus':
+        variable_data = variable_data.astype('float')
+
     if dbcsv['variableAxis'] == 'col':
-        dict_variable = {variable_keys[i]:variable_data[:,i] for i in range(len(variable_keys))}
+        dict_variable = {variable_keys[i]: variable_data[:, i] for i
+                         in range(len(variable_keys))}
     elif dbcsv['variableAxis'] == 'row':
-        dict_variable = {variable_keys[i]:variable_data[i,:] for i in range(len(variable_keys))}
+        dict_variable = {variable_keys[i]: variable_data[i, :] for i
+                         in range(len(variable_keys))}
     else:
-        raise Exception('variableAxis could only be col or row.')
+        raise Exception('VariableAxis could only be col or row.')
+
+    # error flag
     if dbcsv['type'] == 'stimulus':
-        assert ('id' in dict_variable.keys()) & ('onset' in dict_variable.keys()), "id and onset must be in VariableName because your csv type is Stimulus."
-    if dbcsv['type'] == 'dmask':
-        assert ('channel' in dict_variable.keys()) & ('column' in dict_variable.keys()), "channel and column must be in VariableName because your csv type is Dmask."
-    dbcsv['variableName'] = dict_variable
+        assert ('stimID' in dict_variable.keys()), (
+                'stimID must be in VariableName if csv type is Stimulus.')
+
+    dbcsv['variable'] = dict_variable
     return dbcsv
-    
-def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_variable=None):
+
+
+def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName,
+                 optional_variable=None):
     """
     Generate stimulus csv.
-    
+
     Parameters:
     ------------
     outpath[str]: outpath, note the outpath ends with .db.csv
-    stimtype[str]: stimulus type. 
-                   choose type from ['stimulus', 'dmask', 'response']
+    stimtype[str]: stimulus type.
+        choose type from ['stimulus', 'dmask', 'response']
     title[str]: title
     variableAxis[str]: Axis to extract signals or data
-                       choose variableAxis from ['col', 'row']
+        choose variableAxis from ['col', 'row']
     variableName[dict]: dictionary of signals or data
-    optional_variable[dict]: some other optional variable, consist of dictionary.
-    
+    optional_variable[dict]: some other optional variable,
+        consist of dictionary.
+
     Return:
     --------
     dbcsv stimulus file
@@ -374,7 +433,7 @@ def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_
         f.write('title:'+title+'\n')
         # Optional variable
         if optional_variable is not None:
-            for i,keyval in enumerate(optional_variable.keys()):
+            for i, keyval in enumerate(optional_variable.keys()):
                 f.write(keyval+':'+optional_variable[keyval]+'\n')
         # variableAxis
         assert variableAxis in ['col', 'row'], "variableAxis could only be "
@@ -386,4 +445,3 @@ def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_
         if variableAxis == 'col':
             vnvariable = vnvariable.T
         np.savetxt(outpath, vnvariable, delimiter=',')
-    

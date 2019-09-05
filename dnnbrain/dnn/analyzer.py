@@ -1,6 +1,7 @@
 
 import numpy as np
 from dnnbrain.dnn import io as iofiles
+from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, resample
 
@@ -40,30 +41,28 @@ def dnn_activation(input, netname, layer, channel=None):
 
 
 def generate_bold_regressor(X,onset,duration,vol_num,tr):
-    '''convolve event-format X with hrf and align with timeline of BOLD signal
-	parameters:
-	----------
-	X[array]: [n_event] or [n_event,n_sample]
-	onset[list or array]: in sec. size = n_event 
-	duration[list or array]: list or array. in sec. size = n_event         
-	vol_num[int]: total volume number of BOLD signal
-	tr[float]: in sec
-	
-	Returns:
-	---------
-	X_hrfed[array]: same shape with X
+    '''
+    convolve event-format X with hrf and align with timeline of BOLD signal
+    
+    parameters:
+    ----------
+    X[array]: [n_event] or [n_event,n_sample]
+    onset[list or array]: in sec. size = n_event 
+    duration[list or array]: list or array. in sec. size = n_event         
+    vol_num[int]: total volume number of BOLD signal
+    tr[float]: in sec
+    
+    Returns:
+    ---------
+    X_hrfed[array]: same shape with X
     '''        
 
-    if isinstance(onset,list):
-        onset = np.round(np.asarray(onset),decimals=3)
-        
-    if isinstance(duration,list):
-        duration = np.round(np.asarray(duration),decimals=3)
+    onset = np.round(np.asarray(onset),decimals=3)
+    duration = np.round(np.asarray(duration),decimals=3)
     
     if np.ndim(X) == 1:
         X = X[:,np.newaxis]
-    
-    
+       
     # generate X raw time course in ms
     X_tc = np.zeros([int((onset+duration).max()*1000), X.shape[-1]])
     for i, onset_i in enumerate(onset):
@@ -71,7 +70,7 @@ def generate_bold_regressor(X,onset,duration,vol_num,tr):
         onset_i_end = int(onset_i_start + duration[i] *1000)
         X_tc[onset_i_start:onset_i_end,:] = X[i]
         
-    # generate hrf kernal
+    # generate hrf kernel
     hrf = spm_hrf(tr,oversampling=tr*1000,time_length=32,onset=0)
     hrf = hrf[:,np.newaxis]
     
@@ -79,9 +78,9 @@ def generate_bold_regressor(X,onset,duration,vol_num,tr):
     X_tc_hrfed =  convolve(X_tc, hrf, method='fft')
 
     # compute volume acqusition timing    
-    vol_t = np.arange(vol_num) * tr *1000
+    vol_t = np.arange(vol_num) * tr * 1000
     
-    # down sampling to volume timing
+    # downsample to volume timing
     X_hrfed = resample(X_tc_hrfed, num=vol_num, t=vol_t)[0]
     
     if np.ndim(X) == 1:
