@@ -24,7 +24,9 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
+    
+    def __init__(self, picPath, stimID, condition=None, 
+                 transform=None, crop=None):
         """
         Initialize PicDataset
         
@@ -306,8 +308,8 @@ def read_dnn_csv(dnn_csvfile):
                        Type: resp [stim/dmask]
                        Title: visual roi
                        [Several optional keys]
-                       VariableAxis: col
-                       VariableName: OFA FFA
+                       variableAxis: col
+                       variableName: OFA,FFA
                        123,312
                        222,331
                        342,341
@@ -320,7 +322,7 @@ def read_dnn_csv(dnn_csvfile):
         csvstr = f.read().rstrip()
     dbcsv = {}
     csvdata = csvstr.split('\n')
-    metalbl = ['VariableName' in i for i in csvdata].index(True)
+    metalbl = ['variableName' in i for i in csvdata].index(True)
     csvmeta = csvdata[:(metalbl)]
     csvval = csvdata[(metalbl):]
     
@@ -363,9 +365,46 @@ def read_dnn_csv(dnn_csvfile):
         assert ('channel' in dict_variable.keys()) & ('column' in dict_variable.keys()), "channel and column must be in VariableName because your csv type is Dmask."
     
     dbcsv['variable'] = dict_variable
+
     return dbcsv
     
-def save_dnncsv(dbcsv,fname):
-    pass
-
-           
+def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_variable=None):
+    """
+    Generate stimulus csv.
+    
+    Parameters:
+    ------------
+    outpath[str]: outpath, note the outpath ends with .db.csv
+    stimtype[str]: stimulus type. 
+                   choose type from ['stimulus', 'dmask', 'response']
+    title[str]: title
+    variableAxis[str]: Axis to extract signals or data
+                       choose variableAxis from ['col', 'row']
+    variableName[dict]: dictionary of signals or data
+    optional_variable[dict]: some other optional variable, consist of dictionary.
+    
+    Return:
+    --------
+    dbcsv stimulus file
+    """
+    assert outpath.endswith('.db.csv'), "Suffix of outpath should be .db.csv"
+    with open(outpath, 'w') as f:
+        # First line, type
+        f.write('type:'+stimtype+'\n')
+        # Second line, title
+        f.write('title:'+title+'\n')
+        # Optional variable
+        if optional_variable is not None:
+            for i,keyval in enumerate(optional_variable.keys()):
+                f.write(keyval+':'+optional_variable[keyval]+'\n')
+        # variableAxis
+        assert variableAxis in ['col', 'row'], "variableAxis could only be "
+        f.write('variableAxis:'+variableAxis+'\n')
+        # variableName
+        vnkeys = variableName.keys()
+        vnvariable = np.array(list(variableName.values()))
+        f.write('variableName:'+','.join(vnkeys)+'\n')
+        if variableAxis == 'col':
+            vnvariable = vnvariable.T
+        np.savetxt(outpath, vnvariable, delimiter=',')
+    
