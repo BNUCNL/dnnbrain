@@ -24,47 +24,51 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    def __init__(self, csv_file, transform=None, crop=None):
+    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
         """
         Initialize PicDataset
         
         Parameters:
         ------------
-        csv_file[str]:  table contains picture names, conditions and picture onset time.
-                        This csv_file helps us connect cnn activation to brain images.
+        parpath[str]: parent path
+        stimulus_dict[dict]:  
+                        dictionary contains picture names, conditions and picture onset time, etc.
+                        This dictionary helps us connect cnn activation to brain images.
                         Please organize your information as:
-                                     
-                        [PICDIR]
+                        
                         stimID          condition   onset(optional) measurement(optional)
                         download/face1  face        1.1             3
                         mgh/face2.png   face        3.1             5
                         scene1.png      scene       5.1             4
+                        
+                        stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
+                                        'condition': ['face', 'face'],
+                                        'onset': [1.1, 3.1, 5.1]}
         
         transform[callable function]: optional transform to be applied on a sample.
         crop[bool]:crop picture optionally by a bounding box.
                    The coordinates of bounding box for crop pictures should be measurements in csv_file.
                    The label of coordinates in csv_file should be left_coord,upper_coord,right_coord,lower_coord.
         """
-        self.csv_file = pd.read_csv(csv_file, skiprows=1)
-        with open(csv_file,'r') as f:
-            self.picpath = f.readline().rstrip()
+        self.stimulus_dict = stimulus_dict
+        self.picpath = parpath
         self.transform = transform
-        picname = np.array(self.csv_file['stimID'])
-        condition = np.array(self.csv_file['condition'])
+        picname = np.array(self.stimulus_dict['stimID'])
+        condition = np.array(self.stimulus_dict['condition'])
         self.picname = picname
         self.condition = condition
         self.crop = crop
         if self.crop:
-            self.left = np.array(self.csv_file['left_coord'])
-            self.upper = np.array(self.csv_file['upper_coord'])
-            self.right = np.array(self.csv_file['right_coord'])
-            self.lower = np.array(self.csv_file['lower_coord'])
+            self.left = np.array(self.stimulus_dict['left_coord'])
+            self.upper = np.array(self.stimulus_dict['upper_coord'])
+            self.right = np.array(self.stimulus_dict['right_coord'])
+            self.lower = np.array(self.stimulus_dict['lower_coord'])
 
     def __len__(self):
         """
         Return sample size
         """
-        return self.csv_file.shape[0]
+        return len(self.picname)
     
     def __getitem__(self, idx):
         """
