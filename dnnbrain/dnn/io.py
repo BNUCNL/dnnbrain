@@ -307,7 +307,7 @@ def read_dnn_csv(dnn_csvfile):
                        Title: visual roi
                        [Several optional keys]
                        VariableAxis: col
-                       VariableName: OFA FFA
+                       VariableName: OFA,FFA
                        123,312
                        222,331
                        342,341
