@@ -313,7 +313,7 @@ def read_dnn_csv(dnn_csvfile):
                        342,341
     Return:
     -------
-    dbcsv[dict]: Directory of the output variable
+    dbcsv[dict]: Dictionary of the output variable
     """
     assert '.db.csv' in dnn_csvfile, 'Suffix of dnn_csvfile should be .db.csv'
     with open(dnn_csvfile, 'r') as f:
