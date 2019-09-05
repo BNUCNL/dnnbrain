@@ -1,0 +1,12 @@
+type:resp,stim,dmask
+title:visual roi
+
+tr:2 
+xxx:yy
+xx:tt
+
+variableAxis:col
+variableName:OFA,FFA
+51741.1,57739.1 
+51823.3,57831.5
+52353.2,57257.3
