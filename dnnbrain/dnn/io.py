@@ -24,9 +24,7 @@ class PicDataset(Dataset):
     """
     Build a dataset to load pictures
     """
-    
-    def __init__(self, picPath, stimID, condition=None, 
-                 transform=None, crop=None):
+    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
         """
         Initialize PicDataset
         
@@ -308,8 +306,8 @@ def read_dnn_csv(dnn_csvfile):
                        Type: resp [stim/dmask]
                        Title: visual roi
                        [Several optional keys]
-                       variableAxis: col
-                       variableName: OFA,FFA
+                       VariableAxis: col
+                       VariableName: OFA FFA
                        123,312
                        222,331
                        342,341
@@ -322,7 +320,7 @@ def read_dnn_csv(dnn_csvfile):
         csvstr = f.read().rstrip()
     dbcsv = {}
     csvdata = csvstr.split('\n')
-    metalbl = ['variableName' in i for i in csvdata].index(True)
+    metalbl = ['VariableName' in i for i in csvdata].index(True)
     csvmeta = csvdata[:(metalbl)]
     csvval = csvdata[(metalbl):]
     
@@ -357,17 +355,11 @@ def read_dnn_csv(dnn_csvfile):
     # error flag
     if dbcsv['type'] == 'stimulus':
         assert ('stimID' in dict_variable.keys()), "stimID must be in VariableName because your csv type is Stimulus."
-    if dbcsv['type'] == 'response':
-        assert ('stimID' in dict_variable.keys()) & (
-                'onset' in dict_variable.keys()) & (
-                        'duration' in dict_variable.keys()), "stimID, onset and duration must be in VariableName because your csv type is Stimulus."
-    if dbcsv['type'] == 'dmask':
-        assert ('channel' in dict_variable.keys()) & ('column' in dict_variable.keys()), "channel and column must be in VariableName because your csv type is Dmask."
     
     dbcsv['variable'] = dict_variable
-
     return dbcsv
-    
+
+
 def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_variable=None):
     """
     Generate stimulus csv.
@@ -407,4 +399,3 @@ def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName, optional_
         if variableAxis == 'col':
             vnvariable = vnvariable.T
         np.savetxt(outpath, vnvariable, delimiter=',')
-    
