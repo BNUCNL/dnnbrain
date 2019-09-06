@@ -139,7 +139,7 @@ class VidDataset():
         interval[int]: get one frame per 'interval' frames
         transform[pytorch transform]
         """
-        assert skip > 0, "Parameter 'skip' must be a positive value!"
+        assert skip >= 0, "Parameter 'skip' must be a nonnegtive value!"
         assert isinstance(interval, int) and interval > 0, "Parameter 'interval' must be a positive integer!"
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.skip = skip
@@ -151,6 +151,13 @@ class VidDataset():
         self.init = int(self.skip * self.fps)  # the first frame's index
 
     def __getitem__(self, idx):
+        # process index range
+        assert isinstance(idx, int), 'Index must be a integer!'
+        if idx >= self.__len__() or idx < -self.__len__():
+            raise IndexError('index out of range')
+        if idx < 0:
+            idx = self.__len__() + idx
+
         frame_idx = self.init + idx * self.interval
         self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         _, frame = self.vid_cap.read()

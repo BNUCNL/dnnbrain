@@ -1,10 +1,8 @@
-
 import numpy as np
 from dnnbrain.dnn import io as iofiles
 from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, resample
-
 
 
 def dnn_activation(input, netname, layer, channel=None):
@@ -35,13 +33,10 @@ def dnn_activation(input, netname, layer, channel=None):
         channel_new = [cl - 1 for cl in channel]
         dnnact = dnnact[:, channel_new, :, :]
     return dnnact
-	
-    
 
 
-
-def generate_bold_regressor(X,onset,duration,vol_num,tr):
-    '''
+def generate_bold_regressor(X, onset, duration, vol_num, tr):
+    """
     convolve event-format X with hrf and align with timeline of BOLD signal
     
     parameters:
@@ -55,29 +50,28 @@ def generate_bold_regressor(X,onset,duration,vol_num,tr):
     Returns:
     ---------
     X_hrfed[array]: same shape with X
-    '''        
-
-    onset = np.round(np.asarray(onset),decimals=3)
-    duration = np.round(np.asarray(duration),decimals=3)
+    """
+    onset = np.round(np.asarray(onset), decimals=3)
+    duration = np.round(np.asarray(duration), decimals=3)
     
     if np.ndim(X) == 1:
-        X = X[:,np.newaxis]
+        X = X[:, np.newaxis]
        
     # generate X raw time course in ms
     X_tc = np.zeros([int((onset+duration).max()*1000), X.shape[-1]])
     for i, onset_i in enumerate(onset):
         onset_i_start = int(onset_i*1000)
-        onset_i_end = int(onset_i_start + duration[i] *1000)
-        X_tc[onset_i_start:onset_i_end,:] = X[i]
+        onset_i_end = int(onset_i_start + duration[i] * 1000)
+        X_tc[onset_i_start:onset_i_end, :] = X[i]
         
     # generate hrf kernel
-    hrf = spm_hrf(tr,oversampling=tr*1000,time_length=32,onset=0)
-    hrf = hrf[:,np.newaxis]
+    hrf = spm_hrf(tr, oversampling=tr*1000, time_length=32, onset=0)
+    hrf = hrf[:, np.newaxis]
     
-    # convolve X raw time course with hrf kernal
-    X_tc_hrfed =  convolve(X_tc, hrf, method='fft')
+    # convolve X raw time course with hrf kernel
+    X_tc_hrfed = convolve(X_tc, hrf, method='fft')
 
-    # compute volume acqusition timing    
+    # compute volume acquisition timing
     vol_t = np.arange(vol_num) * tr * 1000
     
     # downsample to volume timing
