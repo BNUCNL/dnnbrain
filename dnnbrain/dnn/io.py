@@ -339,20 +339,27 @@ def read_dnn_csv(dnn_csvfile):
     Parameters:
     -----------
     dnn_csvfiles[str]: Path of csv files.
-        Note that the suffix of dnn_csvfiles is .db.csv.
-        Format of dnn_csvfiles is
+        Note that the suffix of dnn_csvfile is .db.csv.
+        Format of dnn_csvfile of response or stimulus is
         --------------------------
-        Type:resp [stim/dmask]
-        Title:visual roi
-
+        type:response [stimulus]
+        title:visual roi
         [Several optional keys] (eg., tr:2)
-
-        VariableAxis:col
-        VariableName:OFA,FFA
+        variableName:OFA,FFA
         123,312
         222,331
         342,341
         ...,...
+
+        Format of dnn_csvfile of dmask is
+        --------------------------
+        type:dmask
+        title:alexnet roi
+        [Several optional keys] (eg., tr:2)
+        variableName:chn,col
+        1,2,3,5,7,124,...
+        3,4,...
+
     Return:
     -------
     dbcsv[dict]: Dictionary of the output variable
@@ -373,27 +380,36 @@ def read_dnn_csv(dnn_csvfile):
         dbcsv[cm.split(':')[0]] = cm.split(':')[1]
     assert 'type' in dbcsv.keys(), 'type needs to be included in csvfiles.'
     assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
-    assert 'variableAxis' in dbcsv.keys(), (
-            'VvriableAxis needs to be included in csvfiles.')
 
     # identify the type of data
     assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], (
-            "Type must named as one of Stimulus, Dmask and Response.")
+            'Type must named as stimulus, dmask or Response.')
 
     # Operate csvval
     variable_keys = csvval[0].split(':')[1].split(',')
-    variable_data = np.array([i.split(',') for i in csvval[1:]])
-    if dbcsv['type'] != 'stimulus':
-        variable_data = variable_data.astype('float')
 
-    if dbcsv['variableAxis'] == 'col':
-        dict_variable = {variable_keys[i]: variable_data[:, i] for i
-                         in range(len(variable_keys))}
-    elif dbcsv['variableAxis'] == 'row':
-        dict_variable = {variable_keys[i]: variable_data[i, :] for i
-                         in range(len(variable_keys))}
+    # if dmask, variableAxis is row, each row can have different length.
+    if dbcsv['type'] == 'dmask':
+        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i
+                         in csvval[1:]]
+    # if stim/resp, variableAxis is col, each cal must have the same length.
     else:
-        raise Exception('VariableAxis could only be col or row.')
+        variable_data = [i.split(',') for i in csvval[1:]]
+        variable_data = list(zip(*variable_data))
+
+        if dbcsv['type'] == 'stimulus':
+            # data type for stimID or condition is str, others float.
+            for i, v_i in enumerate(variable_data):
+                if variable_keys[i] in ['stimID', 'condition']:
+                    variable_data[i] = np.asarray(v_i, dtype=np.str)
+                else:
+                    variable_data[i] = np.asarray(v_i, dtype=np.float)
+
+        elif dbcsv['type'] == 'response':
+            variable_data[i] = np.asarray(v_i, dtype=np.float)
+
+    dict_variable = {variable_keys[i]: variable_data[i] for i
+                     in range(len(variable_keys))}
 
     # error flag
     if dbcsv['type'] == 'stimulus':
