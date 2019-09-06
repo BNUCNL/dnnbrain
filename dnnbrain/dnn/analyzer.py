@@ -59,8 +59,7 @@ def generate_bold_regressor(X, onset, duration, vol_num, tr):
     if np.ndim(X) == 1:
         X = X[:, np.newaxis]
 
-    # batch size = 1000 samples
-    batch_size = 500
+    batch size = 1000
     batches = np.arange(0, X.shape[-1], batch_size)
     batches = np.r_[batches, X.shape[-1]]
 
