@@ -1,8 +1,11 @@
+import os
 import copy
 import time
 import torch
 import numpy as np
 from torch import nn
+import matplotlib.pyplot as plt
+import warnings
 
 
 def dnn_truncate(netloader, layer):
@@ -48,17 +51,20 @@ def _get_truncate_layers(model_frame, indices):
     return truncate_model
 
 
-def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, train_method='tradition'):
+def dnn_train_model(dataloaders_train, dataloaders_train_test, dataloaders_val_test, model, criterion, 
+                    optimizer, num_epoches, train_method='tradition'):
     """
     Function to train a DNN model
 
     Parameters:
     ------------
-    dataloaders[dataloader]: dataloader generated from dataloader(PicDataset)
+    dataloaders_train[dataloader]: dataloader of traindata to train
+    dataloaders_train_test[dataloader]: dataloader of traindata to test
+    dataloaders_val_test[dataloader]: dataloader of validationdata to test
     model[class/nn.Module]: DNN model without pretrained parameters
     criterion[class]: criterion function
     optimizer[class]: optimizer function
-    num_epoches[int]: epoch times, by default is 200.
+    num_epoches[int]: epoch times.
     train_method[str]: training method, by default is 'tradition'. 
                        For some specific models (e.g. inception), loss needs to be calculated in another way.
                        
@@ -66,16 +72,29 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
     --------
     model[class/nn.Module]: model with trained parameters.
     """
+    warnings.filterwarnings("ignore")
+    LOSS = []
+    ACC_train_top1 = []
+    ACC_train_top5 = []
+    ACC_val_top1 = []
+    ACC_val_top5 = []
+    EPOCH = []
+    
     time0 = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.train()
     model = model.to(device)
+            
     for epoch in range(num_epoches):
+        EPOCH.append(epoch+1)
         print('Epoch time {}/{}'.format(epoch+1, num_epoches))
         print('-'*10)
+        time1 = time.time()
         running_loss = 0.0
         
-        for inputs, targets in dataloaders:
+        count = 0
+        for inputs, targets in dataloaders_train:
+            count += 1
             inputs.requires_grad_(True)
             inputs = inputs.to(device)
             targets = targets.to(device)
@@ -96,15 +115,43 @@ def dnn_train_model(dataloaders, model, criterion, optimizer, num_epoches=200, t
                 _, pred = torch.max(outputs, 1)
                 loss.backward()
                 optimizer.step()
-            # Statistics
+                
+            # Statistics loss in every batch
             running_loss += loss.item() * inputs.size(0)
         
-        epoch_loss = running_loss / len(dataloaders.dataset)
+        # Caculate loss in every epoch
+        epoch_loss = running_loss / len(dataloaders_train.dataset)
         print('Loss: {}\n'.format(epoch_loss))
+        LOSS.append(epoch_loss)
+        
+        # Caculate ACC_train every epoch
+        model_copy = copy.deepcopy(model)
+        _, _, train_acc_top1, train_acc_top5 = dnn_test_model(dataloaders_train_test, model_copy)
+        print('top1_acc_train: {}\n'.format(train_acc_top1))
+        print('top5_acc_train: {}\n'.format(train_acc_top5))
+        ACC_train_top1.append(train_acc_top1)
+        ACC_train_top5.append(train_acc_top5)
+    
+        # Caculate ACC_val every epoch
+        model_copy = copy.deepcopy(model)
+        _, _, val_acc_top1, val_acc_top5 = dnn_test_model(dataloaders_val_test, model_copy)
+        print('top1_acc_test: {}\n'.format(val_acc_top1))
+        print('top5_acc_test: {}\n'.format(val_acc_top5))
+        ACC_val_top1.append(val_acc_top1)
+        ACC_val_top5.append(val_acc_top5)
+        
+        #print time of a epoch
+        time_epoch = time.time() - time1
+        print('This epoch training complete in {:.0f}m {:.0f}s'.format(time_epoch // 60, time_epoch % 60))
+    
+    # store LOSS, ACC_train, ACC_val to a dict
+    metric = zip(LOSS, ACC_train_top1, ACC_train_top5, ACC_val_top1, ACC_val_top5)
+    metric_dict = dict(zip(EPOCH, metric))
+    
     time_elapsed = time.time() - time0
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    return model
-    
+    return model, metric_dict
+
 
 def dnn_test_model(dataloaders, model):
     """
@@ -126,21 +173,33 @@ def dnn_test_model(dataloaders, model):
     model.eval()
     model = model.to(device)
     model_target = []
+    model_target_top5 = []
     actual_target = []
+    
     with torch.no_grad():
         for i, (inputs, targets) in enumerate(dataloaders):
-            print('Now loading batch {}'.format(i+1))
             inputs = inputs.to(device)
             outputs = model(inputs)
             _, outputs_label = torch.max(outputs, 1)
+            outputs_label_top5 = torch.topk(outputs, 5)
+            
             model_target.extend(outputs_label.cpu().numpy())
+            model_target_top5.extend(outputs_label_top5[1].cpu().numpy())
             actual_target.extend(targets.numpy())
+            
     model_target = np.array(model_target)
+    model_target_top5 = np.array(model_target_top5)
     actual_target = np.array(actual_target)
-    test_acc = 1.0*np.sum(model_target == actual_target)/len(actual_target)
-    time_elapsed =  time.time() - time0
-    print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    return model_target, actual_target, test_acc
+    
+    # Caculate the top1 acc and top5 acc
+    test_acc_top1 = 1.0*np.sum(model_target == actual_target)/len(actual_target)
+    
+    test_acc_top5 = 0.0
+    for i in [0,1,2,3,4]:
+        test_acc_top5 += 1.0*np.sum(model_target_top5.T[i]==actual_target)
+    test_acc_top5 = test_acc_top5/len(actual_target)
+    
+    return model_target, actual_target, test_acc_top1, test_acc_top5
 
 
 class GraftLayer(nn.Module):
