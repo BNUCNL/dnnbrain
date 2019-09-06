@@ -36,7 +36,7 @@ def dnn_activation(input, netname, layer, channel=None):
 
 
 def generate_bold_regressor(X, onset, duration, vol_num, tr):
-    '''
+    """
     convolve event-format X with hrf and align with timeline of BOLD signal
 
     parameters:
@@ -50,7 +50,7 @@ def generate_bold_regressor(X, onset, duration, vol_num, tr):
     Returns:
     ---------
     X_hrfed[array]: same shape with X
-    '''
+    """
 
     onset = np.round(np.asarray(onset), decimals=3)
     duration = np.round(np.asarray(duration), decimals=3)
