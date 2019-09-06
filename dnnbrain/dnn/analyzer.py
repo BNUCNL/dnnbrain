@@ -2,7 +2,7 @@ import numpy as np
 from dnnbrain.dnn import io as iofiles
 from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
-from scipy.signal import convolve, resample
+from scipy.signal import convolve
 
 
 def dnn_activation(input, netname, layer, channel=None):
@@ -35,7 +35,7 @@ def dnn_activation(input, netname, layer, channel=None):
     return dnnact
 
 
-def generate_bold_regressor(X, onset, duration, vol_num, tr):
+def generate_bold_regressor(X, onset, duration, vol_num, tr, ops=100):
     """
     convolve event-format X with hrf and align with timeline of BOLD signal
 
@@ -45,41 +45,42 @@ def generate_bold_regressor(X, onset, duration, vol_num, tr):
     onset[list or array]: in sec. size = n_event
     duration[list or array]: list or array. in sec. size = n_event
     vol_num[int]: total volume number of BOLD signal
-    tr[float]: in sec
+    tr[float]: repeat time in second
+    ops[int]: oversampling number per second
 
     Returns:
     ---------
     X_hrfed[array]: same shape with X
     """
-
-    onset = np.round(np.asarray(onset), decimals=3)
-    duration = np.round(np.asarray(duration), decimals=3)
-    tr = np.round(tr, decimals=3)
+    assert ops in (10, 100, 1000), 'Oversampling rate must be one of the (10, 100, 1000)!'
+    decimals = int(np.log10(ops))
+    onset = np.round(np.asarray(onset), decimals=decimals)
+    duration = np.round(np.asarray(duration), decimals=decimals)
+    tr = np.round(tr, decimals=decimals)
 
     if np.ndim(X) == 1:
         X = X[:, np.newaxis]
 
-    batch_size = 1000
+    batch_size = int(100000 / ops)
     batches = np.arange(0, X.shape[-1], batch_size)
     batches = np.r_[batches, X.shape[-1]]
 
     # compute volume acqusition timing
-    vol_t = (np.arange(vol_num) * tr * 1000).astype(int)
+    vol_t = (np.arange(vol_num) * tr * ops).astype(int)
 
+    time_point_num = int((onset + duration).max() * ops)
     X_hrfed = np.zeros([vol_num, 0])
     for k, batch in enumerate(batches[:-1]):
         X_i = X[:, batch:batches[k+1]]
-        # generate X raw time course in ms
-        X_tc = np.zeros(
-                [int((onset+duration).max()*1000), X_i.shape[-1]],
-                dtype=np.float32)
+        # generate X raw time course
+        X_tc = np.zeros((time_point_num, X_i.shape[-1]), dtype=np.float32)
         for i, onset_i in enumerate(onset):
-            onset_i_start = int(onset_i*1000)
-            onset_i_end = int(onset_i_start + duration[i]*1000)
+            onset_i_start = int(onset_i * ops)
+            onset_i_end = int(onset_i_start + duration[i] * ops)
             X_tc[onset_i_start:onset_i_end, :] = X_i[i, :]
 
         # generate hrf kernel
-        hrf = spm_hrf(tr, oversampling=tr*1000, time_length=32, onset=0)
+        hrf = spm_hrf(tr, oversampling=tr*ops)
         hrf = hrf[:, np.newaxis]
 
         # convolve X raw time course with hrf kernal
