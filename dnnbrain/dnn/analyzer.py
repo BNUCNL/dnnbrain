@@ -54,17 +54,17 @@ def generate_bold_regressor(X, onset, duration, vol_num, tr):
 
     onset = np.round(np.asarray(onset), decimals=3)
     duration = np.round(np.asarray(duration), decimals=3)
+    tr = np.round(tr, decimals=3)
 
     if np.ndim(X) == 1:
         X = X[:, np.newaxis]
 
-    # batch size = 1000 samples
-    batch_size = 500
+    batch size = 1000
     batches = np.arange(0, X.shape[-1], batch_size)
     batches = np.r_[batches, X.shape[-1]]
 
     # compute volume acqusition timing
-    vol_t = np.arange(vol_num) * tr * 1000
+    vol_t = (np.arange(vol_num) * tr * 1000).astype(int)
 
     X_hrfed = np.zeros([vol_num, 0])
     for k, batch in enumerate(batches[:-1]):
@@ -86,9 +86,7 @@ def generate_bold_regressor(X, onset, duration, vol_num, tr):
         X_tc_hrfed = convolve(X_tc, hrf, method='fft')
 
         # downsample to volume timing
-        X_i_hrfed = resample(X_tc_hrfed, num=vol_num, t=vol_t)[0]
-
-        X_hrfed = np.c_[X_hrfed, X_i_hrfed]
+        X_hrfed = np.c_[X_hrfed, X_tc_hrfed[vol_t, :]]
 
         print('hrf convolution: sample {0} to {1} finished'.format(
                 batch, batches[k+1]))
