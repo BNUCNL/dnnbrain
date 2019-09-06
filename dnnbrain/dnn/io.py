@@ -268,8 +268,7 @@ def save_activation(activation, outpath):
     outpath[str]:outpath and outfilename
     """
     imgname = os.path.basename(outpath)
-    imgsuffix = imgname.split('.')[1:]
-    imgsuffix = '.'.join(imgsuffix)
+    imgsuffix = imgname.split('.')[-1]
 
     if imgsuffix == 'csv':
         if len(activation.shape) == 4:
