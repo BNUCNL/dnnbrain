@@ -104,7 +104,7 @@ def save_brainimg(imgpath, data, header):
 
 def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     """
-    Extract brain activation from ROI
+    Extract brain activation from ROI.
     
     Parameters:
     ------------
@@ -134,5 +134,5 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     assert brainimg.shape[1:] == mask.shape, "brainimg and mask are mismatched."
     roisignals = []    
     for i, lbl in enumerate(roilabels):
-        roisignals.append(calc_way(brainimg[:,mask==lbl]))
+        roisignals.append(calc_way(brainimg[:, mask==lbl]))
     return roisignals
