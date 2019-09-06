@@ -1,38 +1,33 @@
 #! /usr/bin/env python
 
 """
-Multivarate analysis to explore relations between CNN activation and response 
+Multivarate analysis to explore relations between CNN activation and response
 from brain/behavior.
 
 CNL @ BNU
 """
-
+import os
 import argparse
 import numpy as np
-#import pandas as pd
-#import torch
-from torch.utils.data import DataLoader, TensorDataset
-#from scipy.stats import pearsonr
-#from scipy.signal import convovle
 from torchvision import transforms
+from torch.utils.data import DataLoader
 from os.path import join as pjoin
 from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dio
 from dnnbrain.brain import io as bio
 from sklearn import linear_model, model_selection, decomposition, svm
 
-    
 
 def main():
     parser = argparse.ArgumentParser(description='Use CNN activation to \
                                      predict brain activation')
-    
+
     parser.add_argument('-net',
                         type=str,
                         required=True,
                         metavar='NetName',
                         help='convolutional network name')
-    
+
     parser.add_argument('-layer',
                         type=str,
                         required=True,
@@ -41,70 +36,70 @@ def main():
                         to predict brain activity. For example, conv1 \
                         represents the first convolution layer, and  \
                         fc1 represents the first full connection layer.')
-    
+
     parser.add_argument('-axis',
                         type=str,
                         default='layer',
                         required=True,
-                        choices=['layer','channel', 'column'],
+                        choices=['layer', 'channel', 'column'],
                         metavar='AxisName',
                         help='Target axis to organize the predictors. \
                         layer: do mva using all unit within a layer\
                         channel：do mva using all units within each channel. \
                         column: do mva using all units within each column. \
                         default is layer.')
-    
-    parser.add_argument('-dmask', 
+
+    parser.add_argument('-dmask',
                         type=str,
                         required=False,
                         metavar='DnnMaskFile',
                         help='a db.csv file in which channles of intereset \
                         and columns of interest are listed.')
-    
-    parser.add_argument('-dfe', 
+
+    parser.add_argument('-dfe',
                         type=str,
                         required=False,
                         metavar='DnnFeatureExtraction',
-                        choices=['hist', 'max', 'mean','median'],
+                        choices=['hist', 'max', 'mean', 'median'],
                         help='Feature extraction for dnn activation in \
-                        the specified axis \
+                        the specified axis. \
                         max: use max activiton as feature, \
                         median: use median activation as feature, \
                         mean: use mean activtion as feature, \
-                        hist: use hist proflies as features.')  
-    
+                        hist: use hist proflies as features.')
+
     parser.add_argument('-dpca',
                         type=int,
                         required=False,
                         metavar='PCA',
-                        help='The number of PC to be kept.') 
-    
+                        help='The number of PC to be kept.')
+
     parser.add_argument('-stim',
                         type=str,
                         required=False,
                         metavar='StimuliInfoFile',
                         help='a db.csv file provide stimuli information')
-    
+
     parser.add_argument('-movie',
                         type=str,
                         required=False,
                         action='append',
                         metavar='MoiveStimulusFile',
                         help='a mp4 video file')
-    
+
     parser.add_argument('-response',
                         type=str,
                         required=True,
                         metavar='ResponseFile',
                         help='a db.csv file to provide target response. \
-			            The target reponse could be behavior measures or \
-                         brain response from some rois')
-    
+                        The target reponse could be behavior measures or \
+                        brain response from some rois')
+
     parser.add_argument('-hrf',
                         action='store_true',
                         required=False,
                         help='The canonical HRF is used.')
-    
+
     parser.add_argument('-bmask',
                         type=str,
                         required=False,
@@ -112,187 +107,239 @@ def main():
                         help='Brain mask(nii or nii.gz) to indicate \
                         the voxel of interest.It works only when response \
                         is nii or nii.gz file')
-          
+
     parser.add_argument('-model',
                         type=str,
                         required=True,
                         metavar='Model',
-                        choices=['glm', 'lasso', 'svc','lrc'],
+                        choices=['glm', 'lasso', 'svc', 'lrc'],
                         help='glm: general linear regression \
                         lasso: lasso regression \
                         svc: support vector machine classification \
                         lrc: logistic regression for classification.')
-        
+
     parser.add_argument('-cvfold',
                         default=2,
                         type=int,
                         required=False,
                         metavar='FoldNumber',
                         help='cross validation fold number')
-    
+
     parser.add_argument('-outdir',
                         type=str,
                         required=True,
                         metavar='OutputDir',
                         help='output directory. Model, accuracy, and related.')
-    
+
     args = parser.parse_args()
-    
-    #%% Brain/behavior response(i.e.,Y)
+
+    # %% Brain/behavior response(i.e.,Y)
     """
-    First, we prepare the response data for exploring relations between 
-    the CNN activation and brain/behavior responses.  
-    
+    First, we prepare the response data for exploring relations between
+    the CNN activation and brain/behavior responses.
+
     """
     if args.response.endswith('db.csv'):
-          resp = dio.read_dbcsv(args.response)
-          resp = resp['VariableName'].values() # n_stim x n_roi
-            
+        resp_dict = dio.read_dnn_csv(args.response)
+        Y = np.asarray(list(resp_dict['variable'].values())).T
+
+        tr = float(resp_dict['tr'])
+
     elif args.response.endswith('nii') or args.response.endswith('nii.gz'):
         resp, header = bio.load_brainimg(args.response)
+        bshape = resp.shape
+
+        # Get resp data within brain mask
+        resp = resp.reshape(resp.shape[0], -1)  # n_stim x n_vox
+        if args.bmask is None:
+            bmask = np.any(resp, 0)
+        else:
+            bmask, _ = bio.load_brainimg(args.bmask, ismask=True)
+            bmask = bmask.reshape(-1).astype(np.int)
+            assert bmask.shape[0] == resp.shape[1], (
+                              'mask and response mismatched in space')
+            Y = resp[:, bmask != 0]  # n_stim x n_roi or n_vox
+
+        # Get tr from nii header
+        tr = header['pixdim'][4]
+        if header.get_xyzt_units()[-1] == 'ms':
+            tr = tr / 1000
     else:
         raise Exception('Only db.csv and nii vloume are supported')
-        
-    # Get tr from nii header                
-    tr = header['pixdim'][4]
-    if header.get_xyzt_units()[-1] == 'ms':
-        tr = tr/ 1000
-        
-    # Get resp data within brain mask
-    resp = resp.reshape(resp.shape[0],-1)  # n_stim x n_vox
-    if args.bmask is None:    
-        bmask = np.any(resp,0)
-    else:
-        bmask, _ = bio.load_brainimg(args.bmask, ismask=True)            
-        bmask = bmask.reshape(-1).astype(np.int)
-        assert bmask.shape[0] == resp.shape[1], "mask and response mismatched in space"
-        
-    Y = resp[:, bmask!=0] # n_stim x n_roi or n_vox
-    
-    #%% CNN activation
+
+    print('response data successfully loaded')
+
+    # %% CNN activation
     """
-    Second, we prepare CNN activation(i.e., X) for exploring relations between 
-    the CNN activation and brain/behavior responses. 
-    
+    Second, we prepare CNN activation(i.e., X) for exploring relations between
+    the CNN activation and brain/behavior responses.
+
     """
     # Load CNN
     netloader = dio.NetLoader(args.net)
     transform = transforms.Compose([transforms.Resize(netloader.img_size),
-                                    transforms.ToTensor()])  
+                                    transforms.ToTensor()])
     # Load stimulus
     stim = dio.read_dnn_csv(args.stim)
-    stim_path, stim_id = stim['picPath'], stim['variable']['stimID']            
-    picdataset = dio.PicDataset(stim_path,stim_id,transform=transform)
+    picdataset = dio.PicDataset(
+            stim['picPath'], stim['variable'], transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
-    
+
     # calculate dnn activation: n_stim * n_channel * unit * unit
     dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer)
     # n_stim * n_channel * n_unit
     dnn_act = dnn_act.reshape(dnn_act.shape[0], dnn_act.shape[1], -1)
-    
-     # define dnn mask
+
+    print('extraction of dnn activation finished')
+
+    # define dnn mask
     if args.dmask is not None:
         dmask = dio.read_dnn_csv(args.dmask)
-        chnoi = dmask['VariableName']['chn']
-        coloi = dmask['VariableName']['col']
-        dnn_act = dnn_act[:,chnoi,coloi] # n_stim x n_chnoi x n_coloi
+        chnoi = list(dmask['variable']['chn'])
+        coloi = list(dmask['variable']['col'])
+        dnn_act = dnn_act[:, chnoi][:, :, coloi]  # n_stim x n_chnoi x n_coloi
+
+        print('dmask successfully applied')
+
+    # transpose axis accoring to user specified axis
+    # the specified axis in 2nd dimension
+    if args.axis == 'layer':
+        dnn_act = dnn_act.reshape(
+                dnn_act.shape[0], 1, dnn_act.shape[1]*dnn_act.shape[2])
+    elif args.axis == 'channel':
+        pass
+    elif args.axis == 'column':
+        dnn_act = dnn_act.transpose(0, 2, 1)
 
     # dnn feature extraction
-    if args.dfe is not None:    
+    if args.dfe is not None:
+        assert args.axis != 'layer', (
+                'dnn feacure extraction can not be applied in axia layer.')
         if args.axis == 'channel':
             if args.dfe == 'mean':
-                dnn_act = np.mean(dnn_act,axis=-1)[...,None]
+                dnn_act = np.mean(dnn_act, axis=-1)[..., None]
             elif args.dfe == 'max':
-                dnn_act = np.max(dnn_act,axis=-1)[...,None]
+                dnn_act = np.max(dnn_act, axis=-1)[..., None]
             elif args.dfe == 'median':
-                dnn_act = np.median(dnn_act,axis=-1)[...,None]
-            elif args.dfe == 'hist':
-                dnn_act = np.histogramdd(dnn_act)
+                dnn_act = np.median(dnn_act, axis=-1)[..., None]
+#            elif args.dfe == 'hist':
+#                dnn_act = np.histogramdd(dnn_act)
 
-                
-        elif args.axis == 'column':
-            if args.dfe == 'mean':
-                dnn_act = np.mean(dnn_act,axis=1)[...,None]
-            elif args.dfe == 'max':
-                dnn_act = np.max(dnn_act,axis=1)[...,None]
-            elif args.dfe == 'median':
-                dnn_act = np.median(dnn_act,axis=1)[...,None]
-            elif args.dfe == 'hist':
-                dnn_act = np.histogramdd(dnn_act)
-                
-    # size of cnn activation            
-    n_stim,n_chn,n_unit = dnn_act.shape
-  
-  # PCA on dnn features
-    if args.pca is not None:             
-        pca = decomposition.PCA(n_components=args.pca)
-        if args.axis == 'layer':       
-            X = dnn_act.reshape(n_stim,-1) 
-            X = pca.fit_transform(X)
+        print('dnn feature extraction finished')
 
-        elif args.axis == 'channel':
-            X = np.zeros((n_stim, n_chn, args.pca))
-            for chn in range(n_chn):
-                X[:,chn,:] = pca.fit_transform(X[:,chn,:])
-                
-        elif args.axis == 'column':
-            X = np.zeros((n_stim, args.pca, n_unit))
-            for unit in range(n_unit):
-                X[:,:,unit] = pca.fit_transform(X[:,:,unit])
-            
-            
-     # Convert dnn activtaion to bold response.
+    # PCA on dnn features
+    if args.dpca is not None:
+        assert args.dpca < dnn_act.shape[-1], (
+                'number of PC in PCA can not be larger than sample size.')
+        pca = decomposition.PCA(n_components=args.dpca)
+
+        X = np.zeros((dnn_act.shape[0], dnn_act.shape[1], args.dpca))
+        for i in range(dnn_act.shape[1]):
+            X[:, i, :] = pca.fit_transform(dnn_act[:, i, :])
+
+        print('PCA on dnn activation finished')
+
+    # size of cnn activation (i.e, X)
+    n_stim, n_axis, n_element = X.shape
+
+    # Convert dnn activtaion to bold response.
     if args.hrf is not None:
-         onset,duration = stim_id['onset'], stim_id['duration']
-         X = analyzer.generate_bold_regressor(X,onset,
-                                              duration,resp.shape[0],tr)
-         
-   
-    #%% multivariate analysis
+        onset = stim['variable']['onset']
+        duration = stim['variable']['duration']
+
+        X = analyzer.generate_bold_regressor(
+                X.reshape(n_stim, -1), onset, duration, Y.shape[0], tr)
+        X = X.reshape(Y.shape[0], n_axis, n_element)
+
+        print('hrf convolution on dnn activation finished')
+
+    # %% multivariate analysis
     """
-    Third, we use multivariate model to explore the relations between 
-    CNN activation and brain/behavior responses. 
-    
+    Third, we use multivariate model to explore the relations between
+    CNN activation and brain/behavior responses.
+
     """
-    
+
     if args.model == 'glm':
         model = linear_model.LinearRegression()
     elif args.model == 'lasso':
         model = linear_model.Lasso()
     elif args.model == 'svc':
         model = svm.SVC(kernel="linear", C=0.025)
-    elif args.model == 'lrc': 
+    elif args.model == 'lrc':
         model = linear_model.LogisticRegression()
     else:
-        raise Exception('Please use glm and lasso for linear regression and \
-                            use svc and lrc for linear classification')
-    
-  
-    # run mv model to do prediction
-    model.fit(X,Y)
-    pred = model.predict(X)
-    
-    
-    # validate the mv model
-    if args.model == 'glm' or args.model == 'lasso':        
-         scoring='explained_variance'
+        raise Exception('Please use glm or lasso for linear regression and \
+                        svc or lrc for linear classification')
+
+    # set parameters of mv model validation
+    if args.model == 'glm' or args.model == 'lasso':
+        scoring = 'explained_variance'
     else:
-         scoring='accuracy'
-    score = [model_selection.cross_val_score(
-            model,X,Y[:,i],scoring,cv=args.cvfold) for i in range(Y.shape[1])]
-    
-    
-     #%% save the results to disk
+        scoring = 'accuracy'
+
+    # run and validate mv models
+#    pred = []
+    coef = []
+    score = []
+    for i in range(n_axis):
+        # run mv model to do prediction
+        model.fit(X[:, i, :], Y)
+#        pred.append(model.predict(X[:, i, :]))
+        coef.append(model.coef_.T)
+        # validate the model
+        score_chn = [model_selection.cross_val_score(
+                model, X[:, i, :], Y[:, j], scoring=scoring, cv=args.cvfold
+                ) for j in range(Y.shape[1])]
+        score.append(np.asarray(score_chn).mean(-1)[np.newaxis, :])
+        print('model fitting and validation on axis {0} finished'.format(
+                i+1))
+#    pred = np.asarray(pred).transpose(1, 0, 2)
+    coef = np.asarray(coef).transpose(1, 0, 2)
+    score = np.asarray(score).transpose(1, 0, 2)
+
+    print('model fitting and validation finished')
+
+    # %% save the results to disk
     """
     Finally, we save the related results to the outdir.
-     
+
     """
+    if os.path.exists(args.outdir) is not True:
+        os.makedirs(args.outdir)
+
+    # save files
     if args.response.endswith('db.csv'):
-          resp = dio.save_dbcsv(fname)
-            
+
+        # save model score
+        dict_score = {keys: score[0, :, i] for i, keys
+                      in enumerate(resp_dict['variable'].keys())}
+        score_op = pjoin(args.outdir, 'model_score.db.csv')
+        dio.save_dnn_csv(score_op, 'model_score', 'test', 'col', dict_score)
+
     else:
-        
-        bio.save_brainimg(pjoin(args.outdir, 'voxel_score.nii.gz'), out_brainimg, header)
-        
+
+        def wrap_nii(model_data, bmask, bshape):
+            """ wrap model_data into nii data
+
+            parameters:
+            -----------
+            model_data[array]: [n_axis, n_voxel]
+            bmask[array]: [n_voxel] reshaped bmask,without geometrical info
+            bshape[array]: size = 3
+            """
+            n_axis = model_data.shape[0]
+            img = np.zeros((n_axis, bmask.shape[0]))
+            img[:, bmask != 0] = model_data
+            img = img.reshape((n_axis, bshape[1], bshape[2], bshape[3]))
+
+            return img
+
+        # save model score
+        score_op = pjoin(args.outdir, 'model_score.nii.gz')
+        score_oimg = wrap_nii(score[0, :, :], bmask, bshape)
+        bio.save_brainimg(score_op, score_oimg, header)
+
+
 if __name__ == '__main__':
     main()
