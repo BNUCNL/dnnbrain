@@ -1,10 +1,8 @@
-
 import numpy as np
 from dnnbrain.dnn import io as iofiles
 from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, resample
-
 
 
 def dnn_activation(input, netname, layer, channel=None):
