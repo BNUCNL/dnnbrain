@@ -450,7 +450,7 @@ def read_dnn_csv(dnn_csvfile):
                     variable_data[i] = np.asarray(v_i, dtype=np.float)
 
         elif dbcsv['type'] == 'response':
-            variable_data[i] = np.asarray(v_i, dtype=np.float)
+            variable_data = np.asarray(variable_data, dtype=np.float)
 
     dict_variable = {variable_keys[i]: variable_data[i] for i
                      in range(len(variable_keys))}
