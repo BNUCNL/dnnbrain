@@ -463,7 +463,7 @@ def read_dnn_csv(dnn_csvfile):
     return dbcsv
 
 
-def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName,
+def save_dnn_csv(outpath, stimtype, title, variableAxis, variable,
                  optional_variable=None):
     """
     Generate stimulus csv.
@@ -472,11 +472,11 @@ def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName,
     ------------
     outpath[str]: outpath, note the outpath ends with .db.csv
     stimtype[str]: stimulus type.
-        choose type from ['stimulus', 'dmask', 'response']
+        ['stimulus', 'dmask', 'response'] or other costum types.
     title[str]: title
     variableAxis[str]: Axis to extract signals or data
         choose variableAxis from ['col', 'row']
-    variableName[dict]: dictionary of signals or data
+    variable[dict]: dictionary of signals or data
     optional_variable[dict]: some other optional variable,
         consist of dictionary.
 
@@ -498,9 +498,9 @@ def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName,
         assert variableAxis in ['col', 'row'], "variableAxis could only be "
         f.write('variableAxis:'+variableAxis+'\n')
         # variableName
-        vnkeys = variableName.keys()
-        vnvariable = np.array(list(variableName.values()))
-        f.write('variableName:'+','.join(vnkeys)+'\n')
+        vnkeys = variable.keys()
+        vnvariable = np.array(list(variable.values()))
+        f.write('variable:'+','.join(vnkeys)+'\n')
         if variableAxis == 'col':
             vnvariable = vnvariable.T
-        np.savetxt(outpath, vnvariable, delimiter=',')
+        np.savetxt(f, vnvariable, newline='\n', delimiter=',')
