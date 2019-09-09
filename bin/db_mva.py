@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 
 """
-Multivarate analysis to explore relations between CNN activation and response
-from brain/behavior.
+Multivarate analysis(mva) to explore relations between CNN activation and responses of brain or behavior.
 
 CNL @ BNU
 """
@@ -19,23 +18,24 @@ from sklearn import linear_model, model_selection, decomposition, svm
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Use CNN activation to \
-                                     predict brain activation')
+    parser = argparse.ArgumentParser(description='Use CNN activation from \
+                                     multiple units to predict responses from \
+                                     brain or behavior.')
 
     parser.add_argument('-net',
                         type=str,
                         required=True,
                         metavar='NetName',
-                        help='convolutional network name')
+                        help='pretained convolutional network name')
 
     parser.add_argument('-layer',
                         type=str,
                         required=True,
                         metavar='LayerName',
                         help='The layer whose activation is used \
-                        to predict brain activity. For example, conv1 \
-                        represents the first convolution layer, and  \
-                        fc1 represents the first full connection layer.')
+                        to predict brain/behavior response. conv and fc indicate \
+                        convolution and fullly connected layers:conv1, \
+                        conv2,...,conv5, fc1, ...,fc3.')
 
     parser.add_argument('-axis',
                         type=str,
@@ -53,8 +53,8 @@ def main():
                         type=str,
                         required=False,
                         metavar='DnnMaskFile',
-                        help='a db.csv file in which channles of intereset \
-                        and columns of interest are listed.')
+                        help='a db.csv file in which channles and columns of \
+                        intereset ae listed.')
 
     parser.add_argument('-dfe',
                         type=str,
@@ -78,7 +78,7 @@ def main():
                         type=str,
                         required=False,
                         metavar='StimuliInfoFile',
-                        help='a db.csv file provide stimuli information')
+                        help='a stim.db.csv file provides stimuli information')
 
     parser.add_argument('-movie',
                         type=str,
@@ -91,21 +91,21 @@ def main():
                         type=str,
                         required=True,
                         metavar='ResponseFile',
-                        help='a db.csv file to provide target response. \
+                        help='a resp.db.csv file to provide target response. \
                         The target reponse could be behavior measures or \
                         brain response from some rois')
 
     parser.add_argument('-hrf',
                         action='store_true',
                         required=False,
-                        help='The canonical HRF is used.')
+                        help='The canonical HRF is used. Default no hrf is used')
 
     parser.add_argument('-bmask',
                         type=str,
                         required=False,
                         metavar='BrainMaskFile',
                         help='Brain mask(nii or nii.gz) to indicate \
-                        the voxel of interest.It works only when response \
+                        voxels of interest. It works only when response \
                         is nii or nii.gz file')
 
     parser.add_argument('-model',
@@ -123,13 +123,15 @@ def main():
                         type=int,
                         required=False,
                         metavar='FoldNumber',
-                        help='cross validation fold number')
+                        help='Fold number of cross validation')
 
     parser.add_argument('-outdir',
                         type=str,
                         required=True,
                         metavar='OutputDir',
-                        help='output directory. Model, accuracy, and related.')
+                        help='Output directory. Model coef, accuracy score, and \
+                        predicted responss for each stimlus will be saved \
+                        in this dir.')
 
     args = parser.parse_args()
 
@@ -139,13 +141,13 @@ def main():
     the CNN activation and brain/behavior responses.
 
     """
-    if args.response.endswith('db.csv'):
+    if args.response.endswith('.db.csv'):
         resp_dict = dio.read_dnn_csv(args.response)
         Y = np.asarray(list(resp_dict['variable'].values())).T
 
         tr = float(resp_dict['tr'])
 
-    elif args.response.endswith('nii') or args.response.endswith('nii.gz'):
+    elif args.response.endswith('.nii') or args.response.endswith('.nii.gz'):
         resp, header = bio.load_brainimg(args.response)
         bshape = resp.shape
 
