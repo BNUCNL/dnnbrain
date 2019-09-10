@@ -144,8 +144,8 @@ def main():
     if args.response.endswith('.db.csv'):
         resp_dict = dio.read_dnn_csv(args.response)
         Y = np.asarray(list(resp_dict['variable'].values())).T
-
-        tr = float(resp_dict['tr'])
+        if hasattr(resp_dict, 'tr'):
+            tr = float(resp_dict['tr'])
 
     elif args.response.endswith('.nii') or args.response.endswith('.nii.gz'):
         resp, header = bio.load_brainimg(args.response)
@@ -342,7 +342,6 @@ def main():
         score_op = pjoin(args.outdir, 'model_score.nii.gz')
         score_oimg = wrap_nii(score[0, :, :], bmask, bshape)
         bio.save_brainimg(score_op, score_oimg, header)
-
 
 if __name__ == '__main__':
     main()
