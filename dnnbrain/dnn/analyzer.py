@@ -5,7 +5,8 @@ from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
 
 
-def dnn_activation(input, netname, layer, channel=None):
+def dnn_activation(input, netname, layer, channel=None, column=None, 
+                   fe_axis=None, fe_meth=None):
     """
     Extract DNN activation
 
@@ -15,6 +16,9 @@ def dnn_activation(input, netname, layer, channel=None):
     netname[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
+    column[list]: column of interest
+    fe_axis{str}: axis for feature extraction
+    fe_meth[str]: feature extraction method, max, mean, median
 
     Returns:
     ---------
@@ -28,11 +32,41 @@ def dnn_activation(input, netname, layer, channel=None):
         dnnact_part = actmodel(picdata)
         dnnact.extend(dnnact_part.detach().numpy())
     dnnact = np.array(dnnact)
-
-    if channel:
-        channel_new = [cl - 1 for cl in channel]
-        dnnact = dnnact[:, channel_new, :, :]
+    dnnact = dnnact.reshape(dnnact.shape[0], dnnact.shape[1], -1)
+    
+    
+    # mask the data
+    if channel is not None:
+        dnnact = dnnact[:,channel,:]
+    
+    if column is not None: 
+        dnnact = dnnact[:, :, column]
+        
+    # feature extraction
+    if (fe_axis is None) != (fe_meth is None):
+        raise Exception('Please specify fe_axis and fe_meth at the same time.')
+    
+    if fe_axis == 'layer':
+        a = None
+    elif fe_axis == 'channel':
+        a = 1
+    elif fe_axis == 'column':
+        a = -1
+    else:
+        raise Exception('fe_axis should be layer, channel or column')
+        
+    if fe_axis is not None:
+        if fe_meth == 'max':
+            dnnact = np.max(dnnact,a)
+        elif fe_meth == 'mean':
+            dnnact = np.mean(dnnact,a)
+        elif fe_meth == 'median':
+            dnnact = np.median(dnnact,a)
+    
     return dnnact
+
+
+
 
 
 def generate_bold_regressor(X, onset, duration, vol_num, tr, ops=100):
