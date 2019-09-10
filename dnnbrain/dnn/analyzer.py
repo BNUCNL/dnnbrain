@@ -1,5 +1,5 @@
 import numpy as np
-from dnnbrain.dnn import io as iofiles
+from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
@@ -24,7 +24,7 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
     ---------
     dnnact[numpy.array]: DNN activation, A 4D dataset with its format as pic*channel*unit*unit
     """
-    loader = iofiles.NetLoader(netname)
+    loader = dio.NetLoader(netname)
     actmodel = dnn_truncate(loader, layer)
     actmodel.eval()
     dnnact = []
