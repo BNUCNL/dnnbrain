@@ -383,9 +383,32 @@ def read_dnn_csv(dnn_csv):
     -----------
     dnn_csv[str]: Path of csv file.
         Note that the suffix of dnn_csv is .db.csv.
-        Format of dnn_csv of response or stimulus is
+        Format of db.csv of picture stimuli is
         --------------------------
-        type:response [stimulus]
+        type:stimulus
+        title:picture stimuli
+        stimPath:parent_dir_to_pictures
+        stimType:picture
+        [Several optional keys]
+        variableName:stimID,condition
+        pic1_path,cat
+        pic2_path,dog
+        pic3_path,cat
+        ...,...
+
+        Format of db.csv of video stimuli is
+        --------------------------
+        type:stimulus
+        title:video stimuli
+        stimPath:path_to_video_file
+        stimType:video
+        [Several optional keys]
+        variableName:skip,interval
+        2,10
+
+        Format of db.csv of response is
+        --------------------------
+        type:response
         title:visual roi
         [Several optional keys] (eg., tr:2)
         variableName:OFA,FFA
@@ -398,7 +421,7 @@ def read_dnn_csv(dnn_csv):
         --------------------------
         type:dmask
         title:alexnet roi
-        [Several optional keys] (eg., tr:2)
+        [Several optional keys]
         variableName:chn,col
         1,2,3,5,7,124,...
         3,4,...
