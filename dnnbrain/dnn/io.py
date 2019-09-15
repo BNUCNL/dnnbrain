@@ -427,8 +427,8 @@ def read_dnn_csv(dnn_csv):
     assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
 
     # identify the type of data
-    assert dbcsv['type'] in ['picture', 'video', 'dmask', 'response'], \
-        'Type must be named as picture, video, dmask or response.'
+    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], \
+        'Type must be named as stimulus, dmask or response.'
 
     # Operate csv_val
     variable_keys = csv_val[0].split(':')[1].split(',')
@@ -441,31 +441,31 @@ def read_dnn_csv(dnn_csv):
     else:
         variable_data = [i.split(',') for i in csv_val[1:]]
         variable_data = list(zip(*variable_data))
-        if dbcsv['type'] == 'picture':
-            # data type for stimID or condition is str, others float.
-            for i, v_i in enumerate(variable_data):
-                if variable_keys[i] in ['stimID', 'condition']:
-                    variable_data[i] = np.asarray(v_i, dtype=np.str)
-                else:
-                    variable_data[i] = np.asarray(v_i, dtype=np.float)
-        elif dbcsv['type'] == 'video':
-            # Actually, video column's length is 1.
-            for i, v in enumerate(variable_data):
-                if variable_keys[i] == 'skip':
-                    variable_data[i] = float(v[0])
-                elif variable_keys[i] == 'interval':
-                    variable_data[i] = int(v[0])
-                else:
-                    raise ValueError('not supported variable name: {}'.format(variable_keys[i]))
+        if dbcsv['type'] == 'stimulus':
+            if dbcsv['stimType'] == 'picture':
+                # data type for stimID or condition is str, others float.
+                for i, v_i in enumerate(variable_data):
+                    if variable_keys[i] in ['stimID', 'condition']:
+                        variable_data[i] = np.asarray(v_i, dtype=np.str)
+                    else:
+                        variable_data[i] = np.asarray(v_i, dtype=np.float)
+            elif dbcsv['stimType'] == 'video':
+                # Actually, video column's length is 1.
+                for i, v in enumerate(variable_data):
+                    if variable_keys[i] == 'skip':
+                        variable_data[i] = float(v[0])
+                    elif variable_keys[i] == 'interval':
+                        variable_data[i] = int(v[0])
+                    else:
+                        raise ValueError('not supported variable name: {}'.format(variable_keys[i]))
+            else:
+                raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
         elif dbcsv['type'] == 'response':
             variable_data = np.asarray(variable_data, dtype=np.float)
+        else:
+            raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
 
     dict_variable = {k: variable_data[i] for i, k in enumerate(variable_keys)}
-
-    # error flag
-    if dbcsv['type'] == 'picture':
-        assert 'stimID' in dict_variable.keys(), 'stimID must be in variableName if csv type is picture.'
-
     dbcsv['variable'] = dict_variable
     return dbcsv
 
