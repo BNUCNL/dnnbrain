@@ -375,17 +375,40 @@ class NetLoader:
         print('You had assigned a model into netloader.')
 
 
-def read_dnn_csv(dnn_csvfile):
+def read_dnn_csv(dnn_csv):
     """
     Read pre-designed dnn csv file.
 
     Parameters:
     -----------
-    dnn_csvfiles[str]: Path of csv files.
-        Note that the suffix of dnn_csvfile is .db.csv.
-        Format of dnn_csvfile of response or stimulus is
+    dnn_csv[str]: Path of csv file.
+        Note that the suffix of dnn_csv is .db.csv.
+        Format of db.csv of picture stimuli is
         --------------------------
-        type:response [stimulus]
+        type:stimulus
+        title:picture stimuli
+        stimPath:parent_dir_to_pictures
+        stimType:picture
+        [Several optional keys]
+        variableName:stimID,condition
+        pic1_path,cat
+        pic2_path,dog
+        pic3_path,cat
+        ...,...
+
+        Format of db.csv of video stimuli is
+        --------------------------
+        type:stimulus
+        title:video stimuli
+        stimPath:path_to_video_file
+        stimType:video
+        [Several optional keys]
+        variableName:skip,interval
+        2,10
+
+        Format of db.csv of response is
+        --------------------------
+        type:response
         title:visual roi
         [Several optional keys] (eg., tr:2)
         variableName:OFA,FFA
@@ -394,11 +417,11 @@ def read_dnn_csv(dnn_csvfile):
         342,341
         ...,...
 
-        Format of dnn_csvfile of dmask is
+        Format of dnn_csv of dmask is
         --------------------------
         type:dmask
         title:alexnet roi
-        [Several optional keys] (eg., tr:2)
+        [Several optional keys]
         variableName:chn,col
         1,2,3,5,7,124,...
         3,4,...
@@ -407,58 +430,65 @@ def read_dnn_csv(dnn_csvfile):
     -------
     dbcsv[dict]: Dictionary of the output variable
     """
-    assert '.db.csv' in dnn_csvfile, 'Suffix of dnn_csvfile should be .db.csv'
-    with open(dnn_csvfile, 'r') as f:
-        csvstr = f.read().rstrip()
-    dbcsv = {}
-    csvdata = csvstr.split('\n')
-    metalbl = ['variableName' in i for i in csvdata].index(True)
-    csvmeta = csvdata[:(metalbl)]
-    csvval = csvdata[(metalbl):]
+    # ---Load csv data---
+    assert '.db.csv' in dnn_csv, 'Suffix of dnn_csv should be .db.csv'
+    with open(dnn_csv, 'r') as f:
+        csv_data = f.read().splitlines()
+    # remove null line
+    while '' in csv_data:
+        csv_data.remove('')
+    meta_idx = ['variableName' in i for i in csv_data].index(True)
+    csv_meta = csv_data[:meta_idx]
+    csv_val = csv_data[meta_idx:]
 
-    # Handling csv data
-    for i, cm in enumerate(csvmeta):
-        if cm == '':
-            continue
-        dbcsv[cm.split(':')[0]] = cm.split(':')[1]
+    # ---Handle csv data---
+    dbcsv = {}
+    for cm in csv_meta:
+        k, v = cm.split(':')
+        dbcsv[k] = v
     assert 'type' in dbcsv.keys(), 'type needs to be included in csvfiles.'
     assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
 
     # identify the type of data
-    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], (
-            'Type must named as stimulus, dmask or Response.')
+    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], \
+        'Type must be named as stimulus, dmask or response.'
 
-    # Operate csvval
-    variable_keys = csvval[0].split(':')[1].split(',')
+    # Operate csv_val
+    variable_keys = csv_val[0].split(':')[1].split(',')
 
     # if dmask, variableAxis is row, each row can have different length.
     if dbcsv['type'] == 'dmask':
         variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i
-                         in csvval[1:]]
-    # if stim/resp, variableAxis is col, each cal must have the same length.
+                         in csv_val[1:]]
+    # if stim/resp, variableAxis is col, each col must have the same length.
     else:
-        variable_data = [i.split(',') for i in csvval[1:]]
+        variable_data = [i.split(',') for i in csv_val[1:]]
         variable_data = list(zip(*variable_data))
-
         if dbcsv['type'] == 'stimulus':
-            # data type for stimID or condition is str, others float.
-            for i, v_i in enumerate(variable_data):
-                if variable_keys[i] in ['stimID', 'condition']:
-                    variable_data[i] = np.asarray(v_i, dtype=np.str)
-                else:
-                    variable_data[i] = np.asarray(v_i, dtype=np.float)
-
+            if dbcsv['stimType'] == 'picture':
+                # data type for stimID or condition is str, others float.
+                for i, v_i in enumerate(variable_data):
+                    if variable_keys[i] in ['stimID', 'condition']:
+                        variable_data[i] = np.asarray(v_i, dtype=np.str)
+                    else:
+                        variable_data[i] = np.asarray(v_i, dtype=np.float)
+            elif dbcsv['stimType'] == 'video':
+                # Actually, video column's length is 1.
+                for i, v in enumerate(variable_data):
+                    if variable_keys[i] == 'skip':
+                        variable_data[i] = float(v[0])
+                    elif variable_keys[i] == 'interval':
+                        variable_data[i] = int(v[0])
+                    else:
+                        raise ValueError('not supported variable name: {}'.format(variable_keys[i]))
+            else:
+                raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
         elif dbcsv['type'] == 'response':
             variable_data = np.asarray(variable_data, dtype=np.float)
+        else:
+            raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
 
-    dict_variable = {variable_keys[i]: variable_data[i] for i
-                     in range(len(variable_keys))}
-
-    # error flag
-    if dbcsv['type'] == 'stimulus':
-        assert ('stimID' in dict_variable.keys()), (
-                'stimID must be in VariableName if csv type is Stimulus.')
-
+    dict_variable = {k: variable_data[i] for i, k in enumerate(variable_keys)}
     dbcsv['variable'] = dict_variable
     return dbcsv
 

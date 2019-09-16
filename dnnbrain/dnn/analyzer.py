@@ -22,8 +22,11 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
 
     Returns:
     ---------
-    dnnact[numpy.array]: DNN activation, A 4D dataset with its format as pic*channel*unit*unit
+    dnnact[numpy.array]: DNN activation, A 3D array with its shape as (n_picture, n_channel, n_column)
     """
+    assert (fe_axis is None) == (fe_meth is None), 'Please specify fe_axis and fe_meth at the same time.'
+
+    # get dnn activation
     loader = dio.NetLoader(netname)
     actmodel = dnn_truncate(loader, layer)
     actmodel.eval()
@@ -32,41 +35,33 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
         dnnact_part = actmodel(picdata)
         dnnact.extend(dnnact_part.detach().numpy())
     dnnact = np.array(dnnact)
-    dnnact = dnnact.reshape(dnnact.shape[0], dnnact.shape[1], -1)
-    
-    
+    dnnact = dnnact.reshape((dnnact.shape[0], dnnact.shape[1], -1))
+
     # mask the data
     if channel is not None:
-        dnnact = dnnact[:,channel,:]
-    
+        dnnact = dnnact[:, channel, :]
     if column is not None: 
         dnnact = dnnact[:, :, column]
         
     # feature extraction
-    if (fe_axis is None) != (fe_meth is None):
-        raise Exception('Please specify fe_axis and fe_meth at the same time.')
-    
-    if fe_axis == 'layer':
-        a = None
-    elif fe_axis == 'channel':
-        a = 1
-    elif fe_axis == 'column':
-        a = -1
-    else:
-        raise Exception('fe_axis should be layer, channel or column')
-        
     if fe_axis is not None:
-        if fe_meth == 'max':
-            dnnact = np.max(dnnact,a)
-        elif fe_meth == 'mean':
-            dnnact = np.mean(dnnact,a)
-        elif fe_meth == 'median':
-            dnnact = np.median(dnnact,a)
+        fe_meths = {
+            'max': np.max,
+            'mean': np.mean,
+            'median': np.median
+        }
+
+        if fe_axis == 'layer':
+            dnnact = dnnact.reshape((dnnact.shape[0], -1))
+            dnnact = fe_meths[fe_meth](dnnact, -1)[:, np.newaxis, np.newaxis]
+        elif fe_axis == 'channel':
+            dnnact = fe_meths[fe_meth](dnnact, 1)[:, np.newaxis, :]
+        elif fe_axis == 'column':
+            dnnact = fe_meths[fe_meth](dnnact, 2)[:, :, np.newaxis]
+        else:
+            raise ValueError('fe_axis should be layer, channel or column')
     
     return dnnact
-
-
-
 
 
 def generate_bold_regressor(X, onset, duration, vol_num, tr, ops=100):
