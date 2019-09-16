@@ -493,44 +493,35 @@ def read_dnn_csv(dnn_csv):
     return dbcsv
 
 
-def save_dnn_csv(outpath, stimtype, title, variableAxis, variable,
-                 optional_variable=None):
+def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
     """
-    Generate stimulus csv.
+    Generate dnn brain csv.
 
     Parameters:
     ------------
-    outpath[str]: outpath, note the outpath ends with .db.csv
-    stimtype[str]: stimulus type.
-        ['stimulus', 'dmask', 'response'] or other costum types.
-    title[str]: title
-    variableAxis[str]: Axis to extract signals or data
-        choose variableAxis from ['col', 'row']
-    variable[dict]: dictionary of signals or data
-    optional_variable[dict]: some other optional variable,
-        consist of dictionary.
-
-    Return:
-    --------
-    dbcsv stimulus file
+    fpath[str]: output file path, ending with .db.csv
+    ftype[str]: file type, ['stimulus', 'dmask', 'response'].
+    title[str]: customized title
+    variables[dict]: dictionary of signals or data
+    opt_meta[dict]: some other optional meta data
     """
-    assert outpath.endswith('.db.csv'), "Suffix of outpath should be .db.csv"
-    with open(outpath, 'w') as f:
+    assert fpath.endswith('.db.csv'), "Suffix of dnnbrain csv file should be .db.csv"
+    with open(fpath, 'w') as f:
         # First line, type
-        f.write('type:'+stimtype+'\n')
+        f.write('type:{}\n'.format(ftype))
         # Second line, title
-        f.write('title:'+title+'\n')
-        # Optional variable
-        if optional_variable is not None:
-            for i, keyval in enumerate(optional_variable.keys()):
-                f.write(keyval+':'+optional_variable[keyval]+'\n')
-        # variableAxis
-        assert variableAxis in ['col', 'row'], "variableAxis could only be "
-        f.write('variableAxis:'+variableAxis+'\n')
-        # variableName
-        vnkeys = variable.keys()
-        vnvariable = np.array(list(variable.values()))
-        f.write('variable:'+','.join(vnkeys)+'\n')
-        if variableAxis == 'col':
-            vnvariable = vnvariable.T
-        np.savetxt(f, vnvariable, newline='\n', delimiter=',')
+        f.write('title:{}\n'.format(title))
+        # Optional meta data
+        if opt_meta is not None:
+            for k, v in opt_meta.items():
+                f.write('{0}:{1}\n'.format(k, v))
+        # variableName line
+        f.write('variableName:{}\n'.format(','.join(variables.keys())))
+        variable_vals = []
+        if ftype == 'dmask':
+            for variable_val in variables.values():
+                variable_vals.append(','.join(map(str, variable_val)))
+        else:
+            variable_vals = np.array(list(variables.values())).astype(np.str).T
+            variable_vals = [','.join(row) for row in variable_vals]
+        f.write('\n'.join(variable_vals))
