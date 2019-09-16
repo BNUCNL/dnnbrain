@@ -191,66 +191,6 @@ def read_imagefolder(parpath):
     return picpath, conditions
 
 
-def generate_stim_csv(parpath, picname_list, condition_list,
-                      outpath, onset_list=None, behavior_measure=None):
-    """
-    Automatically generate stimuli table file.
-    Noted that the stimuli table file satisfied follwing structure and
-    sequence needs to be consistent:
-
-    [PICDIR]
-    stimID              condition   onset(optional) measurement(optional)
-    download/face1.png  face        1.1             3
-    mgh/face2.png       face        3.1             5
-    scene1.png          scene       5.1             4
-
-    Parameters:
-    ------------
-    parpath[str]: parent path contains stimuli pictures
-    picname_list[list]: picture name list
-        each element is a relative path (str) of a picture
-    condition_list[list]: condition list
-    outpath[str]: output path
-    onset_list[list]: onset time list
-    behavior_measure[dictionary]: behavior measurement dictionary
-    """
-
-    assert len(picname_list) == len(condition_list), (
-            'length of picture name''list must be equal to condition list.')
-    assert os.path.basename(outpath).endswith('csv'), (
-            'Suffix of outpath should be .csv')
-    picnum = len(picname_list)
-    if onset_list is not None:
-        onset_list = [str(ol) for ol in onset_list]
-    if behavior_measure is not None:
-        list_int2str = lambda v: [str(i) for i in v]
-        behavior_measure = {
-                k: list_int2str(v) for k, v in behavior_measure.items()}
-    with open(outpath, 'w') as f:
-        # First line, parent path
-        f.write(parpath+'\n')
-        # Second line, key names
-        table_keys = 'stimID,condition'
-        if onset_list is not None:
-            table_keys += ','
-            table_keys += 'onset'
-        if behavior_measure is not None:
-            table_keys += ','
-            table_keys += ','.join(behavior_measure.keys())
-        f.write(table_keys+'\n')
-        # Three+ lines, Data
-        for i in range(picnum):
-            data = picname_list[i]+','+condition_list[i]
-            if onset_list is not None:
-                data += ','
-                data += onset_list[i]
-            if behavior_measure is not None:
-                for bm_keys in behavior_measure.keys():
-                    data += ','
-                    data += behavior_measure[bm_keys][i]
-            f.write(data+'\n')
-
-
 def save_activation(activation, outpath):
     """
     Save activaiton data as a csv file or mat format file to outpath
