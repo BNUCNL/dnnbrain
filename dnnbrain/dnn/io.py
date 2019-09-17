@@ -20,11 +20,11 @@ except ModuleNotFoundError:
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
-class PicDataset():
+class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
+    def __init__(self, parpath, stim_dict, transform=None, crop=None):
         """
         Initialize PicDataset
 
@@ -32,47 +32,51 @@ class PicDataset():
         ------------
         parpath[str]: picture parent path
 
-        stimulus_dict[dict]:
-            dictionary contains picture names, and other optional keys.
+        stim_dict[dict]:
+            A dictionary contains picture names, and other optional keys.
             This dictionary helps us connect cnn activation to brain images.
             Please organize your information as:
 
-                stimID          condition(optional)   ...
-                download/face1  face                  ...
-                mgh/face2.png   face                  ...
-                scene1.png      scene                 ...
+                stimID          condition(optional)   onset    ...
+                download/face1  face                  1.1      ...
+                mgh/face2.png   face                  3.1      ...
+                scene1.png      scene                 5.1      ...
 
-                stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
-                                        'condition': ['face', 'face'],
-                                        'onset': [1.1, 3.1, 5.1]}
+                stim_dict, {'stimID': ['download/face1', 'mgh/face2.png', 'scene1.png'],
+                            'condition': ['face', 'face', 'scene'],
+                            'onset': [1.1, 3.1, 5.1]}
 
-        transform[callable function]: optional transform to be applied
-            on a sample.
+        transform[callable function]: optional transform to be applied on a sample.
 
         crop[bool]: crop picture optionally by a bounding box.
             The coordinates of bounding box for crop pictures should be
-                measurements in stimulus_dict.
-            The keys of coordinates in stimulus_dict should be
+                measurements in stim_dict.
+            The keys of coordinates in stim_dict should be
                 left_coord,upper_coord,right_coord,lower_coord.
         """
-
-        self.stimulus_dict = stimulus_dict
+        # get picture path information
         self.picpath = parpath
-        self.picname = np.asarray(self.stimulus_dict['stimID'], dtype=np.str)
+        self.picname = np.asarray(stim_dict['stimID'], dtype=np.str)
+        stim_dict.pop('stimID')
 
-        if hasattr(self.stimulus_dict, 'condition'):
-            self.condition = self.stimulus_dict['condition']
+        # get conditions
+        if 'condition' in stim_dict:
+            self.condition = stim_dict['condition']
+            stim_dict.pop('condition')
         else:
-            self.condition = np.ones(np.size(self.picname))
+            self.condition = np.ones(len(self.picname))
+        self.condition_uniq = np.unique(self.condition).tolist()
 
-        self.transform = transform
+        self.stim_dict = stim_dict
+        self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
+        # get crop information
         self.crop = crop
         if self.crop:
-            self.left = np.array(self.stimulus_dict['left_coord'])
-            self.upper = np.array(self.stimulus_dict['upper_coord'])
-            self.right = np.array(self.stimulus_dict['right_coord'])
-            self.lower = np.array(self.stimulus_dict['lower_coord'])
+            self.left = np.array(self.stim_dict['left_coord'])
+            self.upper = np.array(self.stim_dict['upper_coord'])
+            self.right = np.array(self.stim_dict['right_coord'])
+            self.lower = np.array(self.stim_dict['lower_coord'])
 
     def __len__(self):
         """
@@ -82,7 +86,7 @@ class PicDataset():
 
     def __getitem__(self, idx):
         """
-        Get picture name, picture data and target of each sample
+        Get picture data and target label of each sample
 
         Parameters:
         -----------
@@ -90,24 +94,18 @@ class PicDataset():
 
         Returns:
         ---------
-        picname: picture name
         picimg: picture data, save as a pillow instance
         target_label: target of each sample (label)
         """
         # load pictures
-        target_name = np.unique(self.condition)
-        picimg = Image.open(
-                os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
         if self.crop:
             picimg = picimg.crop(
                     (self.left[idx], self.upper[idx],
                      self.right[idx], self.lower[idx]))
-        target_label = target_name.tolist().index(self.condition[idx])
-        if self.transform:
-            picimg = self.transform(picimg)
-        else:
-            self.transform = transforms.Compose([transforms.ToTensor()])
-            picimg = self.transform(picimg)
+        picimg = self.transform(picimg)
+        target_label = self.condition_uniq.index(self.condition[idx])
+
         return picimg, target_label
 
     def get_picname(self, idx):
@@ -126,47 +124,59 @@ class PicDataset():
         return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
-class VidDataset():
+class VidDataset:
     """
     Dataset for video data
     """
-    def __init__(self, vid_file, skip=0, interval=1, transform=None):
+    def __init__(self, vid_file, stim_dict, transform=None):
         """
         Parameters:
         -----------
         vid_file[str]: video data file
-        skip[float]: skip 'skip' seconds at the start of the video
-        interval[int]: get one frame per 'interval' frames
+        stim_dict[dict]:
+            A dictionary contains stimID (frame numbers), and other optional keys.
+            This dictionary helps us connect cnn activation to brain images.
+            Please organize your information as:
+
+                stimID    condition(optional)   ...
+                1         face                  ...
+                2         face                  ...
+                3         scene                 ...
+
+                stim_dict, {'stimID': [1, 2, 3],
+                            'condition': ['face', 'face', scene]}
         transform[pytorch transform]
         """
-        assert skip >= 0, "Parameter 'skip' must be a nonnegtive value!"
-        assert isinstance(interval, int) and interval > 0, "Parameter 'interval' must be a positive integer!"
         self.vid_cap = cv2.VideoCapture(vid_file)
-        self.skip = skip
-        self.interval = interval
+
+        # get sequence numbers of frames
+        self.frame_num = stim_dict['stimID']
+        stim_dict.pop('stimID')
+
+        # get conditions
+        if 'condition' in stim_dict.keys():
+            self.condition = stim_dict['condition']
+            stim_dict.pop('condition')
+        else:
+            self.condition = np.ones(len(self.frame_num))
+        self.condition_uniq = np.unique(self.condition).tolist()
+
+        self.stim_dict = stim_dict
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
-        self.fps = int(self.vid_cap.get(cv2.CAP_PROP_FPS))
-        self.n_frame = int(self.vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.init = int(self.skip * self.fps)  # the first frame's index
-
     def __getitem__(self, idx):
-        # process index range
-        assert isinstance(idx, int), 'Index must be a integer!'
-        if idx >= self.__len__() or idx < -self.__len__():
-            raise IndexError('index out of range')
-        if idx < 0:
-            idx = self.__len__() + idx
-
-        frame_idx = self.init + idx * self.interval
-        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        # get frame
+        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_num[idx]-1)
         _, frame = self.vid_cap.read()
         frame = self.transform(Image.fromarray(frame))
-        return frame, None
+
+        # get target
+        trg_label = self.condition_uniq.index(self.condition[idx])
+
+        return frame, trg_label
 
     def __len__(self):
-        length = (self.n_frame - self.init) / self.interval
-        return int(np.ceil(length))
+        return len(self.frame_num)
 
 
 def read_imagefolder(parpath):
@@ -189,66 +199,6 @@ def read_imagefolder(parpath):
     picpath = [os.path.join(conditions[i], picnames[i]) for i, _
                in enumerate(picnames)]
     return picpath, conditions
-
-
-def generate_stim_csv(parpath, picname_list, condition_list,
-                      outpath, onset_list=None, behavior_measure=None):
-    """
-    Automatically generate stimuli table file.
-    Noted that the stimuli table file satisfied follwing structure and
-    sequence needs to be consistent:
-
-    [PICDIR]
-    stimID              condition   onset(optional) measurement(optional)
-    download/face1.png  face        1.1             3
-    mgh/face2.png       face        3.1             5
-    scene1.png          scene       5.1             4
-
-    Parameters:
-    ------------
-    parpath[str]: parent path contains stimuli pictures
-    picname_list[list]: picture name list
-        each element is a relative path (str) of a picture
-    condition_list[list]: condition list
-    outpath[str]: output path
-    onset_list[list]: onset time list
-    behavior_measure[dictionary]: behavior measurement dictionary
-    """
-
-    assert len(picname_list) == len(condition_list), (
-            'length of picture name''list must be equal to condition list.')
-    assert os.path.basename(outpath).endswith('csv'), (
-            'Suffix of outpath should be .csv')
-    picnum = len(picname_list)
-    if onset_list is not None:
-        onset_list = [str(ol) for ol in onset_list]
-    if behavior_measure is not None:
-        list_int2str = lambda v: [str(i) for i in v]
-        behavior_measure = {
-                k: list_int2str(v) for k, v in behavior_measure.items()}
-    with open(outpath, 'w') as f:
-        # First line, parent path
-        f.write(parpath+'\n')
-        # Second line, key names
-        table_keys = 'stimID,condition'
-        if onset_list is not None:
-            table_keys += ','
-            table_keys += 'onset'
-        if behavior_measure is not None:
-            table_keys += ','
-            table_keys += ','.join(behavior_measure.keys())
-        f.write(table_keys+'\n')
-        # Three+ lines, Data
-        for i in range(picnum):
-            data = picname_list[i]+','+condition_list[i]
-            if onset_list is not None:
-                data += ','
-                data += onset_list[i]
-            if behavior_measure is not None:
-                for bm_keys in behavior_measure.keys():
-                    data += ','
-                    data += behavior_measure[bm_keys][i]
-            f.write(data+'\n')
 
 
 def save_activation(activation, outpath):
@@ -390,11 +340,11 @@ def read_dnn_csv(dnn_csv):
         stimPath:parent_dir_to_pictures
         stimType:picture
         [Several optional keys]
-        variableName:stimID,condition
-        pic1_path,cat
-        pic2_path,dog
-        pic3_path,cat
-        ...,...
+        variableName:stimID,[onset],[duration],[condition]
+        pic1_path,0,1,cat
+        pic2_path,1,1,dog
+        pic3_path,2,1,cat
+        ...,...,...,...
 
         Format of db.csv of video stimuli is
         --------------------------
@@ -403,8 +353,11 @@ def read_dnn_csv(dnn_csv):
         stimPath:path_to_video_file
         stimType:video
         [Several optional keys]
-        variableName:skip,interval
-        2,10
+        variableName:stimID,[onset],[duration],[condition]
+        1,0,1,cat
+        2,1,1,dog
+        3,2,1,cat
+        ...,...,...,...
 
         Format of db.csv of response is
         --------------------------
@@ -458,8 +411,7 @@ def read_dnn_csv(dnn_csv):
 
     # if dmask, variableAxis is row, each row can have different length.
     if dbcsv['type'] == 'dmask':
-        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i
-                         in csv_val[1:]]
+        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i in csv_val[1:]]
     # if stim/resp, variableAxis is col, each col must have the same length.
     else:
         variable_data = [i.split(',') for i in csv_val[1:]]
@@ -473,14 +425,13 @@ def read_dnn_csv(dnn_csv):
                     else:
                         variable_data[i] = np.asarray(v_i, dtype=np.float)
             elif dbcsv['stimType'] == 'video':
-                # Actually, video column's length is 1.
                 for i, v in enumerate(variable_data):
-                    if variable_keys[i] == 'skip':
-                        variable_data[i] = float(v[0])
-                    elif variable_keys[i] == 'interval':
-                        variable_data[i] = int(v[0])
+                    if variable_keys[i] == 'stimID':
+                        variable_data[i] = np.array(v, dtype=np.int)
+                    elif variable_keys[i] == 'condition':
+                        variable_data[i] = np.array(v, dtype=np.str)
                     else:
-                        raise ValueError('not supported variable name: {}'.format(variable_keys[i]))
+                        variable_data[i] = np.array(v, dtype=np.float)
             else:
                 raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
         elif dbcsv['type'] == 'response':
@@ -522,6 +473,6 @@ def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
             for variable_val in variables.values():
                 variable_vals.append(','.join(map(str, variable_val)))
         else:
-            variable_vals = np.array(list(variables.values())).astype(np.str).T
+            variable_vals = np.array(list(variables.values()), dtype=np.str).T
             variable_vals = [','.join(row) for row in variable_vals]
         f.write('\n'.join(variable_vals))
