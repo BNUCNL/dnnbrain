@@ -330,11 +330,11 @@ def read_dnn_csv(dnn_csv):
         stimPath:parent_dir_to_pictures
         stimType:picture
         [Several optional keys]
-        variableName:stimID,condition
-        pic1_path,cat
-        pic2_path,dog
-        pic3_path,cat
-        ...,...
+        variableName:stimID,[onset],[duration],[condition]
+        pic1_path,0,1,cat
+        pic2_path,1,1,dog
+        pic3_path,2,1,cat
+        ...,...,...,...
 
         Format of db.csv of video stimuli is
         --------------------------
@@ -343,8 +343,11 @@ def read_dnn_csv(dnn_csv):
         stimPath:path_to_video_file
         stimType:video
         [Several optional keys]
-        variableName:skip,interval
-        2,10
+        variableName:stimID,[onset],[duration],[condition]
+        1,0,1,cat
+        2,1,1,dog
+        3,2,1,cat
+        ...,...,...,...
 
         Format of db.csv of response is
         --------------------------
@@ -398,8 +401,7 @@ def read_dnn_csv(dnn_csv):
 
     # if dmask, variableAxis is row, each row can have different length.
     if dbcsv['type'] == 'dmask':
-        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i
-                         in csv_val[1:]]
+        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i in csv_val[1:]]
     # if stim/resp, variableAxis is col, each col must have the same length.
     else:
         variable_data = [i.split(',') for i in csv_val[1:]]
@@ -413,14 +415,13 @@ def read_dnn_csv(dnn_csv):
                     else:
                         variable_data[i] = np.asarray(v_i, dtype=np.float)
             elif dbcsv['stimType'] == 'video':
-                # Actually, video column's length is 1.
                 for i, v in enumerate(variable_data):
-                    if variable_keys[i] == 'skip':
-                        variable_data[i] = float(v[0])
-                    elif variable_keys[i] == 'interval':
-                        variable_data[i] = int(v[0])
+                    if variable_keys[i] == 'stimID':
+                        variable_data[i] = np.array(v, dtype=np.int)
+                    elif variable_keys[i] == 'condition':
+                        variable_data[i] = np.array(v, dtype=np.str)
                     else:
-                        raise ValueError('not supported variable name: {}'.format(variable_keys[i]))
+                        variable_data[i] = np.array(v, dtype=np.float)
             else:
                 raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
         elif dbcsv['type'] == 'response':
