@@ -20,11 +20,11 @@ except ModuleNotFoundError:
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
-class PicDataset():
+class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
+    def __init__(self, parpath, stim_dict, transform=None, crop=None):
         """
         Initialize PicDataset
 
@@ -32,47 +32,51 @@ class PicDataset():
         ------------
         parpath[str]: picture parent path
 
-        stimulus_dict[dict]:
-            dictionary contains picture names, and other optional keys.
+        stim_dict[dict]:
+            A dictionary contains picture names, and other optional keys.
             This dictionary helps us connect cnn activation to brain images.
             Please organize your information as:
 
-                stimID          condition(optional)   ...
-                download/face1  face                  ...
-                mgh/face2.png   face                  ...
-                scene1.png      scene                 ...
+                stimID          condition(optional)   onset    ...
+                download/face1  face                  1.1      ...
+                mgh/face2.png   face                  3.1      ...
+                scene1.png      scene                 5.1      ...
 
-                stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
-                                        'condition': ['face', 'face'],
-                                        'onset': [1.1, 3.1, 5.1]}
+                stim_dict, {'stimID': ['download/face1', 'mgh/face2.png', 'scene1.png'],
+                            'condition': ['face', 'face', 'scene'],
+                            'onset': [1.1, 3.1, 5.1]}
 
-        transform[callable function]: optional transform to be applied
-            on a sample.
+        transform[callable function]: optional transform to be applied on a sample.
 
         crop[bool]: crop picture optionally by a bounding box.
             The coordinates of bounding box for crop pictures should be
-                measurements in stimulus_dict.
-            The keys of coordinates in stimulus_dict should be
+                measurements in stim_dict.
+            The keys of coordinates in stim_dict should be
                 left_coord,upper_coord,right_coord,lower_coord.
         """
-
-        self.stimulus_dict = stimulus_dict
+        # get picture path information
         self.picpath = parpath
-        self.picname = np.asarray(self.stimulus_dict['stimID'], dtype=np.str)
+        self.picname = np.asarray(stim_dict['stimID'], dtype=np.str)
+        stim_dict.pop('stimID')
 
-        if hasattr(self.stimulus_dict, 'condition'):
-            self.condition = self.stimulus_dict['condition']
+        # get conditions
+        if 'condition' in stim_dict:
+            self.condition = stim_dict['condition']
+            stim_dict.pop('condition')
         else:
-            self.condition = np.ones(np.size(self.picname))
+            self.condition = np.ones(len(self.picname))
+        self.condition_uniq = np.unique(self.condition).tolist()
 
-        self.transform = transform
+        self.stim_dict = stim_dict
+        self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
+        # get crop information
         self.crop = crop
         if self.crop:
-            self.left = np.array(self.stimulus_dict['left_coord'])
-            self.upper = np.array(self.stimulus_dict['upper_coord'])
-            self.right = np.array(self.stimulus_dict['right_coord'])
-            self.lower = np.array(self.stimulus_dict['lower_coord'])
+            self.left = np.array(self.stim_dict['left_coord'])
+            self.upper = np.array(self.stim_dict['upper_coord'])
+            self.right = np.array(self.stim_dict['right_coord'])
+            self.lower = np.array(self.stim_dict['lower_coord'])
 
     def __len__(self):
         """
@@ -82,7 +86,7 @@ class PicDataset():
 
     def __getitem__(self, idx):
         """
-        Get picture name, picture data and target of each sample
+        Get picture data and target label of each sample
 
         Parameters:
         -----------
@@ -90,24 +94,18 @@ class PicDataset():
 
         Returns:
         ---------
-        picname: picture name
         picimg: picture data, save as a pillow instance
         target_label: target of each sample (label)
         """
         # load pictures
-        target_name = np.unique(self.condition)
-        picimg = Image.open(
-                os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
         if self.crop:
             picimg = picimg.crop(
                     (self.left[idx], self.upper[idx],
                      self.right[idx], self.lower[idx]))
-        target_label = target_name.tolist().index(self.condition[idx])
-        if self.transform:
-            picimg = self.transform(picimg)
-        else:
-            self.transform = transforms.Compose([transforms.ToTensor()])
-            picimg = self.transform(picimg)
+        picimg = self.transform(picimg)
+        target_label = self.condition_uniq.index(self.condition[idx])
+
         return picimg, target_label
 
     def get_picname(self, idx):
@@ -126,7 +124,7 @@ class PicDataset():
         return os.path.basename(self.picname[idx]), self.condition[idx]
 
 
-class VidDataset():
+class VidDataset:
     """
     Dataset for video data
     """
