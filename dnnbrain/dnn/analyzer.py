@@ -31,9 +31,12 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
     actmodel = dnn_truncate(loader, layer)
     actmodel.eval()
     dnnact = []
-    for picdata, target in input:
+    count = 0  # count the progress
+    for picdata, _ in input:
         dnnact_part = actmodel(picdata)
         dnnact.extend(dnnact_part.detach().numpy())
+        count += dnnact_part.shape[0]
+        print('Extracted acts:', count)
     dnnact = np.array(dnnact)
     dnnact = dnnact.reshape((dnnact.shape[0], dnnact.shape[1], -1))
 

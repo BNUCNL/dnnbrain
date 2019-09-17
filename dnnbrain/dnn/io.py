@@ -473,6 +473,6 @@ def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
             for variable_val in variables.values():
                 variable_vals.append(','.join(map(str, variable_val)))
         else:
-            variable_vals = np.array(list(variables.values())).astype(np.str).T
+            variable_vals = np.array(list(variables.values()), dtype=np.str).T
             variable_vals = [','.join(row) for row in variable_vals]
         f.write('\n'.join(variable_vals))
