@@ -101,9 +101,11 @@ def main():
     # Load stimuli
     stim_dict = read_dnn_csv(args.stim)
     if stim_dict['stimType'] == 'picture':
-        dataset = PicDataset(stim_dict['stimPath'], stim_dict['variable'], transform=transform)
+        dataset = PicDataset(stim_dict['stimPath'], stim_dict['variable']['stimID'],
+                             stim_dict['variable'].get('condition', None), transform=transform)
     elif stim_dict['stimType'] == 'video':
-        dataset = VidDataset(stim_dict['stimPath'], stim_dict['variable'], transform=transform)
+        dataset = VidDataset(stim_dict['stimPath'], stim_dict['variable']['stimID'],
+                             stim_dict['variable'].get('condition', None), transform=transform)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['stimType']))
     data_loader = DataLoader(dataset, batch_size=8, shuffle=False)

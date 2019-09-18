@@ -24,50 +24,26 @@ class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, parpath, stim_dict, transform=None, crop=None):
+    def __init__(self, par_path, pic_ids, conditions=None, transform=None, crop=False):
         """
         Initialize PicDataset
 
         Parameters:
         ------------
-        parpath[str]: picture parent path
-
-        stim_dict[dict]:
-            A dictionary contains picture names, and other optional keys.
-            This dictionary helps us connect cnn activation to brain images.
-            Please organize your information as:
-
-                stimID          condition(optional)   onset    ...
-                download/face1  face                  1.1      ...
-                mgh/face2.png   face                  3.1      ...
-                scene1.png      scene                 5.1      ...
-
-                stim_dict, {'stimID': ['download/face1', 'mgh/face2.png', 'scene1.png'],
-                            'condition': ['face', 'face', 'scene'],
-                            'onset': [1.1, 3.1, 5.1]}
-
+        par_path[str]: picture parent path
+        pic_ids[sequence]: Each pic_id is a path which can find the picture file relative to par_path.
+        conditions[sequence]: Each picture's condition.
         transform[callable function]: optional transform to be applied on a sample.
-
         crop[bool]: crop picture optionally by a bounding box.
             The coordinates of bounding box for crop pictures should be
                 measurements in stim_dict.
             The keys of coordinates in stim_dict should be
                 left_coord,upper_coord,right_coord,lower_coord.
         """
-        # get picture path information
-        self.picpath = parpath
-        self.picname = np.asarray(stim_dict['stimID'], dtype=np.str)
-        stim_dict.pop('stimID')
-
-        # get conditions
-        if 'condition' in stim_dict:
-            self.condition = stim_dict['condition']
-            stim_dict.pop('condition')
-        else:
-            self.condition = np.ones(len(self.picname))
-        self.condition_uniq = np.unique(self.condition).tolist()
-
-        self.stim_dict = stim_dict
+        self.par_path = par_path
+        self.pic_ids = pic_ids
+        self.conditions = np.ones(len(self.pic_ids)) if conditions is None else conditions
+        self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
         # get crop information
@@ -82,7 +58,7 @@ class PicDataset:
         """
         Return sample size
         """
-        return len(self.picname)
+        return len(self.pic_ids)
 
     def __getitem__(self, idx):
         """
@@ -94,19 +70,19 @@ class PicDataset:
 
         Returns:
         ---------
-        picimg: picture data, save as a pillow instance
-        target_label: target of each sample (label)
+        pic_img: picture data, save as a pillow instance
+        trg_label: target of each sample (label)
         """
         # load pictures
-        picimg = Image.open(os.path.join(self.picpath, self.picname[idx])).convert('RGB')
+        pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx])).convert('RGB')
         if self.crop:
-            picimg = picimg.crop(
-                    (self.left[idx], self.upper[idx],
-                     self.right[idx], self.lower[idx]))
-        picimg = self.transform(picimg)
-        target_label = self.condition_uniq.index(self.condition[idx])
+            pic_img = pic_img.crop(
+                (self.left[idx], self.upper[idx],
+                 self.right[idx], self.lower[idx]))
+        pic_img = self.transform(pic_img)
+        trg_label = self.conditions_uniq.index(self.conditions[idx])
 
-        return picimg, target_label
+        return pic_img, trg_label
 
     def get_picname(self, idx):
         """
@@ -121,62 +97,41 @@ class PicDataset:
         picname: picture name
         condition: target condition
         """
-        return os.path.basename(self.picname[idx]), self.condition[idx]
+        return os.path.basename(self.pic_ids[idx]), self.conditions[idx]
 
 
 class VidDataset:
     """
     Dataset for video data
     """
-    def __init__(self, vid_file, stim_dict, transform=None):
+    def __init__(self, vid_file, frame_nums, conditions=None, transform=None):
         """
         Parameters:
         -----------
         vid_file[str]: video data file
-        stim_dict[dict]:
-            A dictionary contains stimID (frame numbers), and other optional keys.
-            This dictionary helps us connect cnn activation to brain images.
-            Please organize your information as:
-
-                stimID    condition(optional)   ...
-                1         face                  ...
-                2         face                  ...
-                3         scene                 ...
-
-                stim_dict, {'stimID': [1, 2, 3],
-                            'condition': ['face', 'face', scene]}
+        frame_nums[sequence]: sequence numbers of the frames of interest
+        conditions[sequence]: each frame's condition
         transform[pytorch transform]
         """
         self.vid_cap = cv2.VideoCapture(vid_file)
-
-        # get sequence numbers of frames
-        self.frame_num = stim_dict['stimID']
-        stim_dict.pop('stimID')
-
-        # get conditions
-        if 'condition' in stim_dict.keys():
-            self.condition = stim_dict['condition']
-            stim_dict.pop('condition')
-        else:
-            self.condition = np.ones(len(self.frame_num))
-        self.condition_uniq = np.unique(self.condition).tolist()
-
-        self.stim_dict = stim_dict
+        self.frame_nums = frame_nums
+        self.conditions = np.ones(len(self.frame_nums)) if conditions is None else conditions
+        self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __getitem__(self, idx):
         # get frame
-        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_num[idx]-1)
+        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_nums[idx]-1)
         _, frame = self.vid_cap.read()
         frame = self.transform(Image.fromarray(frame))
 
         # get target
-        trg_label = self.condition_uniq.index(self.condition[idx])
+        trg_label = self.conditions_uniq.index(self.conditions[idx])
 
         return frame, trg_label
 
     def __len__(self):
-        return len(self.frame_num)
+        return len(self.frame_nums)
 
 
 def read_imagefolder(parpath):
