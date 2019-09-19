@@ -131,7 +131,7 @@ def main():
                         metavar='OutputDir',
                         help='Output directory. Model coef, accuracy score, and \
                         predicted responss for each stimlus will be saved \
-                        in this dir.')
+                        in the output dir.')
 
     args = parser.parse_args()
 
@@ -159,7 +159,7 @@ def main():
             bmask, _ = bio.load_brainimg(args.bmask, ismask=True)
             bmask = bmask.reshape(-1).astype(np.int)
             assert bmask.shape[0] == resp.shape[1], (
-                              'mask and response mismatched in space')
+                              'brain mask and brain response mismatched in space')
             Y = resp[:, bmask != 0]  # n_stim x n_roi or n_vox
 
         # Get tr from nii header
@@ -212,11 +212,13 @@ def main():
         pass
     elif args.axis == 'column':
         dnn_act = dnn_act.transpose(0, 2, 1)
-
+    else:
+        raise Exception('Axis should be layer, channel or column.')
+        
     # dnn feature extraction
     if args.dfe is not None:
         assert args.axis != 'layer', (
-                'dnn feacure extraction can not be applied in axia layer.')
+                'dnn feacure extraction can not be applied in axis layer.')
         if args.axis == 'channel':
             if args.dfe == 'mean':
                 dnn_act = np.mean(dnn_act, axis=-1)[..., None]
@@ -282,8 +284,7 @@ def main():
 
     # run and validate mv models
 #    pred = []
-    coef = []
-    score = []
+    coef = [], score = []
     for i in range(n_axis):
         # run mv model to do prediction
         model.fit(X[:, i, :], Y)
