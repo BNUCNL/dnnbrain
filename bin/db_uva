@@ -14,7 +14,7 @@ import pickle as pkl
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from os.path import join as pjoin
-from dnnbrain.dnn.analyzer import dnn_activation, generate_bold_regressor
+from dnnbrain.dnn.analyzer import dnn_activation, convolve_hrf
 from dnnbrain.dnn.io import NetLoader, read_dnn_csv, PicDataset, VidDataset
 from dnnbrain.brain.io import load_brainimg, save_brainimg
 from sklearn.linear_model import LinearRegression, LogisticRegression
@@ -154,7 +154,7 @@ def main():
         duration = stim_dict['variable']['duration']
         tr = float(stim_dict['hrf_tr'])
         ops = int(stim_dict.get('hrf_ops', 100))
-        X = generate_bold_regressor(X.reshape(n_stim, -1), onset, duration, n_samp, tr, ops)
+        X = convolve_hrf(X.reshape(n_stim, -1), onset, duration, n_samp, tr, ops)
         X = X.reshape(n_samp, n_chn, n_col)  # cover X before HRFed, save memory
         end2 = time.time()
         print('Finish HRF convolution: cost {} seconds'.format(end2 - start2))
@@ -188,7 +188,7 @@ def main():
                 position = max_col_idx+1 if args.dmask is None else dmask['variable']['col'][max_col_idx]+1
                 position_arr[chn_idx, feat_idx] = position
                 model_arr[chn_idx, feat_idx] = model.fit(X[:, chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
-                print('Feat_idx{}: finish iterate chn_idx{}'.format(feat_idx, chn_idx))
+                print('Feat{0}/{1}: finish iterate chn_idx{2}'.format(feat_idx+1, n_feat, chn_idx))
     elif args.iteraxis == 'column':
         score_arr = np.zeros((n_col, n_feat), dtype=np.float)
         position_arr = np.zeros_like(score_arr, dtype=np.int)
@@ -206,7 +206,7 @@ def main():
                 position = max_chn_idx+1 if args.dmask is None else dmask['variable']['chn'][max_chn_idx]+1
                 position_arr[col_idx, feat_idx] = position
                 model_arr[col_idx, feat_idx] = model.fit(X[:, max_chn_idx, col_idx][:, np.newaxis], Y[:, feat_idx])
-                print('Feat_idx{}: finish iterate col_idx{}'.format(feat_idx, col_idx))
+                print('Feat{0}/{1}: finish iterate col_idx{2}'.format(feat_idx+1, n_feat, col_idx))
     else:
         score_arr = np.zeros((1, n_feat), dtype=np.float)
         position_arr = np.zeros((2, n_feat), dtype=np.int)
@@ -232,7 +232,7 @@ def main():
             position_arr[0, feat_idx] = pos_chn
             position_arr[1, feat_idx] = pos_col
             model_arr[0, feat_idx] = model.fit(X[:, max_chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
-            print('Feat_idx{}: finished'.format(feat_idx))
+            print('Feat{0}/{1}: finished'.format(feat_idx+1, n_feat))
     end3 = time.time()
     print('Finish prediction: cost {} seconds'.format(end3 - start3))
     # ---Do prediction end---
