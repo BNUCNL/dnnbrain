@@ -19,6 +19,7 @@ from dnnbrain.dnn.io import NetLoader, read_dnn_csv, PicDataset, VidDataset
 from dnnbrain.brain.io import load_brainimg, save_brainimg
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.model_selection import cross_val_score
+from sklearn.metrics import pairwise_distances
     
 
 def main():
@@ -75,15 +76,17 @@ def main():
                         type=str,
                         required=True,
                         metavar='BrainModel',
-                        choices=['glm', 'lrc'],
+                        choices=['glm', 'lrc', 'corr_r'],
                         help='Select a model to predict brain or behavior responses by dnn activation. '
                              'Use glm (general linear model) for regression analysis. '
-                             'USe lrc (logistic regression) for classification analysis.')
+                             'Use lrc (logistic regression) for classification analysis.'
+                             'Use corr (correlation) to calculate R square.')
     parser.add_argument('-cvfold',
                         type=int,
                         metavar='FoldNumber',
                         default=3,
-                        help='cross validation fold number')
+                        help='cross validation fold number'
+                             'This option will be ignored if -model is corr_r.')
     parser.add_argument('-out',
                         type=str,
                         required=True,
@@ -162,13 +165,13 @@ def main():
     # ---Do prediction start---
     start3 = time.time()
     # Prepare model
-    if args.model == 'glm':
-        model = LinearRegression()
-        score_evl = 'explained_variance'
-    else:
+    if args.model == 'lrc':
         model = LogisticRegression()
         score_evl = 'accuracy'
-    print('Prediction model:', args.model)
+    else:
+        model = LinearRegression()
+        score_evl = 'explained_variance'
+    print('Model:', args.model)
 
     # Perform univariate prediction analysis
     if args.iteraxis == 'channel':
@@ -177,13 +180,17 @@ def main():
         model_arr = np.zeros_like(score_arr, dtype=np.object)
         for feat_idx in range(n_feat):
             for chn_idx in range(n_chn):
-                score_tmp = []
-                for col_idx in range(n_col):
-                    cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
-                    score_tmp.append(np.mean(cv_scores))
-                max_score = max(score_tmp)
-                max_col_idx = score_tmp.index(max_score)
+                if args.model == 'corr_r':
+                    score_tmp = pairwise_distances(X[:, chn_idx, :].T, Y[:, feat_idx].reshape(1, -1), 'correlation')
+                    score_tmp = (1 - np.squeeze(score_tmp)) ** 2
+                else:
+                    score_tmp = []
+                    for col_idx in range(n_col):
+                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
+                                                    Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
+                        score_tmp.append(np.mean(cv_scores))
+                max_col_idx = np.argmax(score_tmp)
+                max_score = score_tmp[max_col_idx]
                 score_arr[chn_idx, feat_idx] = max_score
                 position = max_col_idx+1 if args.dmask is None else dmask['variable']['col'][max_col_idx]+1
                 position_arr[chn_idx, feat_idx] = position
@@ -195,13 +202,17 @@ def main():
         model_arr = np.zeros_like(score_arr, dtype=np.object)
         for feat_idx in range(n_feat):
             for col_idx in range(n_col):
-                score_tmp = []
-                for chn_idx in range(n_chn):
-                    cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
-                    score_tmp.append(np.mean(cv_scores))
-                max_score = max(score_tmp)
-                max_chn_idx = score_tmp.index(max_score)
+                if args.model == 'corr_r':
+                    score_tmp = pairwise_distances(X[:, :, col_idx].T, Y[:, feat_idx].reshape(1, -1), 'correlation')
+                    score_tmp = (1 - np.squeeze(score_tmp)) ** 2
+                else:
+                    score_tmp = []
+                    for chn_idx in range(n_chn):
+                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
+                                                    Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
+                        score_tmp.append(np.mean(cv_scores))
+                max_chn_idx = np.argmax(score_tmp)
+                max_score = score_tmp[max_chn_idx]
                 score_arr[col_idx, feat_idx] = max_score
                 position = max_chn_idx+1 if args.dmask is None else dmask['variable']['chn'][max_chn_idx]+1
                 position_arr[col_idx, feat_idx] = position
@@ -212,12 +223,16 @@ def main():
         position_arr = np.zeros((2, n_feat), dtype=np.int)
         model_arr = np.zeros_like(score_arr, dtype=np.object)
         for feat_idx in range(n_feat):
-            score_tmp = np.zeros((n_chn, n_col))
-            for chn_idx in range(n_chn):
-                for col_idx in range(n_col):
-                    cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
-                    score_tmp[chn_idx, col_idx] = np.mean(cv_scores)
+            if args.model == 'corr_r':
+                score_tmp = pairwise_distances(X.reshape(n_samp, -1).T, Y[:, feat_idx].reshape(1, -1), 'correlation')
+                score_tmp = (1 - score_tmp.reshape(n_chn, n_col)) ** 2
+            else:
+                score_tmp = np.zeros((n_chn, n_col))
+                for chn_idx in range(n_chn):
+                    for col_idx in range(n_col):
+                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
+                                                    Y[:, feat_idx], scoring=score_evl, cv=args.cvfold)
+                        score_tmp[chn_idx, col_idx] = np.mean(cv_scores)
             max_score = np.max(score_tmp)
             max_indices = np.where(score_tmp == max_score)
             max_chn_idx = max_indices[0][0]
