@@ -95,14 +95,19 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
     durations = np.round(np.asarray(durations), decimals=decimals)
     tr = np.round(tr, decimals=decimals)
 
+    n_clipped = 0  # the number of clipped time points earlier than the start point of response
     onset_min = onsets.min()
     if onset_min > 0:
-        print("The earliest event's onset is later than the starting point of response.\n"
+        print("The earliest event's onset is later than the start point of response.\n"
               "We supplement it with zero-value event to align with the response.")
         X = np.insert(X, 0, np.zeros(X.shape[1]), 0)
         onsets = np.insert(onsets, 0, 0, 0)
         durations = np.insert(durations, 0, onset_min, 0)
-    onset_min = onsets.min()
+        onset_min = 0
+    elif onset_min < 0:
+        print("The earliest event's onset is earlier than the start point of response.\n"
+              "We clip the earlier time points after hrf_convolution to align with the response.")
+        n_clipped = int(-onset_min * ops)
 
     # do convolution in batches for trade-off between speed and memory
     batch_size = int(100000 / ops)
@@ -127,10 +132,7 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
 
         # convolve X raw time course with hrf kernal
         X_tc_hrfed = convolve(X_tc, hrf, method='fft')
-        if onset_min < 0:
-            print("The earliest event's onset is earlier than the starting point of response.\n"
-                  "We clip the earlier time points after hrf_convolution to align with the response.")
-            X_tc_hrfed = X_tc_hrfed[-onset_min*ops:, :]
+        X_tc_hrfed = X_tc_hrfed[n_clipped:, :]
 
         # downsample to volume timing
         X_hrfed = np.c_[X_hrfed, X_tc_hrfed[vol_t, :]]
