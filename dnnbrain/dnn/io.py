@@ -294,7 +294,7 @@ def read_dnn_csv(dnn_csv):
         title:picture stimuli
         stimPath:parent_dir_to_pictures
         stimType:picture
-        [Several optional keys]
+        [Several optional keys] (eg., hrf_tr:2)
         variableName:stimID,[onset],[duration],[condition]
         pic1_path,0,1,cat
         pic2_path,1,1,dog
