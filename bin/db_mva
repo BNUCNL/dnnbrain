@@ -1,19 +1,23 @@
 #! /usr/bin/env python
 
 """
-Multivarate analysis(mva) to explore relations between CNN activation and responses of brain or behavior.
+Multivarate analysis(mva) to explore relations between CNN activation 
+and responses of brain or behavior.
 
 CNL @ BNU
 """
 import os
 import argparse
 import numpy as np
+import pandas as pd
+import pickle as pkl
+
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from os.path import join as pjoin
-from dnnbrain.dnn import analyzer
-from dnnbrain.dnn import io as dio
-from dnnbrain.brain import io as bio
+from dnnbrain.dnn.analyzer import dnn_activation, convolve_hrf
+from dnnbrain.dnn.io import NetLoader, read_dnn_csv, PicDataset, VidDataset
+from dnnbrain.brain.io import load_brainimg, save_brainimg
 from sklearn import linear_model, model_selection, decomposition, svm
 
 
@@ -37,17 +41,29 @@ def main():
                         convolution and fullly connected layers:conv1, \
                         conv2,...,conv5, fc1, ...,fc3.')
 
-    parser.add_argument('-axis',
+    parser.add_argument('-iteraxis',
                         type=str,
                         default='layer',
-                        required=True,
+                        required=False,
                         choices=['layer', 'channel', 'column'],
                         metavar='AxisName',
                         help='Target axis to organize the predictors. \
-                        layer: do mva using all unit within a layer\
-                        channel：do mva using all units within each channel. \
-                        column: do mva using all units within each column. \
+                        layer: do mva using all units/channels/colunms (accoring to -level) within a layer\
+                        channel：for each channel, do mva using all units within that channel. \
+                        column: for each column, do mva using all channels within that column. \
                         default is layer.')
+
+    parser.add_argument('-level',
+                        type=str,
+                        required=False,
+                        choices=['unit', 'channel', 'column'],
+                        metavar='MvLevel',
+                        help='level to perform multivariant analysis. \
+                        unit: do mva using all units within a layer\
+                        channel：do mva using all channels within a layer. \
+                        column: do mva using all columns within a layer. \
+                        level can only be specified if iteraix is layer. \
+                        dfe must be given if level is channel or column.')
 
     parser.add_argument('-dmask',
                         type=str,
@@ -60,7 +76,7 @@ def main():
                         type=str,
                         required=False,
                         metavar='DnnFeatureExtraction',
-                        choices=['hist', 'max', 'mean', 'median'],
+                        choices=['max', 'mean', 'median'],
                         help='Feature extraction for dnn activation in \
                         the specified axis. \
                         max: use max activiton as feature, \
@@ -76,29 +92,23 @@ def main():
 
     parser.add_argument('-stim',
                         type=str,
-                        required=False,
+                        required=True,
                         metavar='StimuliInfoFile',
-                        help='a stim.db.csv file provides stimuli information')
+                        help='a db.csv file contains stimuli information')
 
-    parser.add_argument('-movie',
-                        type=str,
-                        required=False,
-                        action='append',
-                        metavar='MoiveStimulusFile',
-                        help='a mp4 video file')
-
-    parser.add_argument('-response',
+    parser.add_argument('-resp',
                         type=str,
                         required=True,
                         metavar='ResponseFile',
                         help='a resp.db.csv file to provide target response. \
                         The target reponse could be behavior measures or \
-                        brain response from some rois')
+                        brain response from some rois. \
+                        No dot in filename except in extention')
 
     parser.add_argument('-hrf',
                         action='store_true',
                         required=False,
-                        help='The canonical HRF is used. Default no hrf is used')
+                        help='Canonical HRF is used. Default no hrf is used')
 
     parser.add_argument('-bmask',
                         type=str,
@@ -119,13 +129,13 @@ def main():
                         lrc: logistic regression for classification.')
 
     parser.add_argument('-cvfold',
-                        default=2,
+                        default=3,
                         type=int,
                         required=False,
                         metavar='FoldNumber',
                         help='Fold number of cross validation')
 
-    parser.add_argument('-outdir',
+    parser.add_argument('-out',
                         type=str,
                         required=True,
                         metavar='OutputDir',
@@ -135,41 +145,47 @@ def main():
 
     args = parser.parse_args()
 
+    # %% parameter error check
+    if args.iteraxis == 'layer' and args.level is None:
+        raise TypeError('level must be specified if iteraix is layer.')
+    if args.iteraxis in ['channel', 'column'] and args.level is not None:
+        raise TypeError('level can only be specified if iteraix is layer.')
+
+    if args.level == 'unit' and args.dfe is not None:
+        raise TypeError(
+                'dfe can only be applied when level is channel or column')
+    if args.level in ['channel', 'column'] and args.dfe is None:
+        raise TypeError('dfe must be specified if level is channel or column.')
+
+
     # %% Brain/behavior response(i.e.,Y)
     """
     First, we prepare the response data for exploring relations between
     the CNN activation and brain/behavior responses.
 
     """
-    if args.response.endswith('.db.csv'):
-        resp_dict = dio.read_dnn_csv(args.response)
-        Y = np.asarray(list(resp_dict['variable'].values())).T
-        if hasattr(resp_dict, 'tr'):
-            tr = float(resp_dict['tr'])
+    if args.resp.endswith('.db.csv'):
+        resp_dict = read_dnn_csv(args.resp)
+        Y = np.array(list(resp_dict['variable'].values())).T
 
-    elif args.response.endswith('.nii') or args.response.endswith('.nii.gz'):
-        resp, header = bio.load_brainimg(args.response)
-        bshape = resp.shape
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        Y, header = load_brainimg(args.resp)
+        bshape = Y.shape[1:]
 
         # Get resp data within brain mask
-        resp = resp.reshape(resp.shape[0], -1)  # n_stim x n_vox
         if args.bmask is None:
-            bmask = np.any(resp, 0)
+            bmask = np.any(Y, 0)
         else:
-            bmask, _ = bio.load_brainimg(args.bmask, ismask=True)
-            bmask = bmask.reshape(-1).astype(np.int)
-            assert bmask.shape[0] == resp.shape[1], (
-                              'brain mask and brain response mismatched in space')
-            Y = resp[:, bmask != 0]  # n_stim x n_roi or n_vox
+            bmask, _ = load_brainimg(args.bmask, ismask=True)
+            assert bshape == bmask.shape, (
+                    'brain mask and brain response mismatched in space')
+            bmask = bmask.astype(np.bool)
+        Y = Y[:, bmask]
 
-        # Get tr from nii header
-        tr = header['pixdim'][4]
-        if header.get_xyzt_units()[-1] == 'ms':
-            tr = tr / 1000
     else:
         raise Exception('Only db.csv and nii vloume are supported')
-
-    print('response data successfully loaded')
+    n_samp, n_meas = Y.shape  # n_sample x n_measurement
+    print('Finish loading response: ', args.resp)
 
     # %% CNN activation
     """
@@ -178,60 +194,79 @@ def main():
 
     """
     # Load CNN
-    netloader = dio.NetLoader(args.net)
+    netloader = NetLoader(args.net)
     transform = transforms.Compose([transforms.Resize(netloader.img_size),
                                     transforms.ToTensor()])
+
     # Load stimulus
-    stim = dio.read_dnn_csv(args.stim)
-    picdataset = dio.PicDataset(
-            stim['picPath'], stim['variable'], transform=transform)
-    picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
+    stim_dict = read_dnn_csv(args.stim)
+    if stim_dict['stimType'] == 'picture':
+        dataset = PicDataset(
+                stim_dict['stimPath'], stim_dict['variable']['stimID'],
+                stim_dict['variable'].get('condition', None),
+                transform=transform)
+    elif stim_dict['stimType'] == 'video':
+        dataset = VidDataset(
+                stim_dict['stimPath'], stim_dict['variable']['stimID'],
+                stim_dict['variable'].get('condition', None),
+                transform=transform)
+    else:
+        raise TypeError('{} is not a supported stimulus type.'.format(
+                stim_dict['stimType']))
+    data_loader = DataLoader(dataset, batch_size=100, shuffle=False)
 
-    # calculate dnn activation: n_stim * n_channel * unit * unit
-    dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer)
-    # n_stim * n_channel * n_unit
-    dnn_act = dnn_act.reshape(dnn_act.shape[0], dnn_act.shape[1], -1)
-
+    # Extract activation
+    print('Layer: {0}_{1}\nstimPath: {2}'.format(
+            args.net, args.layer, stim_dict['stimPath']))
+    if args.dmask is None:
+        dnn_act = dnn_activation(data_loader, args.net, args.layer)
+    else:
+        dmask = read_dnn_csv(args.dmask)
+        print('dmask: ', args.dmask)
+        dnn_act = dnn_activation(data_loader, args.net, args.layer,
+                                 channel=dmask['variable'].get('chn', None),
+                                 column=dmask['variable'].get('col', None))
     print('extraction of dnn activation finished')
 
-    # define dnn mask
-    if args.dmask is not None:
-        dmask = dio.read_dnn_csv(args.dmask)
-        chnoi = list(dmask['variable']['chn'])
-        coloi = list(dmask['variable']['col'])
-        dnn_act = dnn_act[:, chnoi][:, :, coloi]  # n_stim x n_chnoi x n_coloi
-
-        print('dmask successfully applied')
-
     # transpose axis accoring to user specified axis
-    # the specified axis in 2nd dimension
-    if args.axis == 'layer':
-        dnn_act = dnn_act.reshape(
-                dnn_act.shape[0], 1, dnn_act.shape[1]*dnn_act.shape[2])
-    elif args.axis == 'channel':
+    # perform feature extraction if iteraix is layer
+    # the specified axis in the 2nd dimension, level in the 3rd dimension
+    if args.iteraxis == 'channel':
         pass
-    elif args.axis == 'column':
+    elif args.iteraxis == 'column':
         dnn_act = dnn_act.transpose(0, 2, 1)
-    else:
-        raise Exception('Axis should be layer, channel or column.')
-        
-    # dnn feature extraction
-    if args.dfe is not None:
-        assert args.axis != 'layer', (
-                'dnn feacure extraction can not be applied in axis layer.')
-        if args.axis == 'channel':
+    elif args.iteraxis == 'layer':
+        # feature extraction on specified level
+        if args.level == 'unit':
+            dnn_act = dnn_act.reshape(
+                    dnn_act.shape[0], 1, dnn_act.shape[1]*dnn_act.shape[2])
+        elif args.level == 'channel':
             if args.dfe == 'mean':
-                dnn_act = np.mean(dnn_act, axis=-1)[..., None]
+                dnn_act = dnn_act.mean(2)
             elif args.dfe == 'max':
-                dnn_act = np.max(dnn_act, axis=-1)[..., None]
+                dnn_act = dnn_act.max(2)
             elif args.dfe == 'median':
-                dnn_act = np.median(dnn_act, axis=-1)[..., None]
-#            elif args.dfe == 'hist':
-#                dnn_act = np.histogramdd(dnn_act)
+                dnn_act = dnn_act.median(2)
+            else:
+                raise Exception('dfe should be mean, max or median.')
+            dnn_act = dnn_act.reshape(dnn_act.shape[0], 1, dnn_act.shape[1])    
+        elif args.level == 'column':
+            if args.dfe == 'mean':
+                dnn_act = dnn_act.mean(1)
+            elif args.dfe == 'max':
+                dnn_act = dnn_act.max(1)
+            elif args.dfe == 'median':
+                dnn_act = dnn_act.median(1)
+            else:
+                raise Exception('dfe should be mean, max or median.')
+            dnn_act = dnn_act.reshape(dnn_act.shape[0], 1, dnn_act.shape[1])
+        else:
+            raise Exception('Level should be unit, channel or column.')
+        print('dnn activation feature extraction finished')
+    else:
+        raise Exception('Iteraxis should be layer, channel or column.')
 
-        print('dnn feature extraction finished')
-
-    # PCA on dnn features
+    # PCA on dnn features and generate predictor(i.e., X)
     if args.dpca is not None:
         assert args.dpca < dnn_act.shape[-1], (
                 'number of PC in PCA can not be larger than sample size.')
@@ -242,18 +277,22 @@ def main():
             X[:, i, :] = pca.fit_transform(dnn_act[:, i, :])
 
         print('PCA on dnn activation finished')
+    else:
+        X = dnn_act
+    del dnn_act
 
     # size of cnn activation (i.e, X)
-    n_stim, n_axis, n_element = X.shape
+    n_stim, n_iterator, n_element = X.shape
 
     # Convert dnn activtaion to bold response.
-    if args.hrf is not None:
-        onset = stim['variable']['onset']
-        duration = stim['variable']['duration']
-
-        X = analyzer.generate_bold_regressor(
-                X.reshape(n_stim, -1), onset, duration, Y.shape[0], tr)
-        X = X.reshape(Y.shape[0], n_axis, n_element)
+    if args.hrf:
+        onset = stim_dict['variable']['onset']
+        duration = stim_dict['variable']['duration']
+        tr = float(stim_dict['hrf_tr'])
+        ops = int(stim_dict.get('hrf_ops', 100))
+        X = convolve_hrf(X.reshape(n_stim, -1),
+                         onset, duration, n_samp, tr, ops)
+        X = X.reshape(n_samp, n_iterator, n_element)
 
         print('hrf convolution on dnn activation finished')
 
@@ -265,13 +304,13 @@ def main():
     """
 
     if args.model == 'glm':
-        model = linear_model.LinearRegression()
+        mva_model = linear_model.LinearRegression()
     elif args.model == 'lasso':
-        model = linear_model.Lasso()
+        mva_model = linear_model.Lasso()
     elif args.model == 'svc':
-        model = svm.SVC(kernel="linear", C=0.025)
+        mva_model = svm.SVC(kernel="linear", C=0.025)
     elif args.model == 'lrc':
-        model = linear_model.LogisticRegression()
+        mva_model = linear_model.LogisticRegression()
     else:
         raise Exception('Please use glm or lasso for linear regression and \
                         svc or lrc for linear classification')
@@ -283,23 +322,25 @@ def main():
         scoring = 'accuracy'
 
     # run and validate mv models
-#    pred = []
-    coef = [], score = []
-    for i in range(n_axis):
+    score = []
+    model = np.zeros((n_iterator), dtype=np.object)
+    for i in range(n_iterator):
         # run mv model to do prediction
-        model.fit(X[:, i, :], Y)
-#        pred.append(model.predict(X[:, i, :]))
-        coef.append(model.coef_.T)
+        mva_model.fit(X[:, i, :], Y)
+
         # validate the model
-        score_chn = [model_selection.cross_val_score(
-                model, X[:, i, :], Y[:, j], scoring=scoring, cv=args.cvfold
+        score_i = [model_selection.cross_val_score(
+                mva_model, X[:, i, :], Y[:, j], scoring=scoring, cv=args.cvfold
                 ) for j in range(Y.shape[1])]
-        score.append(np.asarray(score_chn).mean(-1)[np.newaxis, :])
+        score.append(np.asarray(score_i).mean(-1))
+        
+        if n_iterator == 1:
+            # record prediction
+            pred = mva_model.predict(X[:, 0, :])     
+        model[i] = mva_model
         print('model fitting and validation on axis {0} finished'.format(
                 i+1))
-#    pred = np.asarray(pred).transpose(1, 0, 2)
-    coef = np.asarray(coef).transpose(1, 0, 2)
-    score = np.asarray(score).transpose(1, 0, 2)
+    score = np.asarray(score)
 
     print('model fitting and validation finished')
 
@@ -308,40 +349,50 @@ def main():
     Finally, we save the related results to the outdir.
 
     """
-    if os.path.exists(args.outdir) is not True:
-        os.makedirs(args.outdir)
+    layer_dir = pjoin(args.out, '{0}_{1}'.format(args.net, args.layer))
+    if not os.path.isdir(layer_dir):
+        os.makedirs(layer_dir)
 
-    # save files
-    if args.response.endswith('db.csv'):
+    iteraxis_dir = pjoin(layer_dir, args.iteraxis)
+    if not os.path.isdir(iteraxis_dir):
+        os.makedirs(iteraxis_dir)
 
-        # save model score
-        dict_score = {keys: score[0, :, i] for i, keys
-                      in enumerate(resp_dict['variable'].keys())}
-        score_op = pjoin(args.outdir, 'model_score.db.csv')
-        dio.save_dnn_csv(score_op, 'model_score', 'test', 'col', dict_score)
+    if args.resp.endswith('.db.csv'):
+        # save score
+        score_df = pd.DataFrame(score, columns=resp_dict['variable'].keys())
+        score_df.to_csv(pjoin(iteraxis_dir, 'model_score.csv'), index=False)
+        del score
+        
+        if n_iterator == 1:
+            # save pred
+            pred_df = pd.DataFrame(pred, columns=resp_dict['variable'].keys())
+            pred_df.to_csv(pjoin(iteraxis_dir, 'model_prediction.csv'),
+                           index=False)
+            del pred
 
-    else:
 
-        def wrap_nii(model_data, bmask, bshape):
-            """ wrap model_data into nii data
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        resp_suffix = '.'.join(args.resp.split('.')[1:])
+        # save score
+        score_img = np.zeros((n_iterator, *bshape))
+        score_img[:, bmask] = score
+        save_brainimg(pjoin(iteraxis_dir, 'model_score.'+resp_suffix),
+                      score_img, header)
+        del score
+        
+        if n_iterator == 1:
+            # save pred
+            pred_img = np.zeros((n_samp, *bshape))
+            pred_img[:, bmask] = pred
+            save_brainimg(pjoin(iteraxis_dir, 'model_pred.'+resp_suffix),
+                          pred_img, header)
+            del pred
 
-            parameters:
-            -----------
-            model_data[array]: [n_axis, n_voxel]
-            bmask[array]: [n_voxel] reshaped bmask,without geometrical info
-            bshape[array]: size = 3
-            """
-            n_axis = model_data.shape[0]
-            img = np.zeros((n_axis, bmask.shape[0]))
-            img[:, bmask != 0] = model_data
-            img = img.reshape((n_axis, bshape[1], bshape[2], bshape[3]))
+    # save model
+    pkl.dump(model, open(pjoin(iteraxis_dir, 'model.pkl'), 'wb'))
 
-            return img
+    print('all results successfully saved, analysis finished.')
 
-        # save model score
-        score_op = pjoin(args.outdir, 'model_score.nii.gz')
-        score_oimg = wrap_nii(score[0, :, :], bmask, bshape)
-        bio.save_brainimg(score_op, score_oimg, header)
 
 if __name__ == '__main__':
     main()
