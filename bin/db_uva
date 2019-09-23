@@ -92,29 +92,6 @@ def main():
                              'layer/[channel/column]/max_score, max_position')
     args = parser.parse_args()
 
-    # Load response
-    if args.resp.endswith('.db.csv'):
-        resp_dict = read_dnn_csv(args.resp)
-        Y = np.array(list(resp_dict['variable'].values())).T
-
-    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-        Y, header = load_brainimg(args.resp)
-        bshape = Y.shape[1, :]
-
-        # Get resp data within brain mask
-        if args.bmask is None:
-            bmask = np.any(Y, 0)
-        else:
-            bmask, _ = load_brainimg(args.bmask, ismask=True)
-            assert bshape == bmask.shape, 'brain mask and brain response mismatched in space'
-            bmask = bmask.astype(np.bool)
-        Y = Y[:, bmask]
-
-    else:
-        raise IOError('Only .db.csv and nifti/cifti are supported')
-    n_samp, n_meas = Y.shape  # n_sample x n_measurement
-    print('Finish loading response: ', args.resp)
-
     # ---Extract DNN activation start---
     start1 = time.time()
     # Load DNN
@@ -141,12 +118,34 @@ def main():
         dmask = read_dnn_csv(args.dmask)
         print('dmask: ', args.dmask)
         X = dnn_activation(data_loader, args.net, args.layer,
-                           channel=dmask['variable'].get('chn', None),
-                           column=dmask['variable'].get('col', None))
+                           dmask['variable']['chn'], dmask['variable']['col'])
     n_stim, n_chn, n_col = X.shape
     end1 = time.time()
     print('Finish extracting dnn activaton: cost {} seconds'.format(end1 - start1))
     # ---Extract DNN activation end---
+
+    # Load response
+    if args.resp.endswith('.db.csv'):
+        resp_dict = read_dnn_csv(args.resp)
+        Y = np.array(list(resp_dict['variable'].values())).T
+
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        Y, header = load_brainimg(args.resp)
+        bshape = Y.shape
+
+        # Get resp data within brain mask
+        if args.bmask is None:
+            bmask = np.any(Y, 0)
+        else:
+            bmask, _ = load_brainimg(args.bmask, ismask=True)
+            assert bshape[1:] == bmask.shape, 'brain mask and brain response mismatched in space'
+            bmask = bmask.astype(np.bool)
+        Y = Y[:, bmask]
+
+    else:
+        raise IOError('Only .db.csv and nifti/cifti are supported')
+    n_samp, n_feat = Y.shape  # n_sample x n_feature
+    print('Finish loading response: ', args.resp)
 
     # Convolute with HRF
     if args.hrf:
@@ -173,10 +172,10 @@ def main():
 
     # Perform univariate prediction analysis
     if args.iteraxis == 'channel':
-        score_arr = np.zeros((n_chn, n_meas), dtype=np.float)
+        score_arr = np.zeros((n_chn, n_feat), dtype=np.float)
         position_arr = np.zeros_like(score_arr, dtype=np.int)
         model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for feat_idx in range(n_meas):
+        for feat_idx in range(n_feat):
             for chn_idx in range(n_chn):
                 score_tmp = []
                 for col_idx in range(n_col):
@@ -189,12 +188,12 @@ def main():
                 position = max_col_idx+1 if args.dmask is None else dmask['variable']['col'][max_col_idx]+1
                 position_arr[chn_idx, feat_idx] = position
                 model_arr[chn_idx, feat_idx] = model.fit(X[:, chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
-                print('Feat{0}/{1}: finish iterate chn_idx{2}'.format(feat_idx+1, n_meas, chn_idx))
+                print('Feat{0}/{1}: finish iterate chn_idx{2}'.format(feat_idx+1, n_feat, chn_idx))
     elif args.iteraxis == 'column':
-        score_arr = np.zeros((n_col, n_meas), dtype=np.float)
+        score_arr = np.zeros((n_col, n_feat), dtype=np.float)
         position_arr = np.zeros_like(score_arr, dtype=np.int)
         model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for feat_idx in range(n_meas):
+        for feat_idx in range(n_feat):
             for col_idx in range(n_col):
                 score_tmp = []
                 for chn_idx in range(n_chn):
@@ -207,12 +206,12 @@ def main():
                 position = max_chn_idx+1 if args.dmask is None else dmask['variable']['chn'][max_chn_idx]+1
                 position_arr[col_idx, feat_idx] = position
                 model_arr[col_idx, feat_idx] = model.fit(X[:, max_chn_idx, col_idx][:, np.newaxis], Y[:, feat_idx])
-                print('Feat{0}/{1}: finish iterate col_idx{2}'.format(feat_idx+1, n_meas, col_idx))
+                print('Feat{0}/{1}: finish iterate col_idx{2}'.format(feat_idx+1, n_feat, col_idx))
     else:
-        score_arr = np.zeros((1, n_meas), dtype=np.float)
-        position_arr = np.zeros((2, n_meas), dtype=np.int)
+        score_arr = np.zeros((1, n_feat), dtype=np.float)
+        position_arr = np.zeros((2, n_feat), dtype=np.int)
         model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for feat_idx in range(n_meas):
+        for feat_idx in range(n_feat):
             score_tmp = np.zeros((n_chn, n_col))
             for chn_idx in range(n_chn):
                 for col_idx in range(n_col):
@@ -233,7 +232,7 @@ def main():
             position_arr[0, feat_idx] = pos_chn
             position_arr[1, feat_idx] = pos_col
             model_arr[0, feat_idx] = model.fit(X[:, max_chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
-            print('Feat{0}/{1}: finished'.format(feat_idx+1, n_meas))
+            print('Feat{0}/{1}: finished'.format(feat_idx+1, n_feat))
     end3 = time.time()
     print('Finish prediction: cost {} seconds'.format(end3 - start3))
     # ---Do prediction end---
@@ -249,7 +248,7 @@ def main():
             os.makedirs(channel_dir)
         if args.resp.endswith('.db.csv'):
             score_df = pd.DataFrame(score_arr, columns=resp_dict['variable'].keys())
-            del score_arr  # save memory        
+            del score_arr  # save memory
             position_df = pd.DataFrame(position_arr, columns=resp_dict['variable'].keys())
             del position_arr  # save memory
             score_df.to_csv(pjoin(channel_dir, 'max_score.csv'), index=False)
@@ -260,7 +259,7 @@ def main():
             position_df.insert(0, 'chn_num', chn_nums)
             position_df.to_csv(pjoin(channel_dir, 'max_position.csv'), index=False)
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((n_chn, *bshape))
+            score_img = np.zeros((n_chn, *bshape[1:]))
             score_img[:, bmask] = score_arr
             del score_arr  # save memory
             position_img = np.zeros_like(score_img)
@@ -287,7 +286,7 @@ def main():
             position_df.insert(0, 'col_num', col_nums)
             position_df.to_csv(pjoin(column_dir, 'max_position.csv'), index=False)
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((n_col, *bshape))
+            score_img = np.zeros((n_col, *bshape[1:]))
             score_img[:, bmask] = score_arr
             del score_arr  # save memory
             position_img = np.zeros_like(score_img)
@@ -307,10 +306,10 @@ def main():
             position_df.insert(0, 'axis', ['channel', 'column'])
             position_df.to_csv(pjoin(layer_dir, 'max_position.csv'), index=False)
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((1, *bshape))
+            score_img = np.zeros((1, *bshape[1:]))
             score_img[0, bmask] = score_arr
             del score_arr  # save memory
-            position_img = np.zeros((2, *bshape))
+            position_img = np.zeros((2, *bshape[1:]))
             position_img[:, bmask] = position_arr
             del position_arr  # save memory
             save_brainimg(pjoin(layer_dir, 'max_score.' + resp_suffix), score_img, header)
