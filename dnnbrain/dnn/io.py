@@ -2,7 +2,9 @@ import os
 import cv2
 import scipy.io
 import numpy as np
+
 from torchvision import transforms
+from collections import OrderedDict
 from dnnbrain.dnn.models import Vgg_face
 
 try:
@@ -24,7 +26,7 @@ class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, par_path, pic_ids, conditions=None, transform=None, crop=False):
+    def __init__(self, par_path, pic_ids, conditions=None, transform=None, crops=None):
         """
         Initialize PicDataset
 
@@ -34,25 +36,18 @@ class PicDataset:
         pic_ids[sequence]: Each pic_id is a path which can find the picture file relative to par_path.
         conditions[sequence]: Each picture's condition.
         transform[callable function]: optional transform to be applied on a sample.
-        crop[bool]: crop picture optionally by a bounding box.
-            The coordinates of bounding box for crop pictures should be
-                measurements in stim_dict.
-            The keys of coordinates in stim_dict should be
-                left_coord,upper_coord,right_coord,lower_coord.
+        crops[array]: 2D array with shape (n_pic, 4)
+            Row index is corresponding to the index in pic_ids.
+            Each row is a bounding box which is used to crop the picture.
+            Each bounding box's four elements are:
+                left_coord, upper_coord, right_coord, lower_coord.
         """
         self.par_path = par_path
         self.pic_ids = pic_ids
         self.conditions = np.ones(len(self.pic_ids)) if conditions is None else conditions
         self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
-
-        # get crop information
-        self.crop = crop
-        if self.crop:
-            self.left = np.array(self.stim_dict['left_coord'])
-            self.upper = np.array(self.stim_dict['upper_coord'])
-            self.right = np.array(self.stim_dict['right_coord'])
-            self.lower = np.array(self.stim_dict['lower_coord'])
+        self.crops = crops
 
     def __len__(self):
         """
@@ -73,15 +68,15 @@ class PicDataset:
         pic_img: picture data, save as a pillow instance
         trg_label: target of each sample (label)
         """
-        # load pictures
+        # load picture
         pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx])).convert('RGB')
-        if self.crop:
-            pic_img = pic_img.crop(
-                (self.left[idx], self.upper[idx],
-                 self.right[idx], self.lower[idx]))
-        pic_img = self.transform(pic_img)
-        trg_label = self.conditions_uniq.index(self.conditions[idx])
 
+        # crop picture
+        if self.crops is not None:
+            pic_img = pic_img.crop(self.crops[idx])
+
+        pic_img = self.transform(pic_img)  # transform picture
+        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
         return pic_img, trg_label
 
     def get_picname(self, idx):
@@ -104,7 +99,7 @@ class VidDataset:
     """
     Dataset for video data
     """
-    def __init__(self, vid_file, frame_nums, conditions=None, transform=None):
+    def __init__(self, vid_file, frame_nums, conditions=None, transform=None, crops=None):
         """
         Parameters:
         -----------
@@ -112,22 +107,31 @@ class VidDataset:
         frame_nums[sequence]: sequence numbers of the frames of interest
         conditions[sequence]: each frame's condition
         transform[pytorch transform]
+        crops[array]: 2D array with shape (n_pic, 4)
+            Row index is corresponding to the index in frame_nums.
+            Each row is a bounding box which is used to crop the frame.
+            Each bounding box's four elements are:
+                left_coord, upper_coord, right_coord, lower_coord.
         """
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
         self.conditions = np.ones(len(self.frame_nums)) if conditions is None else conditions
         self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
+        self.crops = crops
 
     def __getitem__(self, idx):
         # get frame
         self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_nums[idx]-1)
         _, frame = self.vid_cap.read()
-        frame = self.transform(Image.fromarray(frame))
+        frame_img = Image.fromarray(frame)
 
-        # get target
-        trg_label = self.conditions_uniq.index(self.conditions[idx])
+        # crop frame
+        if self.crops is not None:
+            frame_img = frame_img.crop(self.crops[idx])
 
+        frame = self.transform(frame_img)  # transform frame
+        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
         return frame, trg_label
 
     def __len__(self):
@@ -294,7 +298,7 @@ def read_dnn_csv(dnn_csv):
         title:picture stimuli
         stimPath:parent_dir_to_pictures
         stimType:picture
-        [Several optional keys]
+        [Several optional keys] (eg., crop:True)
         variableName:stimID,[onset],[duration],[condition]
         pic1_path,0,1,cat
         pic2_path,1,1,dog
@@ -307,7 +311,7 @@ def read_dnn_csv(dnn_csv):
         title:video stimuli
         stimPath:path_to_video_file
         stimType:video
-        [Several optional keys]
+        [Several optional keys] (eg., hrf_tr:2)
         variableName:stimID,[onset],[duration],[condition]
         1,0,1,cat
         2,1,1,dog
@@ -394,8 +398,10 @@ def read_dnn_csv(dnn_csv):
         else:
             raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
 
-    dict_variable = {k: variable_data[i] for i, k in enumerate(variable_keys)}
-    dbcsv['variable'] = dict_variable
+    var_dict = OrderedDict()
+    for idx, key in enumerate(variable_keys):
+        var_dict[key] = variable_data[idx]
+    dbcsv['var'] = var_dict
     return dbcsv
 
 

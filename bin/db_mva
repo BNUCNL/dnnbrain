@@ -166,7 +166,7 @@ def main():
     """
     if args.resp.endswith('.db.csv'):
         resp_dict = read_dnn_csv(args.resp)
-        Y = np.array(list(resp_dict['variable'].values())).T
+        Y = np.array(list(resp_dict['var'].values())).T
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
         Y, header = load_brainimg(args.resp)
@@ -200,16 +200,22 @@ def main():
 
     # Load stimulus
     stim_dict = read_dnn_csv(args.stim)
+
+    is_crop = stim_dict.get('crop', 'False')
+    if is_crop == 'True':
+        crops = np.array([stim_dict['var']['left_coord'], stim_dict['var']['upper_coord'],
+                          stim_dict['var']['right_coord'], stim_dict['var']['lower_coord']]).T
+    else:
+        crops = None
+
     if stim_dict['stimType'] == 'picture':
         dataset = PicDataset(
-                stim_dict['stimPath'], stim_dict['variable']['stimID'],
-                stim_dict['variable'].get('condition', None),
-                transform=transform)
+                stim_dict['stimPath'], stim_dict['var']['stimID'],
+                stim_dict['var'].get('condition', None), transform, crops)
     elif stim_dict['stimType'] == 'video':
         dataset = VidDataset(
-                stim_dict['stimPath'], stim_dict['variable']['stimID'],
-                stim_dict['variable'].get('condition', None),
-                transform=transform)
+                stim_dict['stimPath'], stim_dict['var']['stimID'],
+                stim_dict['var'].get('condition', None), transform, crops)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(
                 stim_dict['stimType']))
@@ -224,8 +230,8 @@ def main():
         dmask = read_dnn_csv(args.dmask)
         print('dmask: ', args.dmask)
         dnn_act = dnn_activation(data_loader, args.net, args.layer,
-                                 channel=dmask['variable'].get('chn', None),
-                                 column=dmask['variable'].get('col', None))
+                                 channel=dmask['var'].get('chn', None),
+                                 column=dmask['var'].get('col', None))
     print('extraction of dnn activation finished')
 
     # transpose axis accoring to user specified axis
@@ -286,8 +292,8 @@ def main():
 
     # Convert dnn activtaion to bold response.
     if args.hrf:
-        onset = stim_dict['variable']['onset']
-        duration = stim_dict['variable']['duration']
+        onset = stim_dict['var']['onset']
+        duration = stim_dict['var']['duration']
         tr = float(stim_dict['hrf_tr'])
         ops = int(stim_dict.get('hrf_ops', 100))
         X = convolve_hrf(X.reshape(n_stim, -1),
@@ -359,13 +365,13 @@ def main():
 
     if args.resp.endswith('.db.csv'):
         # save score
-        score_df = pd.DataFrame(score, columns=resp_dict['variable'].keys())
+        score_df = pd.DataFrame(score, columns=resp_dict['var'].keys())
         score_df.to_csv(pjoin(iteraxis_dir, 'model_score.csv'), index=False)
         del score
         
         if n_iterator == 1:
             # save pred
-            pred_df = pd.DataFrame(pred, columns=resp_dict['variable'].keys())
+            pred_df = pd.DataFrame(pred, columns=resp_dict['var'].keys())
             pred_df.to_csv(pjoin(iteraxis_dir, 'model_prediction.csv'),
                            index=False)
             del pred
