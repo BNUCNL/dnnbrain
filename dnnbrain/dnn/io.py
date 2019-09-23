@@ -2,7 +2,9 @@ import os
 import cv2
 import scipy.io
 import numpy as np
+
 from torchvision import transforms
+from collections import OrderedDict
 from dnnbrain.dnn.models import Vgg_face
 
 try:
@@ -294,7 +296,7 @@ def read_dnn_csv(dnn_csv):
         title:picture stimuli
         stimPath:parent_dir_to_pictures
         stimType:picture
-        [Several optional keys]
+        [Several optional keys] (eg., crop:True)
         variableName:stimID,[onset],[duration],[condition]
         pic1_path,0,1,cat
         pic2_path,1,1,dog
@@ -307,7 +309,7 @@ def read_dnn_csv(dnn_csv):
         title:video stimuli
         stimPath:path_to_video_file
         stimType:video
-        [Several optional keys]
+        [Several optional keys] (eg., hrf_tr:2)
         variableName:stimID,[onset],[duration],[condition]
         1,0,1,cat
         2,1,1,dog
@@ -394,8 +396,10 @@ def read_dnn_csv(dnn_csv):
         else:
             raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
 
-    dict_variable = {k: variable_data[i] for i, k in enumerate(variable_keys)}
-    dbcsv['variable'] = dict_variable
+    var_dict = OrderedDict()
+    for idx, key in enumerate(variable_keys):
+        var_dict[key] = variable_data[idx]
+    dbcsv['var'] = var_dict
     return dbcsv
 
 

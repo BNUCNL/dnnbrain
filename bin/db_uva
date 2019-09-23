@@ -104,14 +104,14 @@ def main():
     # Load stimuli
     stim_dict = read_dnn_csv(args.stim)
     if stim_dict['stimType'] == 'picture':
-        dataset = PicDataset(stim_dict['stimPath'], stim_dict['variable']['stimID'],
-                             stim_dict['variable'].get('condition', None), transform=transform)
+        dataset = PicDataset(stim_dict['stimPath'], stim_dict['var']['stimID'],
+                             stim_dict['var'].get('condition', None), transform)
     elif stim_dict['stimType'] == 'video':
-        dataset = VidDataset(stim_dict['stimPath'], stim_dict['variable']['stimID'],
-                             stim_dict['variable'].get('condition', None), transform=transform)
+        dataset = VidDataset(stim_dict['stimPath'], stim_dict['var']['stimID'],
+                             stim_dict['var'].get('condition', None), transform)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['stimType']))
-    data_loader = DataLoader(dataset, batch_size=8, shuffle=False)
+    data_loader = DataLoader(dataset, batch_size=100, shuffle=False)
 
     # Extract activation
     print('Layer: {0}_{1}\nstimPath: {2}'.format(args.net, args.layer, stim_dict['stimPath']))
@@ -121,7 +121,7 @@ def main():
         dmask = read_dnn_csv(args.dmask)
         print('dmask: ', args.dmask)
         X = dnn_activation(data_loader, args.net, args.layer,
-                           dmask['variable']['chn'], dmask['variable']['col'])
+                           dmask['var']['chn'], dmask['var']['col'])
     n_stim, n_chn, n_col = X.shape
     end1 = time.time()
     print('Finish extracting dnn activaton: cost {} seconds'.format(end1 - start1))
@@ -130,7 +130,7 @@ def main():
     # Load response
     if args.resp.endswith('.db.csv'):
         resp_dict = read_dnn_csv(args.resp)
-        Y = np.array(list(resp_dict['variable'].values())).T
+        Y = np.array(list(resp_dict['var'].values())).T
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
         Y, header = load_brainimg(args.resp)
@@ -153,8 +153,8 @@ def main():
     # Convolute with HRF
     if args.hrf:
         start2 = time.time()
-        onset = stim_dict['variable']['onset']
-        duration = stim_dict['variable']['duration']
+        onset = stim_dict['var']['onset']
+        duration = stim_dict['var']['duration']
         tr = float(stim_dict['hrf_tr'])
         ops = int(stim_dict.get('hrf_ops', 100))
         X = convolve_hrf(X.reshape(n_stim, -1), onset, duration, n_samp, tr, ops)
@@ -192,7 +192,7 @@ def main():
                 max_col_idx = np.argmax(score_tmp)
                 max_score = score_tmp[max_col_idx]
                 score_arr[chn_idx, feat_idx] = max_score
-                position = max_col_idx+1 if args.dmask is None else dmask['variable']['col'][max_col_idx]+1
+                position = max_col_idx+1 if args.dmask is None else dmask['var']['col'][max_col_idx]+1
                 position_arr[chn_idx, feat_idx] = position
                 model_arr[chn_idx, feat_idx] = model.fit(X[:, chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
                 print('Feat{0}/{1}: finish iterate chn_idx{2}'.format(feat_idx+1, n_feat, chn_idx))
@@ -214,7 +214,7 @@ def main():
                 max_chn_idx = np.argmax(score_tmp)
                 max_score = score_tmp[max_chn_idx]
                 score_arr[col_idx, feat_idx] = max_score
-                position = max_chn_idx+1 if args.dmask is None else dmask['variable']['chn'][max_chn_idx]+1
+                position = max_chn_idx+1 if args.dmask is None else dmask['var']['chn'][max_chn_idx]+1
                 position_arr[col_idx, feat_idx] = position
                 model_arr[col_idx, feat_idx] = model.fit(X[:, max_chn_idx, col_idx][:, np.newaxis], Y[:, feat_idx])
                 print('Feat{0}/{1}: finish iterate col_idx{2}'.format(feat_idx+1, n_feat, col_idx))
@@ -242,8 +242,8 @@ def main():
                 pos_chn = max_chn_idx + 1
                 pos_col = max_col_idx + 1
             else:
-                pos_chn = dmask['variable']['chn'][max_chn_idx] + 1
-                pos_col = dmask['variable']['col'][max_col_idx] + 1
+                pos_chn = dmask['var']['chn'][max_chn_idx] + 1
+                pos_col = dmask['var']['col'][max_col_idx] + 1
             position_arr[0, feat_idx] = pos_chn
             position_arr[1, feat_idx] = pos_col
             model_arr[0, feat_idx] = model.fit(X[:, max_chn_idx, max_col_idx][:, np.newaxis], Y[:, feat_idx])
@@ -262,15 +262,15 @@ def main():
         if not os.path.isdir(channel_dir):
             os.makedirs(channel_dir)
         if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['variable'].keys())
+            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
             del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['variable'].keys())
+            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
             del position_arr  # save memory
             score_df.to_csv(pjoin(channel_dir, 'max_score.csv'), index=False)
             if args.dmask is None:
                 chn_nums = range(1, n_chn+1)
             else:
-                chn_nums = [i + 1 for i in dmask['variable']['chn']]
+                chn_nums = [i + 1 for i in dmask['var']['chn']]
             position_df.insert(0, 'chn_num', chn_nums)
             position_df.to_csv(pjoin(channel_dir, 'max_position.csv'), index=False)
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
@@ -289,15 +289,15 @@ def main():
         if not os.path.isdir(column_dir):
             os.makedirs(column_dir)
         if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['variable'].keys())
+            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
             del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['variable'].keys())
+            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
             del position_arr  # save memory
             score_df.to_csv(pjoin(column_dir, 'max_score.csv'), index=False)
             if args.dmask is None:
                 col_nums = range(1, n_col+1)
             else:
-                col_nums = [i + 1 for i in dmask['variable']['col']]
+                col_nums = [i + 1 for i in dmask['var']['col']]
             position_df.insert(0, 'col_num', col_nums)
             position_df.to_csv(pjoin(column_dir, 'max_position.csv'), index=False)
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
@@ -313,9 +313,9 @@ def main():
 
     else:
         if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['variable'].keys())
+            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
             del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['variable'].keys())
+            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
             del position_arr  # save memory
             score_df.to_csv(pjoin(layer_dir, 'max_score.csv'), index=False)
             position_df.insert(0, 'axis', ['channel', 'column'])
