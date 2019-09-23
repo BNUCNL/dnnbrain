@@ -200,16 +200,22 @@ def main():
 
     # Load stimulus
     stim_dict = read_dnn_csv(args.stim)
+
+    is_crop = stim_dict.get('crop', 'False')
+    if is_crop == 'True':
+        crops = np.array([stim_dict['var']['left_coord'], stim_dict['var']['upper_coord'],
+                          stim_dict['var']['right_coord'], stim_dict['var']['lower_coord']]).T
+    else:
+        crops = None
+
     if stim_dict['stimType'] == 'picture':
         dataset = PicDataset(
                 stim_dict['stimPath'], stim_dict['var']['stimID'],
-                stim_dict['var'].get('condition', None),
-                transform=transform)
+                stim_dict['var'].get('condition', None), transform, crops)
     elif stim_dict['stimType'] == 'video':
         dataset = VidDataset(
                 stim_dict['stimPath'], stim_dict['var']['stimID'],
-                stim_dict['var'].get('condition', None),
-                transform=transform)
+                stim_dict['var'].get('condition', None), transform, crops)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(
                 stim_dict['stimType']))
