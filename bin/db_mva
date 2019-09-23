@@ -44,7 +44,7 @@ def main():
     parser.add_argument('-iteraxis',
                         type=str,
                         default='layer',
-                        required=True,
+                        required=False,
                         choices=['layer', 'channel', 'column'],
                         metavar='AxisName',
                         help='Target axis to organize the predictors. \
@@ -76,7 +76,7 @@ def main():
                         type=str,
                         required=False,
                         metavar='DnnFeatureExtraction',
-                        choices=['hist', 'max', 'mean', 'median'],
+                        choices=['max', 'mean', 'median'],
                         help='Feature extraction for dnn activation in \
                         the specified axis. \
                         max: use max activiton as feature, \
@@ -129,7 +129,7 @@ def main():
                         lrc: logistic regression for classification.')
 
     parser.add_argument('-cvfold',
-                        default=2,
+                        default=3,
                         type=int,
                         required=False,
                         metavar='FoldNumber',
