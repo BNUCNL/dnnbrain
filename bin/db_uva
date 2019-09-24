@@ -179,7 +179,14 @@ def main():
     print('Finish extracting DNN activaton: cost {} seconds'.format(end1 - start1))
     # -Extract DNN activation end-
 
-    # Convolute with HRF
+    # transpose axis to keep X's shape as (n_stimulus, n_iterator, n_element)
+    if args.iteraxis == 'layer':
+        X = X.reshape(n_stim, 1, n_chn * n_col)
+    elif args.iteraxis == 'column':
+        X = X.transpose(0, 2, 1)
+    n_stim, n_iter, n_elem = X.shape
+
+    # Convolve with HRF
     if args.hrf:
         start2 = time.time()
         onset = stim_dict['var']['onset']
@@ -187,13 +194,13 @@ def main():
         tr = float(stim_dict['hrf_tr'])
         ops = int(stim_dict.get('hrf_ops', 100))
         X = convolve_hrf(X.reshape(n_stim, -1), onset, duration, n_samp, tr, ops)
-        X = X.reshape(n_samp, n_chn, n_col)  # cover X before HRFed, save memory
+        X = X.reshape(n_samp, n_iter, n_elem)  # cover X before HRFed, save memory
         end2 = time.time()
         print('Finish HRF convolution: cost {} seconds'.format(end2 - start2))
 
-    # ---Do prediction start---
+    # -Do prediction start-
     start3 = time.time()
-    # Prepare model
+    # --Prepare model--
     if args.model == 'lrc':
         model = LogisticRegression()
         score_evl = 'accuracy'
@@ -202,163 +209,108 @@ def main():
         score_evl = 'explained_variance'
     print('Model:', args.model)
 
-    # Perform univariate prediction analysis
-    if args.iteraxis == 'channel':
-        score_arr = np.zeros((n_chn, n_meas), dtype=np.float)
-        position_arr = np.zeros_like(score_arr, dtype=np.int)
-        model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for meas_idx in range(n_meas):
-            for chn_idx in range(n_chn):
-                if args.model == 'corr_r':
-                    score_tmp = pairwise_distances(X[:, chn_idx, :].T, Y[:, meas_idx].reshape(1, -1), 'correlation')
-                    score_tmp = (1 - np.squeeze(score_tmp)) ** 2
-                else:
-                    score_tmp = []
-                    for col_idx in range(n_col):
-                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                    Y[:, meas_idx], scoring=score_evl, cv=args.cvfold)
-                        score_tmp.append(np.mean(cv_scores))
-                max_col_idx = np.argmax(score_tmp)
-                max_score = score_tmp[max_col_idx]
-                score_arr[chn_idx, meas_idx] = max_score
-                position = max_col_idx+1 if args.dmask is None else dmask['var']['col'][max_col_idx]+1
-                position_arr[chn_idx, meas_idx] = position
-                model_arr[chn_idx, meas_idx] = model.fit(X[:, chn_idx, max_col_idx][:, np.newaxis], Y[:, meas_idx])
-                print('Measure{0}/{1}: finish iterate chn_idx{2}'.format(meas_idx+1, n_meas, chn_idx))
-    elif args.iteraxis == 'column':
-        score_arr = np.zeros((n_col, n_meas), dtype=np.float)
-        position_arr = np.zeros_like(score_arr, dtype=np.int)
-        model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for meas_idx in range(n_meas):
-            for col_idx in range(n_col):
-                if args.model == 'corr_r':
-                    score_tmp = pairwise_distances(X[:, :, col_idx].T, Y[:, meas_idx].reshape(1, -1), 'correlation')
-                    score_tmp = (1 - np.squeeze(score_tmp)) ** 2
-                else:
-                    score_tmp = []
-                    for chn_idx in range(n_chn):
-                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                    Y[:, meas_idx], scoring=score_evl, cv=args.cvfold)
-                        score_tmp.append(np.mean(cv_scores))
-                max_chn_idx = np.argmax(score_tmp)
-                max_score = score_tmp[max_chn_idx]
-                score_arr[col_idx, meas_idx] = max_score
-                position = max_chn_idx+1 if args.dmask is None else dmask['var']['chn'][max_chn_idx]+1
-                position_arr[col_idx, meas_idx] = position
-                model_arr[col_idx, meas_idx] = model.fit(X[:, max_chn_idx, col_idx][:, np.newaxis], Y[:, meas_idx])
-                print('Measure{0}/{1}: finish iterate col_idx{2}'.format(meas_idx+1, n_meas, col_idx))
-    else:
-        score_arr = np.zeros((1, n_meas), dtype=np.float)
-        position_arr = np.zeros((2, n_meas), dtype=np.int)
-        model_arr = np.zeros_like(score_arr, dtype=np.object)
-        for meas_idx in range(n_meas):
+    # --Perform univariate prediction analysis--
+    # prepare container
+    score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
+    if args.dfe is None:
+        # Channel and column positions only exist when args.dfe is None
+        channel_arr = np.zeros_like(score_arr, dtype=np.int)
+        column_arr = np.zeros_like(score_arr, dtype=np.int)
+    model_arr = np.zeros_like(score_arr, dtype=np.object)
+
+    # start iteration
+    for meas_idx in range(n_meas):
+        for iter_idx in range(n_iter):
             if args.model == 'corr_r':
-                score_tmp = pairwise_distances(X.reshape(n_samp, -1).T, Y[:, meas_idx].reshape(1, -1), 'correlation')
-                score_tmp = (1 - score_tmp.reshape(n_chn, n_col)) ** 2
+                score_tmp = pairwise_distances(X[:, iter_idx, :].T, Y[:, meas_idx].reshape(1, -1), 'correlation')
+                score_tmp = (1 - np.squeeze(score_tmp)) ** 2
             else:
-                score_tmp = np.zeros((n_chn, n_col))
-                for chn_idx in range(n_chn):
-                    for col_idx in range(n_col):
-                        cv_scores = cross_val_score(model, X[:, chn_idx, col_idx][:, np.newaxis],
-                                                    Y[:, meas_idx], scoring=score_evl, cv=args.cvfold)
-                        score_tmp[chn_idx, col_idx] = np.mean(cv_scores)
-            max_score = np.max(score_tmp)
-            max_indices = np.where(score_tmp == max_score)
-            max_chn_idx = max_indices[0][0]
-            max_col_idx = max_indices[1][0]
-            score_arr[0, meas_idx] = max_score
-            if args.dmask is None:
-                pos_chn = max_chn_idx + 1
-                pos_col = max_col_idx + 1
-            else:
-                pos_chn = dmask['var']['chn'][max_chn_idx] + 1
-                pos_col = dmask['var']['col'][max_col_idx] + 1
-            position_arr[0, meas_idx] = pos_chn
-            position_arr[1, meas_idx] = pos_col
-            model_arr[0, meas_idx] = model.fit(X[:, max_chn_idx, max_col_idx][:, np.newaxis], Y[:, meas_idx])
-            print('Measure{0}/{1}: finished'.format(meas_idx+1, n_meas))
+                score_tmp = []
+                for elem_idx in range(n_elem):
+                    cv_scores = cross_val_score(model, X[:, iter_idx, elem_idx][:, np.newaxis],
+                                                Y[:, meas_idx], scoring=score_evl, cv=args.cvfold)
+                    score_tmp.append(np.mean(cv_scores))
+
+            # find max score
+            max_elem_idx = np.argmax(score_tmp)
+            max_score = score_tmp[max_elem_idx]
+            score_arr[iter_idx, meas_idx] = max_score
+
+            # find position for the max score
+            if args.dfe is None:
+                if args.iteraxis == 'layer':
+                    chn_idx = max_elem_idx // n_col
+                    col_idx = max_elem_idx % n_col
+                elif args.iteraxis == 'channel':
+                    chn_idx, col_idx = iter_idx, max_elem_idx
+                else:
+                    chn_idx, col_idx = max_elem_idx, iter_idx
+
+                if args.dmask is None:
+                    chn_pos = chn_idx + 1
+                    col_pos = col_idx + 1
+                else:
+                    chn_pos = dmask['var']['chn'][chn_idx] + 1
+                    col_pos = dmask['var']['col'][col_idx] + 1
+
+                channel_arr[iter_idx, meas_idx] = chn_pos
+                column_arr[iter_idx, meas_idx] = col_pos
+
+            # fit the max-score model
+            model_arr[iter_idx, meas_idx] = model.fit(X[:, iter_idx, max_elem_idx][:, np.newaxis], Y[:, meas_idx])
+            print('Measure{0}/{1}: finish iteration{2}/{3}'.format(meas_idx+1, n_meas, iter_idx+1, n_iter))
     end3 = time.time()
     print('Finish prediction: cost {} seconds'.format(end3 - start3))
-    # ---Do prediction end---
+    # -Do prediction end-
 
-    # Save out
-    resp_suffix = '.'.join(args.resp.split('.')[1:])
-    layer_dir = pjoin(args.out, '{0}_{1}'.format(args.net, args.layer))
-    if not os.path.isdir(layer_dir):
-        os.makedirs(layer_dir)
-    if args.iteraxis == 'channel':
-        channel_dir = pjoin(layer_dir, 'channel')
-        if not os.path.isdir(channel_dir):
-            os.makedirs(channel_dir)
-        if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
-            del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
-            del position_arr  # save memory
-            score_df.to_csv(pjoin(channel_dir, 'max_score.csv'), index=False)
-            if args.dmask is None:
-                chn_nums = range(1, n_chn+1)
-            else:
-                chn_nums = [i + 1 for i in dmask['var']['chn']]
-            position_df.insert(0, 'chn_num', chn_nums)
-            position_df.to_csv(pjoin(channel_dir, 'max_position.csv'), index=False)
-        elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((n_chn, *bshape))
-            score_img[:, bmask] = score_arr
-            del score_arr  # save memory
-            position_img = np.zeros_like(score_img)
-            position_img[:, bmask] = position_arr
-            del position_arr  # save memory
-            save_brainimg(pjoin(channel_dir, 'max_score.'+resp_suffix), score_img, header)
-            save_brainimg(pjoin(channel_dir, 'max_position.'+resp_suffix), position_img, header)
-        pkl.dump(model_arr, open(pjoin(channel_dir, 'max_model.pkl'), 'wb'))
+    # -save out start-
+    # prepare directory
+    trg_dir = pjoin(args.out, '{0}_{1}'.format(args.net, args.layer))
+    if not os.path.isdir(trg_dir):
+        os.makedirs(trg_dir)
+    if args.iteraxis != 'layer':
+        trg_dir = pjoin(trg_dir, args.iteraxis)
+        if not os.path.isdir(trg_dir):
+            os.makedirs(trg_dir)
 
-    elif args.iteraxis == 'column':
-        column_dir = pjoin(layer_dir, 'column')
-        if not os.path.isdir(column_dir):
-            os.makedirs(column_dir)
-        if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
-            del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
-            del position_arr  # save memory
-            score_df.to_csv(pjoin(column_dir, 'max_score.csv'), index=False)
-            if args.dmask is None:
-                col_nums = range(1, n_col+1)
-            else:
-                col_nums = [i + 1 for i in dmask['var']['col']]
-            position_df.insert(0, 'col_num', col_nums)
-            position_df.to_csv(pjoin(column_dir, 'max_position.csv'), index=False)
-        elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((n_col, *bshape))
-            score_img[:, bmask] = score_arr
-            del score_arr  # save memory
-            position_img = np.zeros_like(score_img)
-            position_img[:, bmask] = position_arr
-            del position_arr  # save memory
-            save_brainimg(pjoin(column_dir, 'max_score.' + resp_suffix), score_img, header)
-            save_brainimg(pjoin(column_dir, 'max_position.' + resp_suffix), position_img, header)
-        pkl.dump(model_arr, open(pjoin(column_dir, 'max_model.pkl'), 'wb'))
+    # save files
+    if args.resp.endswith('.db.csv'):
+        # save score
+        score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
+        score_df.to_csv(pjoin(trg_dir, 'max_score.csv'), index=False)
+        del score_arr  # save memory
 
-    else:
-        if args.resp.endswith('.db.csv'):
-            score_df = pd.DataFrame(score_arr, columns=resp_dict['var'].keys())
-            del score_arr  # save memory
-            position_df = pd.DataFrame(position_arr, columns=resp_dict['var'].keys())
-            del position_arr  # save memory
-            score_df.to_csv(pjoin(layer_dir, 'max_score.csv'), index=False)
-            position_df.insert(0, 'axis', ['channel', 'column'])
-            position_df.to_csv(pjoin(layer_dir, 'max_position.csv'), index=False)
-        elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
-            score_img = np.zeros((1, *bshape))
-            score_img[0, bmask] = score_arr
-            del score_arr  # save memory
-            position_img = np.zeros((2, *bshape))
-            position_img[:, bmask] = position_arr
-            del position_arr  # save memory
-            save_brainimg(pjoin(layer_dir, 'max_score.' + resp_suffix), score_img, header)
-            save_brainimg(pjoin(layer_dir, 'max_position.' + resp_suffix), position_img, header)
-        pkl.dump(model_arr, open(pjoin(layer_dir, 'max_model.pkl'), 'wb'))
+        # save position
+        if args.dfe is None:
+            chn_pos_df = pd.DataFrame(channel_arr, columns=resp_dict['var'].keys())
+            chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
+            del channel_arr  # save memory
+            col_pos_df = pd.DataFrame(column_arr, columns=resp_dict['var'].keys())
+            col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
+            del column_arr  # save memory
+
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        resp_suffix = '.'.join(args.resp.split('.')[1:])
+
+        # save score
+        score_img = np.zeros((n_iter, *bshape))
+        score_img[:, bmask] = score_arr
+        save_brainimg(pjoin(trg_dir, 'max_score.' + resp_suffix), score_img, header)
+        del score_arr  # save memory
+
+        # save position
+        if args.dfe is None:
+            chn_pos_img = np.zeros_like(score_img, dtype=np.int)
+            chn_pos_img[:, bmask] = channel_arr
+            save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
+            del channel_arr  # save memory
+            col_pos_img = np.zeros_like(score_img, dtype=np.int)
+            col_pos_img[:, bmask] = column_arr
+            save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
+            del column_arr  # save memory
+
+    pkl.dump(model_arr, open(pjoin(trg_dir, 'model.pkl'), 'wb'))
+    # -save out end-
 
 
 if __name__ == '__main__':
