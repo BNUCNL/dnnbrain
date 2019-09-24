@@ -137,6 +137,6 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
         # downsample to volume timing
         X_hrfed = np.c_[X_hrfed, X_tc_hrfed[vol_t, :]]
 
-        print('hrf convolution: sample {0} to {1} finished'.format(bat_idx, bat_indices[idx+1]))
+        print('hrf convolution: sample {0} to {1} finished'.format(bat_idx+1, bat_indices[idx+1]))
 
     return X_hrfed
