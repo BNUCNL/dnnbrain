@@ -222,10 +222,10 @@ class NetLoader:
                 self.model = torchvision.models.alexnet()
                 self.model.load_state_dict(torch.load(
                         os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3),
-                                      'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 10), 'fc1': (2, 1),
-                                      'fc2': (2, 4), 'fc3': (2, 6)}
+                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv2': (0, 3), 'conv2_relu': (0, 4),
+                                      'conv3': (0, 6), 'conv3_relu': (0, 7), 'conv4': (0, 8), 'conv4_relu': (0, 9),
+                                      'conv5': (0, 10), 'conv5_relu': (0, 11), 'fc1': (2, 1), 'fc1_relu': (2, 2),
+                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6)}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
