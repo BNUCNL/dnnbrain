@@ -98,8 +98,8 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
     n_clipped = 0  # the number of clipped time points earlier than the start point of response
     onset_min = onsets.min()
     if onset_min > 0:
-        print("The earliest event's onset is later than the start point of response.\n"
-              "We supplement it with zero-value event to align with the response.")
+        # The earliest event's onset is later than the start point of response.
+        # We supplement it with zero-value event to align with the response.
         X = np.insert(X, 0, np.zeros(X.shape[1]), 0)
         onsets = np.insert(onsets, 0, 0, 0)
         durations = np.insert(durations, 0, onset_min, 0)
@@ -137,6 +137,6 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
         # downsample to volume timing
         X_hrfed = np.c_[X_hrfed, X_tc_hrfed[vol_t, :]]
 
-        print('hrf convolution: sample {0} to {1} finished'.format(bat_idx, bat_indices[idx+1]))
+        print('hrf convolution: sample {0} to {1} finished'.format(bat_idx+1, bat_indices[idx+1]))
 
     return X_hrfed
