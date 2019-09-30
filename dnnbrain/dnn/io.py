@@ -2,7 +2,9 @@ import os
 import cv2
 import scipy.io
 import numpy as np
+
 from torchvision import transforms
+from collections import OrderedDict
 from dnnbrain.dnn.models import Vgg_face
 
 try:
@@ -20,69 +22,42 @@ except ModuleNotFoundError:
 DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
 
 
-class PicDataset():
+class PicDataset:
     """
     Build a dataset to load pictures
     """
-    def __init__(self, parpath, stimulus_dict, transform=None, crop=None):
+    def __init__(self, par_path, pic_ids, conditions=None, transform=None, crops=None):
         """
         Initialize PicDataset
 
         Parameters:
         ------------
-        parpath[str]: picture parent path
-
-        stimulus_dict[dict]:
-            dictionary contains picture names, and other optional keys.
-            This dictionary helps us connect cnn activation to brain images.
-            Please organize your information as:
-
-                stimID          condition(optional)   ...
-                download/face1  face                  ...
-                mgh/face2.png   face                  ...
-                scene1.png      scene                 ...
-
-                stimulus_dict, {'stimID': ['download/face1', 'scene1.png'],
-                                        'condition': ['face', 'face'],
-                                        'onset': [1.1, 3.1, 5.1]}
-
-        transform[callable function]: optional transform to be applied
-            on a sample.
-
-        crop[bool]: crop picture optionally by a bounding box.
-            The coordinates of bounding box for crop pictures should be
-                measurements in stimulus_dict.
-            The keys of coordinates in stimulus_dict should be
-                left_coord,upper_coord,right_coord,lower_coord.
+        par_path[str]: picture parent path
+        pic_ids[sequence]: Each pic_id is a path which can find the picture file relative to par_path.
+        conditions[sequence]: Each picture's condition.
+        transform[callable function]: optional transform to be applied on a sample.
+        crops[array]: 2D array with shape (n_pic, 4)
+            Row index is corresponding to the index in pic_ids.
+            Each row is a bounding box which is used to crop the picture.
+            Each bounding box's four elements are:
+                left_coord, upper_coord, right_coord, lower_coord.
         """
-
-        self.stimulus_dict = stimulus_dict
-        self.picpath = parpath
-        self.picname = np.asarray(self.stimulus_dict['stimID'], dtype=np.str)
-
-        if hasattr(self.stimulus_dict, 'condition'):
-            self.condition = self.stimulus_dict['condition']
-        else:
-            self.condition = np.ones(np.size(self.picname))
-
-        self.transform = transform
-
-        self.crop = crop
-        if self.crop:
-            self.left = np.array(self.stimulus_dict['left_coord'])
-            self.upper = np.array(self.stimulus_dict['upper_coord'])
-            self.right = np.array(self.stimulus_dict['right_coord'])
-            self.lower = np.array(self.stimulus_dict['lower_coord'])
+        self.par_path = par_path
+        self.pic_ids = pic_ids
+        self.conditions = np.ones(len(self.pic_ids)) if conditions is None else conditions
+        self.conditions_uniq = np.unique(self.conditions).tolist()
+        self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
+        self.crops = crops
 
     def __len__(self):
         """
         Return sample size
         """
-        return len(self.picname)
+        return len(self.pic_ids)
 
     def __getitem__(self, idx):
         """
-        Get picture name, picture data and target of each sample
+        Get picture data and target label of each sample
 
         Parameters:
         -----------
@@ -90,25 +65,19 @@ class PicDataset():
 
         Returns:
         ---------
-        picname: picture name
-        picimg: picture data, save as a pillow instance
-        target_label: target of each sample (label)
+        pic_img: picture data, save as a pillow instance
+        trg_label: target of each sample (label)
         """
-        # load pictures
-        target_name = np.unique(self.condition)
-        picimg = Image.open(
-                os.path.join(self.picpath, self.picname[idx])).convert('RGB')
-        if self.crop:
-            picimg = picimg.crop(
-                    (self.left[idx], self.upper[idx],
-                     self.right[idx], self.lower[idx]))
-        target_label = target_name.tolist().index(self.condition[idx])
-        if self.transform:
-            picimg = self.transform(picimg)
-        else:
-            self.transform = transforms.Compose([transforms.ToTensor()])
-            picimg = self.transform(picimg)
-        return picimg, target_label
+        # load picture
+        pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx])).convert('RGB')
+
+        # crop picture
+        if self.crops is not None:
+            pic_img = pic_img.crop(self.crops[idx])
+
+        pic_img = self.transform(pic_img)  # transform picture
+        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
+        return pic_img, trg_label
 
     def get_picname(self, idx):
         """
@@ -123,50 +92,50 @@ class PicDataset():
         picname: picture name
         condition: target condition
         """
-        return os.path.basename(self.picname[idx]), self.condition[idx]
+        return os.path.basename(self.pic_ids[idx]), self.conditions[idx]
 
 
-class VidDataset():
+class VidDataset:
     """
     Dataset for video data
     """
-    def __init__(self, vid_file, skip=0, interval=1, transform=None):
+    def __init__(self, vid_file, frame_nums, conditions=None, transform=None, crops=None):
         """
         Parameters:
         -----------
         vid_file[str]: video data file
-        skip[float]: skip 'skip' seconds at the start of the video
-        interval[int]: get one frame per 'interval' frames
+        frame_nums[sequence]: sequence numbers of the frames of interest
+        conditions[sequence]: each frame's condition
         transform[pytorch transform]
+        crops[array]: 2D array with shape (n_pic, 4)
+            Row index is corresponding to the index in frame_nums.
+            Each row is a bounding box which is used to crop the frame.
+            Each bounding box's four elements are:
+                left_coord, upper_coord, right_coord, lower_coord.
         """
-        assert skip >= 0, "Parameter 'skip' must be a nonnegtive value!"
-        assert isinstance(interval, int) and interval > 0, "Parameter 'interval' must be a positive integer!"
         self.vid_cap = cv2.VideoCapture(vid_file)
-        self.skip = skip
-        self.interval = interval
+        self.frame_nums = frame_nums
+        self.conditions = np.ones(len(self.frame_nums)) if conditions is None else conditions
+        self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
-
-        self.fps = int(self.vid_cap.get(cv2.CAP_PROP_FPS))
-        self.n_frame = int(self.vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.init = int(self.skip * self.fps)  # the first frame's index
+        self.crops = crops
 
     def __getitem__(self, idx):
-        # process index range
-        assert isinstance(idx, int), 'Index must be a integer!'
-        if idx >= self.__len__() or idx < -self.__len__():
-            raise IndexError('index out of range')
-        if idx < 0:
-            idx = self.__len__() + idx
-
-        frame_idx = self.init + idx * self.interval
-        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        # get frame
+        self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_nums[idx]-1)
         _, frame = self.vid_cap.read()
-        frame = self.transform(Image.fromarray(frame))
-        return frame, None
+        frame_img = Image.fromarray(frame)
+
+        # crop frame
+        if self.crops is not None:
+            frame_img = frame_img.crop(self.crops[idx])
+
+        frame = self.transform(frame_img)  # transform frame
+        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
+        return frame, trg_label
 
     def __len__(self):
-        length = (self.n_frame - self.init) / self.interval
-        return int(np.ceil(length))
+        return len(self.frame_nums)
 
 
 def read_imagefolder(parpath):
@@ -191,66 +160,6 @@ def read_imagefolder(parpath):
     return picpath, conditions
 
 
-def generate_stim_csv(parpath, picname_list, condition_list,
-                      outpath, onset_list=None, behavior_measure=None):
-    """
-    Automatically generate stimuli table file.
-    Noted that the stimuli table file satisfied follwing structure and
-    sequence needs to be consistent:
-
-    [PICDIR]
-    stimID              condition   onset(optional) measurement(optional)
-    download/face1.png  face        1.1             3
-    mgh/face2.png       face        3.1             5
-    scene1.png          scene       5.1             4
-
-    Parameters:
-    ------------
-    parpath[str]: parent path contains stimuli pictures
-    picname_list[list]: picture name list
-        each element is a relative path (str) of a picture
-    condition_list[list]: condition list
-    outpath[str]: output path
-    onset_list[list]: onset time list
-    behavior_measure[dictionary]: behavior measurement dictionary
-    """
-
-    assert len(picname_list) == len(condition_list), (
-            'length of picture name''list must be equal to condition list.')
-    assert os.path.basename(outpath).endswith('csv'), (
-            'Suffix of outpath should be .csv')
-    picnum = len(picname_list)
-    if onset_list is not None:
-        onset_list = [str(ol) for ol in onset_list]
-    if behavior_measure is not None:
-        list_int2str = lambda v: [str(i) for i in v]
-        behavior_measure = {
-                k: list_int2str(v) for k, v in behavior_measure.items()}
-    with open(outpath, 'w') as f:
-        # First line, parent path
-        f.write(parpath+'\n')
-        # Second line, key names
-        table_keys = 'stimID,condition'
-        if onset_list is not None:
-            table_keys += ','
-            table_keys += 'onset'
-        if behavior_measure is not None:
-            table_keys += ','
-            table_keys += ','.join(behavior_measure.keys())
-        f.write(table_keys+'\n')
-        # Three+ lines, Data
-        for i in range(picnum):
-            data = picname_list[i]+','+condition_list[i]
-            if onset_list is not None:
-                data += ','
-                data += onset_list[i]
-            if behavior_measure is not None:
-                for bm_keys in behavior_measure.keys():
-                    data += ','
-                    data += behavior_measure[bm_keys][i]
-            f.write(data+'\n')
-
-
 def save_activation(activation, outpath):
     """
     Save activaiton data as a csv file or mat format file to outpath
@@ -268,8 +177,7 @@ def save_activation(activation, outpath):
     outpath[str]:outpath and outfilename
     """
     imgname = os.path.basename(outpath)
-    imgsuffix = imgname.split('.')[1:]
-    imgsuffix = '.'.join(imgsuffix)
+    imgsuffix = imgname.split('.')[-1]
 
     if imgsuffix == 'csv':
         if len(activation.shape) == 4:
@@ -314,10 +222,10 @@ class NetLoader:
                 self.model = torchvision.models.alexnet()
                 self.model.load_state_dict(torch.load(
                         os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3),
-                                      'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 10), 'fc1': (2, 1),
-                                      'fc2': (2, 4), 'fc3': (2, 6)}
+                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv2': (0, 3), 'conv2_relu': (0, 4),
+                                      'conv3': (0, 6), 'conv3_relu': (0, 7), 'conv4': (0, 8), 'conv4_relu': (0, 9),
+                                      'conv5': (0, 10), 'conv5_relu': (0, 11), 'fc1': (2, 1), 'fc1_relu': (2, 2),
+                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6)}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
@@ -376,17 +284,43 @@ class NetLoader:
         print('You had assigned a model into netloader.')
 
 
-def read_dnn_csv(dnn_csvfile):
+def read_dnn_csv(dnn_csv):
     """
     Read pre-designed dnn csv file.
 
     Parameters:
     -----------
-    dnn_csvfiles[str]: Path of csv files.
-        Note that the suffix of dnn_csvfile is .db.csv.
-        Format of dnn_csvfile of response or stimulus is
+    dnn_csv[str]: Path of csv file.
+        Note that the suffix of dnn_csv is .db.csv.
+        Format of db.csv of picture stimuli is
         --------------------------
-        type:response [stimulus]
+        type:stimulus
+        title:picture stimuli
+        stimPath:parent_dir_to_pictures
+        stimType:picture
+        [Several optional keys] (eg., crop:True)
+        variableName:stimID,[onset],[duration],[condition]
+        pic1_path,0,1,cat
+        pic2_path,1,1,dog
+        pic3_path,2,1,cat
+        ...,...,...,...
+
+        Format of db.csv of video stimuli is
+        --------------------------
+        type:stimulus
+        title:video stimuli
+        stimPath:path_to_video_file
+        stimType:video
+        [Several optional keys] (eg., hrf_tr:2)
+        variableName:stimID,[onset],[duration],[condition]
+        1,0,1,cat
+        2,1,1,dog
+        3,2,1,cat
+        ...,...,...,...
+
+        Format of db.csv of response is
+        --------------------------
+        type:response
         title:visual roi
         [Several optional keys] (eg., tr:2)
         variableName:OFA,FFA
@@ -395,11 +329,11 @@ def read_dnn_csv(dnn_csvfile):
         342,341
         ...,...
 
-        Format of dnn_csvfile of dmask is
+        Format of dnn_csv of dmask is
         --------------------------
         type:dmask
         title:alexnet roi
-        [Several optional keys] (eg., tr:2)
+        [Several optional keys]
         variableName:chn,col
         1,2,3,5,7,124,...
         3,4,...
@@ -408,100 +342,98 @@ def read_dnn_csv(dnn_csvfile):
     -------
     dbcsv[dict]: Dictionary of the output variable
     """
-    assert '.db.csv' in dnn_csvfile, 'Suffix of dnn_csvfile should be .db.csv'
-    with open(dnn_csvfile, 'r') as f:
-        csvstr = f.read().rstrip()
-    dbcsv = {}
-    csvdata = csvstr.split('\n')
-    metalbl = ['variableName' in i for i in csvdata].index(True)
-    csvmeta = csvdata[:(metalbl)]
-    csvval = csvdata[(metalbl):]
+    # ---Load csv data---
+    assert '.db.csv' in dnn_csv, 'Suffix of dnn_csv should be .db.csv'
+    with open(dnn_csv, 'r') as f:
+        csv_data = f.read().splitlines()
+    # remove null line
+    while '' in csv_data:
+        csv_data.remove('')
+    meta_idx = ['variableName' in i for i in csv_data].index(True)
+    csv_meta = csv_data[:meta_idx]
+    csv_val = csv_data[meta_idx:]
 
-    # Handling csv data
-    for i, cm in enumerate(csvmeta):
-        if cm == '':
-            continue
-        dbcsv[cm.split(':')[0]] = cm.split(':')[1]
+    # ---Handle csv data---
+    dbcsv = {}
+    for cm in csv_meta:
+        k, v = cm.split(':')
+        dbcsv[k] = v
     assert 'type' in dbcsv.keys(), 'type needs to be included in csvfiles.'
     assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
 
     # identify the type of data
-    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], (
-            'Type must named as stimulus, dmask or Response.')
+    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], \
+        'Type must be named as stimulus, dmask or response.'
 
-    # Operate csvval
-    variable_keys = csvval[0].split(':')[1].split(',')
+    # Operate csv_val
+    variable_keys = csv_val[0].split(':')[1].split(',')
 
     # if dmask, variableAxis is row, each row can have different length.
     if dbcsv['type'] == 'dmask':
-        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i
-                         in csvval[1:]]
-    # if stim/resp, variableAxis is col, each cal must have the same length.
+        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i in csv_val[1:]]
+    # if stim/resp, variableAxis is col, each col must have the same length.
     else:
-        variable_data = [i.split(',') for i in csvval[1:]]
+        variable_data = [i.split(',') for i in csv_val[1:]]
         variable_data = list(zip(*variable_data))
-
         if dbcsv['type'] == 'stimulus':
-            # data type for stimID or condition is str, others float.
-            for i, v_i in enumerate(variable_data):
-                if variable_keys[i] in ['stimID', 'condition']:
-                    variable_data[i] = np.asarray(v_i, dtype=np.str)
-                else:
-                    variable_data[i] = np.asarray(v_i, dtype=np.float)
-
+            if dbcsv['stimType'] == 'picture':
+                # data type for stimID or condition is str, others float.
+                for i, v_i in enumerate(variable_data):
+                    if variable_keys[i] in ['stimID', 'condition']:
+                        variable_data[i] = np.asarray(v_i, dtype=np.str)
+                    else:
+                        variable_data[i] = np.asarray(v_i, dtype=np.float)
+            elif dbcsv['stimType'] == 'video':
+                for i, v in enumerate(variable_data):
+                    if variable_keys[i] == 'stimID':
+                        variable_data[i] = np.array(v, dtype=np.int)
+                    elif variable_keys[i] == 'condition':
+                        variable_data[i] = np.array(v, dtype=np.str)
+                    else:
+                        variable_data[i] = np.array(v, dtype=np.float)
+            else:
+                raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
         elif dbcsv['type'] == 'response':
-            variable_data[i] = np.asarray(v_i, dtype=np.float)
+            variable_data = np.asarray(variable_data, dtype=np.float)
+        else:
+            raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
 
-    dict_variable = {variable_keys[i]: variable_data[i] for i
-                     in range(len(variable_keys))}
-
-    # error flag
-    if dbcsv['type'] == 'stimulus':
-        assert ('stimID' in dict_variable.keys()), (
-                'stimID must be in VariableName if csv type is Stimulus.')
-
-    dbcsv['variable'] = dict_variable
+    var_dict = OrderedDict()
+    for idx, key in enumerate(variable_keys):
+        var_dict[key] = variable_data[idx]
+    dbcsv['var'] = var_dict
     return dbcsv
 
 
-def save_dnn_csv(outpath, stimtype, title, variableAxis, variableName,
-                 optional_variable=None):
+def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
     """
-    Generate stimulus csv.
+    Generate dnn brain csv.
 
     Parameters:
     ------------
-    outpath[str]: outpath, note the outpath ends with .db.csv
-    stimtype[str]: stimulus type.
-        choose type from ['stimulus', 'dmask', 'response']
-    title[str]: title
-    variableAxis[str]: Axis to extract signals or data
-        choose variableAxis from ['col', 'row']
-    variableName[dict]: dictionary of signals or data
-    optional_variable[dict]: some other optional variable,
-        consist of dictionary.
-
-    Return:
-    --------
-    dbcsv stimulus file
+    fpath[str]: output file path, ending with .db.csv
+    ftype[str]: file type, ['stimulus', 'dmask', 'response'].
+    title[str]: customized title
+    variables[dict]: dictionary of signals or data
+    opt_meta[dict]: some other optional meta data
     """
-    assert outpath.endswith('.db.csv'), "Suffix of outpath should be .db.csv"
-    with open(outpath, 'w') as f:
+    assert fpath.endswith('.db.csv'), "Suffix of dnnbrain csv file should be .db.csv"
+    with open(fpath, 'w') as f:
         # First line, type
-        f.write('type:'+stimtype+'\n')
+        f.write('type:{}\n'.format(ftype))
         # Second line, title
-        f.write('title:'+title+'\n')
-        # Optional variable
-        if optional_variable is not None:
-            for i, keyval in enumerate(optional_variable.keys()):
-                f.write(keyval+':'+optional_variable[keyval]+'\n')
-        # variableAxis
-        assert variableAxis in ['col', 'row'], "variableAxis could only be "
-        f.write('variableAxis:'+variableAxis+'\n')
-        # variableName
-        vnkeys = variableName.keys()
-        vnvariable = np.array(list(variableName.values()))
-        f.write('variableName:'+','.join(vnkeys)+'\n')
-        if variableAxis == 'col':
-            vnvariable = vnvariable.T
-        np.savetxt(outpath, vnvariable, delimiter=',')
+        f.write('title:{}\n'.format(title))
+        # Optional meta data
+        if opt_meta is not None:
+            for k, v in opt_meta.items():
+                f.write('{0}:{1}\n'.format(k, v))
+        # variableName line
+        f.write('variableName:{}\n'.format(','.join(variables.keys())))
+        variable_vals = []
+        if ftype == 'dmask':
+            for variable_val in variables.values():
+                variable_vals.append(','.join(map(str, variable_val)))
+        else:
+            variable_vals = np.array(list(variables.values()), dtype=np.str).T
+            variable_vals = [','.join(row) for row in variable_vals]
+        f.write('\n'.join(variable_vals))
