@@ -1,0 +1,46 @@
+#! /usr/bin/env python
+
+"""
+Extract features of DNN activation
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Extract features of DNN activation')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-axis',
+                        metavar='Axis',
+                        required=True,
+                        type=str,
+                        choices=('layer', 'channel', 'column'),
+                        help='axis for feature extraction')
+    parser.add_argument('-meth',
+                        metavar='Method',
+                        required=True,
+                        type=str,
+                        choices=('max', 'mean', 'median', 'pca'),
+                        help='Feature extraction method: '
+                             'max: use maximal activation as feature; '
+                             'mean: use mean activation as feature; '
+                             'median: use median activation as feature; '
+                             'pca: use some principal components as features. (used with option -npc)')
+    parser.add_argument('-npc',
+                        metavar='#PrincipalComponents',
+                        type=int,
+                        help="the number of principal components. (be used when -meth is 'pca')")
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output hdf5 file with suffix')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

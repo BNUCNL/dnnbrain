@@ -1,0 +1,31 @@
+#! /usr/bin/env python
+
+"""
+Extract DNN activation within mask
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Extract DNN activation within mask')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-mask',
+                        metavar='Mask',
+                        required=True,
+                        type=str,
+                        help='a csv file in which channles and columns of interest ae listed.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output hdf5 file with suffix')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
