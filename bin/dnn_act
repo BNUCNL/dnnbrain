@@ -1,0 +1,38 @@
+#! /usr/bin/env python
+
+"""
+Extract activation from DNN
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Extract activation from DNN')
+    parser.add_argument('-net',
+                        metavar='NetName',
+                        required=True,
+                        type=str,
+                        help='neural network name')
+    parser.add_argument('-layer',
+                        metavar='LayerName',
+                        required=True,
+                        type=str,
+                        help="Name of the layer used to specify where activation is extracted from"
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer.")
+    parser.add_argument('-stim',
+                        metavar='StimuliInfo',
+                        required=True,
+                        type=str,
+                        help='a csv file which contains stimuli information')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output hdf5 file with suffix')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
