@@ -14,12 +14,14 @@ def main():
                         required=True,
                         type=str,
                         help='DNN activation file')
-    parser.add_argument('-axis',
-                        metavar='Axis',
-                        required=True,
+    parser.add_argument('-layer',
+                        metavar='Layer',
                         type=str,
-                        choices=('layer', 'channel', 'column'),
-                        help='axis for feature extraction')
+                        nargs='+',
+                        help="names of the layers used to specify where features are extracted from "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Default is extracting all layers in the DNN activation file.")
     parser.add_argument('-meth',
                         metavar='Method',
                         required=True,
@@ -30,6 +32,12 @@ def main():
                              'mean: use mean activation as feature; '
                              'median: use median activation as feature; '
                              'pca: use some principal components as features. (used with option -npc)')
+    parser.add_argument('-axis',
+                        metavar='Axis',
+                        type=str,
+                        choices=('channel', 'column'),
+                        help='axis for feature extraction '
+                             'Default is extracting features from the whole layer.')
     parser.add_argument('-npc',
                         metavar='#PrincipalComponents',
                         type=int,
@@ -38,7 +46,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='an output hdf5 file with suffix')
+                        help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
 

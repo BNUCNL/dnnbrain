@@ -10,15 +10,34 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description='test DNN performance')
     parser.add_argument('-net',
-                        metavar='NetName',
+                        metavar='Net',
                         required=True,
                         type=str,
-                        help='neural network name')
-    parser.add_argument('-stim',
-                        metavar='StimuliInfo',
+                        help='a neural network name')
+    parser.add_argument('-notrained',
+                        action='store_true',
+                        help='If used, use the neural network without pre-trained.')
+    parser.add_argument('-resp',
+                        metavar='Response',
                         required=True,
                         type=str,
-                        help='a csv file which contains stimuli information')
+                        help='a .stim.csv/.roi.h5/.nii file '
+                             'If it is .nii file, -cmeas and -rmeas will be ignore. '
+                             "And all voxels' activation will be regarded as the "
+                             "ground truth of a regression task. ")
+    parser.add_argument('-cmeas',
+                        metavar='ClassifiedMeasurement',
+                        type=str,
+                        help='Specify a measurement as the ground truth of '
+                             'a classification task.')
+    parser.add_argument('-rmeas',
+                        metavar='RegressiveMeasurement',
+                        type=str,
+                        nargs='+',
+                        help='Specify measurements as the ground truth of '
+                             'a regression task. Default is using all measurements '
+                             'in response file. The number of measurements must be '
+                             'equal with the units in the last layer of the net.')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
