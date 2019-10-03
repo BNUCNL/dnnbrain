@@ -47,7 +47,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='an output filename with suffix .rsm.h5')
+                        help='an output filename with suffix .drsm.h5')
     args = parser.parse_args()
 
 

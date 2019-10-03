@@ -1,0 +1,65 @@
+#! /usr/bin/env python
+
+"""
+Correlate DNN activation with brain or behavior response
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Correlate DNN activation with brain or behavior response')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="names of the layers which are probed "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Default is probe all layers in the DNN activation file.")
+    parser.add_argument('-hrf',
+                        action='store_true',
+                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
+                             'And match it with the time points of Brain activation.')
+    parser.add_argument('-iteraxis',
+                        type=str,
+                        metavar='Axis',
+                        choices=('channel', 'column'),
+                        default='layer',
+                        help="Iterate along the specified axis."
+                             "channel: Summarize the maximal R square for each channel. "
+                             "column: Summarize the maximal R square for each column. "
+                             "default: Summarize the maximal R square for the whole layer.")
+    parser.add_argument('-resp',
+                        metavar='Response',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv/.roi.h5/.nii file '
+                             'If it is .nii file, -meas will be ignore. '
+                             "All voxels' activation will be a correlate.")
+    parser.add_argument('-bmask',
+                        metavar='BrainMask',
+                        type=str,
+                        help='Brain mask is used to extract activation locally. '
+                             'Only used when the response file is .nii file.')
+    parser.add_argument('-meas',
+                        metavar='Measurement',
+                        type=str,
+                        nargs='+',
+                        help='Specify measurements the correlates. '
+                             'Default is using all measurements in response file.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='R square and position in an output directory')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
