@@ -14,16 +14,17 @@ def main():
                         required=True,
                         type=str,
                         help='DNN activation file')
-    parser.add_argument('-mask',
-                        metavar='Mask',
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
                         required=True,
                         type=str,
-                        help='a csv file in which channles and columns of interest ae listed.')
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='an output hdf5 file with suffix')
+                        help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
 

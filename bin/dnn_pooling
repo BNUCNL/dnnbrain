@@ -1,0 +1,54 @@
+#! /usr/bin/env python
+
+"""
+Pooling DNN activation according to channel mask
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Pooling DNN activation according to channel mask')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        required=True,
+                        type=str,
+                        help="name of the layer whose channels will be pooled "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="sequence numbers of channels which will be pooled "
+                             "Default is all channels of the layer.")
+    parser.add_argument('-cmask',
+                        metavar='ChannelMask',
+                        required=True,
+                        type=str,
+                        help='a .cmask.h5 file in which pooling information is specified by an array '
+                             'with the same shape as the channels')
+    parser.add_argument('-meth',
+                        metavar='Method',
+                        required=True,
+                        type=str,
+                        choices=('max', 'mean', 'median'),
+                        help='Pooling method: '
+                             'max: use maximal activation as feature; '
+                             'mean: use mean activation as feature; '
+                             'median: use median activation as feature.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .act.h5')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
