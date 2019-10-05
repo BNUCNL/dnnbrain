@@ -1,0 +1,37 @@
+#! /usr/bin/env python
+
+"""
+Top stimuli
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Top stimuli')
+    parser.add_argument('-net',
+                        metavar='Net',
+                        required=True,
+                        type=str,
+                        help='a neural network name')
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        required=True,
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest')
+    parser.add_argument('-stim',
+                        metavar='Stimulus',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output .csv file')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
