@@ -21,7 +21,7 @@ def main():
                         help="Layers of interest to do feature extraxtion. "
                              "E.g., 'conv1' represents the first convolution layer,  "
                              "and 'fc1' represents the first full connection layer. "
-                             "Default is to do feature for all layers "
+                             "Default is to do feature extraction for all layers "
                              "in the activation file.")
     parser.add_argument('-meth',
                         metavar='Method',
@@ -38,7 +38,7 @@ def main():
                         type=str,
                         choices=('channel', 'column'),
                         help='axis for feature extraction '
-                             'Default is extracting features from the whole layer.')
+                             'Default is extracting features for each channel.')
 #    parser.add_argument('-npc',
 #                        metavar='#PrincipalComponents',
 #                        type=int,
