@@ -11,42 +11,36 @@ from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dnn_io
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract activation from specific layer from a DNN')
+    parser = argparse.ArgumentParser(description='Extract activation of \
+                                     a pretrained network for a set of stimuli,\
+                                     and save it to a specified file')
     parser.add_argument('-net',
                         type=str,
                         required=True,
-                        metavar='NetName',
-                        help='convolutional network name')
+                        metavar='PretrainedNetName',
+                        help='Pretrained convolutional network name')
     parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        metavar='a csv file contains picture stimulus',
-                        help='table contains picture names, conditions and picture onset time.\
-                              This csv_file helps us connect cnn activation to brain images.\
-                              Please organize your information as:\
-                              [PicPath]\
-                              stimID     condition   onset(optional) measurement(optional)\
-                              face1.png  face        1.1             3\
-                              face2.png  face        3.1             5\
-                              scene1.png scene       5.1             4'
-                        )
+                        metavar='A csv file lists info for stimuli of interest',
+                        help='The file provide info of inuput stimuli images.\
+                        It lists stimlus ID, conditions, onset and duration \
+                        of each stimulus. Please prepare the file following \
+                        the instructions from the page. \
+                        https: dnnbrain.csv')
     parser.add_argument('-layer',
                         type=str,
-                        required=True,
-                        metavar='Layer',
-                        help='activation for specific layers, please input conv1 or fc1 for activation')
-    parser.add_argument('-channel',
-                        type=int,
                         required=False,
-                        nargs='*',
-                        metavar='Channel',
-                        help='activation for specific channels')
+                        metavar='Layer of interest',
+                        help='Strings to indicate layer of interest. \
+                        If no layers are provided, activation from all of layers \
+                        will be extracted.')
     parser.add_argument('-out',
                         type=str,
                         required=True,
-                        dest='outdir',
-                        metavar='Output Directory',
-                        help='output directory')
+                        dest='file name for output activation',
+                        metavar='Output file name',
+                        help='output file name')
     args = parser.parse_args()
 
 	# See below is the framework of this command 
