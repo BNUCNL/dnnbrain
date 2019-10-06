@@ -1,38 +1,33 @@
 #! /usr/bin/env python
 
 """
-Pooling DNN activation according to channel mask
+Pooling DNN activation according to a specified channel mask
 """
 
 import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Pooling DNN activation according to channel mask')
+    parser = argparse.ArgumentParser(description='Pooling DNN activation according to a channel mask')
     parser.add_argument('-act',
-                        metavar='Activation',
+                        metavar='Activation hd5 file',
                         required=True,
                         type=str,
                         help='DNN activation file')
-    parser.add_argument('-layer',
-                        metavar='Layer',
-                        required=True,
+    parser.add_argument('-poolmask',
+                        metavar='ChannelMask providing info for pooling layers '
+                        'and spatial location of each pooling kernel',
+                        required=False,
                         type=str,
-                        help="name of the layer whose channels will be pooled "
-                             "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. ")
-    parser.add_argument('-chn',
-                        metavar='Channel',
-                        type=int,
-                        nargs='+',
-                        help="sequence numbers of channels which will be pooled "
-                             "Default is all channels of the layer.")
-    parser.add_argument('-cmask',
-                        metavar='ChannelMask',
-                        required=True,
-                        type=str,
-                        help='a .cmask.h5 file in which pooling information is specified by an array '
-                             'with the same shape as the channels')
+                        help='A .poolmask.h5 file in which both layers of interest '
+                        'and corresponding spatial mask are provided. ' 
+                        'If no poolmask is provided, each channel from each layers '
+                        'will be pooled across all of its units')
+# I think  1, pooling work for layers. We just do pooling for each channel in a layer. 
+# so we don't need to specify channel of interest.
+# 2,we need to specify the layer of interest. But if we specify the layer and mask separately, 
+# it will have some trouble. So I suggest we just pool the layer which lsit in the poolmask hd5 file.
+    
     parser.add_argument('-meth',
                         metavar='Method',
                         required=True,
@@ -43,10 +38,11 @@ def main():
                              'mean: use mean activation as feature; '
                              'median: use median activation as feature.')
     parser.add_argument('-out',
-                        metavar='Output',
+                        metavar='Output file',
                         required=True,
                         type=str,
                         help='an output filename with suffix .act.h5')
+    
     args = parser.parse_args()
 
 
