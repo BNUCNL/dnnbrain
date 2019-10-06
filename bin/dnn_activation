@@ -1,9 +1,5 @@
 #! /usr/bin/env python
 
-"""
-Extract activation from specific layer from a DNN
-"""
-
 import argparse
 from torchvision import transforms
 from torch.utils.data import DataLoader
@@ -11,6 +7,11 @@ from dnnbrain.dnn import analyzer
 from dnnbrain.dnn import io as dnn_io
 
 def main():
+    
+    """ Extract activation of a pretrained network for a set of stimuli, and 
+    save it to a specified file 
+    """
+    
     parser = argparse.ArgumentParser(description='Extract activation of \
                                      a pretrained network for a set of stimuli,\
                                      and save it to a specified file')
@@ -50,7 +51,6 @@ def main():
 	# 1 Call activation extraction from 'core' to get CNN's activations. Parameters: -net, -in, -layer, -channel
 	# 2 Save activation data and picutre list to csv files. Parameters: -activation,-net, -out, -layer, -channel, -dnnpicname
 	
-	
 	# DNN activation extraction 
     netloader = dnn_io.NetLoader(args.net)
     imgcropsize = netloader.img_size
@@ -59,7 +59,9 @@ def main():
     picdataset = dnn_io.PicDataset(args.stim, transform=transform)
     picdataloader = DataLoader(picdataset, batch_size=8, shuffle=False)
     dnn_act = analyzer.dnn_activation(picdataloader, args.net, args.layer, args.channel)
-	
+	# I think it is a good idea to decompose the analyzer.dnn_activation into 
+    # three basic elemet, 1) load network, 2, load image, 3, compute activation
+    # these three function is very basic. it will be used everywhere in dnnbrain.
     # Save activation data
     dnn_io.save_activation(dnn_act,args.outdir)
 
