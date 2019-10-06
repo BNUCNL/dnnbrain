@@ -2,8 +2,6 @@
 
 """
 Extract activation from specific layer from a DNN
-Author: YukunQu @ BNU
-Reviewer:
 """
 
 import argparse
