@@ -1,0 +1,44 @@
+#! /usr/bin/env python
+
+"""
+Find DNN unit's receptive field
+"""
+
+import argparse
+
+
+def main():
+    
+    parser = argparse.ArgumentParser(description="Find DNN unit's receptive field")
+    parser.add_argument('-net',
+                        metavar='Net',
+                        required=True,
+                        type=str,
+                        help='a neural network name')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        required=True,
+                        type=str,
+                        help="For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer.")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        required=True,
+                        type=int,
+                        help='activation for specific channels')
+    parser.add_argument('-col',
+                        metavar='Column',
+                        required=True,
+                        type=int,
+                        help='position for a specific unit')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='output')
+    
+    args = parser.parse_args()
+    
+    
+if __name__ == '__main__':
+    main()
