@@ -14,20 +14,27 @@ def main():
                         required=True,
                         type=str,
                         help='DNN activation file')
-    parser.add_argument('-poolmask',
-                        metavar='ChannelMask providing info for pooling layers '
-                        'and spatial location of each pooling kernel',
-                        required=False,
+       parser.add_argument('-layer',
                         type=str,
-                        help='A .poolmask.h5 file in which both layers of interest '
-                        'and corresponding spatial mask are provided. ' 
-                        'If no poolmask is provided, each channel from each layers '
-                        'will be pooled across all of its units')
+                        required=False,
+                        metavar='Layer of interest',
+                        help='Strings to indicate layer of interest. \
+                        If no layers are provided, activation from all of layers \
+                        will be pooled.')
+#    parser.add_argument('-poolmask',
+#                        metavar='ChannelMask providing info for pooling layers '
+#                        'and spatial location of each pooling kernel',
+#                        required=False,
+#                        type=str,
+#                        help='A .poolmask.h5 file in which both layers of interest '
+#                        'and corresponding spatial mask are provided. ' 
+#                        'If no poolmask is provided, each channel from each layers '
+#                        'will be pooled across all of its units')
 # I think  1, pooling work for layers. We just do pooling for each channel in a layer. 
 # so we don't need to specify channel of interest.
 # 2,we need to specify the layer of interest. But if we specify the layer and mask separately, 
-# it will have some trouble. So I suggest we just pool the layer which lsit in the poolmask hd5 file.
-    
+# it will have some trouble. So I suggest we just pool the layer which lsit in the poolmask hd5 file
+# or simply, we don't just support whole channel pooling and remove poolmask. I prefere the last one
     parser.add_argument('-meth',
                         metavar='Method',
                         required=True,
