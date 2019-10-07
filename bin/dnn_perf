@@ -3,46 +3,54 @@
 """
 test DNN performance
 """
-
+# After some thoughts, I think, we can move this funciton to dnn activation. 
+# so we can remove this command
 import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description='test DNN performance')
-    parser.add_argument('-net',
-                        metavar='Net',
+    parser = argparse.ArgumentParser(description='test model performance')
+    parser.add_argument('-model',
+                        metavar='A prerained model name',
                         required=True,
                         type=str,
-                        help='a neural network name')
-    parser.add_argument('-notrained',
-                        action='store_true',
-                        help='If used, use the neural network without pre-trained.')
-    parser.add_argument('-resp',
-                        metavar='Response',
+                        help='a pretrained model')
+#    parser.add_argument('-pretrained',
+#                        action='store_true',
+#                        help='If used, use the neural network without pre-trained.')
+# we don't need this opitons because we can save the non trained newtork into the 
+# disk,and then use this cmd to eveluate it. 
+    parser.add_argument('-X',
+                        metavar='A file to provide the features '
+                        'used to predict response.',
                         required=True,
                         type=str,
-                        help='a .stim.csv/.roi.h5/.nii file '
-                             'If it is .nii file, -cmeas and -rmeas will be ignore. '
-                             "And all voxels' activation will be regarded as the "
-                             "ground truth of a regression task. ")
-    parser.add_argument('-cmeas',
-                        metavar='ClassifiedMeasurement',
+                        help='.act.hd5, .roi.hd5 file '
+                             'The file provide the feature on which the model '
+                             ' were trained')
+    # for example, -X my.roi.hd5 ffa
+    parser.add_argument('-Y',
+                        metavar='A file to provide ground truth of response.',
+                        required=True,
                         type=str,
+                        help='a .stim.csv file '
+                             'The performace is evalauted for the stimuli, ' 
+                             'condtion, or response listed in the .stim.csv file')
+
+
+    parser.add_argument('-tasktype',
+                        metavar='Task type for the DNN',
+                        type=str,
+                        choices=('classifcaiton', 'regression'),
+
                         help='Specify a measurement as the ground truth of '
                              'a classification task.')
-    parser.add_argument('-rmeas',
-                        metavar='RegressiveMeasurement',
-                        type=str,
-                        nargs='+',
-                        help='Specify measurements as the ground truth of '
-                             'a regression task. Default is using all measurements '
-                             'in response file. The number of measurements must be '
-                             'equal with the units in the last layer of the net.')
-    parser.add_argument('-out',
-                        metavar='Output',
+ 
+    parser.add_argument('-outdir',
+                        metavar='Output directory',
                         required=True,
                         type=str,
-                        help='an output directory')
+                        help='An output directory')
     args = parser.parse_args()
 
 
