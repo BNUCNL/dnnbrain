@@ -1,55 +1,42 @@
 #! /usr/bin/env python
 
 """
-Pooling DNN activation according to a specified channel mask
+Pooling DNN activation for each channel
 """
 
 import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Pooling DNN activation according to a channel mask')
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-act',
-                        metavar='Activation hd5 file',
+                        metavar='Activation',
                         required=True,
                         type=str,
                         help='DNN activation file')
-       parser.add_argument('-layer',
+    parser.add_argument('-layer',
+                        nargs='+',
+                        metavar='Layer',
                         type=str,
-                        required=False,
-                        metavar='Layer of interest',
-                        help='Strings to indicate layer of interest. \
-                        If no layers are provided, activation from all of layers \
-                        will be pooled.')
-#    parser.add_argument('-poolmask',
-#                        metavar='ChannelMask providing info for pooling layers '
-#                        'and spatial location of each pooling kernel',
-#                        required=False,
-#                        type=str,
-#                        help='A .poolmask.h5 file in which both layers of interest '
-#                        'and corresponding spatial mask are provided. ' 
-#                        'If no poolmask is provided, each channel from each layers '
-#                        'will be pooled across all of its units')
-# I think  1, pooling work for layers. We just do pooling for each channel in a layer. 
-# so we don't need to specify channel of interest.
-# 2,we need to specify the layer of interest. But if we specify the layer and mask separately, 
-# it will have some trouble. So I suggest we just pool the layer which lsit in the poolmask hd5 file
-# or simply, we don't just support whole channel pooling and remove poolmask. I prefere the last one
+                        help="Layers of interest. "
+                             "E.g., 'conv1' represents the first convolution layer, "
+                             "and 'fc1' represents the first full connection layer. "
+                             "Default is to do pooling for all layers "
+                             "in the activation file.")
     parser.add_argument('-meth',
                         metavar='Method',
                         required=True,
                         type=str,
                         choices=('max', 'mean', 'median'),
                         help='Pooling method: '
-                             'max: use maximal activation as feature; '
-                             'mean: use mean activation as feature; '
-                             'median: use median activation as feature.')
+                             'max: max pooling; '
+                             'mean: mean pooling; '
+                             'median: median pooling.')
     parser.add_argument('-out',
-                        metavar='Output file',
+                        metavar='Output',
                         required=True,
                         type=str,
                         help='an output filename with suffix .act.h5')
-    
     args = parser.parse_args()
 
 
