@@ -1,31 +1,48 @@
 #! /usr/bin/env python
 
 """
-Extract DNN activation for layer, channel, and column of interest which are 
-specificed by a dnn mask
+Extract DNN activation for layer, channel, and column of interest
 """
 
 import argparse
 
+from collections import namedtuple
+
+
+class UoiAction(argparse.Action):
+    def __call__(self, parser, args, values, option_string=None):
+        layer, chn, col = values
+        if chn != 'all':
+            chn = int(chn)
+        if col != 'all':
+            col = int(col)
+        Uoi = namedtuple('Uoi', ('layer', 'chn', 'col'))
+        setattr(args, self.dest, Uoi(layer, chn, col))
+
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract DNN activation for '
-                                     'layer, channel, and column of interest '
-                                     ' which are specificed by a dnn mask.')
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-act',
-                        metavar='Activation .act.hd5 file',
+                        metavar='Activation',
                         required=True,
                         type=str,
-                        help='DNN activation .act.hd5 file')
+                        help='DNN activation file')
+    parser.add_argument('-uoi',
+                        nargs=3,
+                        metavar=('Layer', 'Channel', 'Column'),
+                        action=UoiAction,
+                        help="Units of interest"
+                             "Layer: layer name; "
+                             "Channel: channel number, extract all channels if it's 'all'; "
+                             "Column: column number, extract all columns if it's 'all'. "
+                             "Note: this option will be ignored if -dmask is used.")
     parser.add_argument('-dmask',
-                        metavar='DnnMask to provided layer, channel '
-                        'and column of interest',
-                        required=True,
+                        metavar='DnnMask',
                         type=str,
-                        help='a .dmask.csv file in which  interest of ' 
-                        ' layers, channel and column are listed')
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest.')
     parser.add_argument('-out',
-                        metavar='Output .act.hd5 file',
+                        metavar='Output',
                         required=True,
                         type=str,
                         help='an output filename with suffix .act.h5')
