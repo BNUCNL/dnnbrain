@@ -199,8 +199,8 @@ def save_activation(activation,outpath):
     outpath[str]:outpath and outfilename
     """
     imgname = os.path.basename(outpath)
-    imgsuffix = imgname.split('.')[1:]
-    imgsuffix = '.'.join(imgsuffix)
+    imgsuffix = imgname.split('.')[-1]
+
 
     if imgsuffix == 'csv':
         if len(activation.shape) == 4:
@@ -239,22 +239,23 @@ class NetLoader:
             if net == 'alexnet':
                 self.model = torchvision.models.alexnet()
                 self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 10), 'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6)}
+                self.layer2indices = {'conv1': (0, 0), 'maxpool1':(0,2),'conv2': (0, 3),'maxpool2':(0,5),
+                                      'conv3': (0, 6), 'conv4': (0, 8),'conv5': (0, 10), 'maxpool3':(0,12),
+                                      'fc1': (2, 1), 'fc2': (2, 4), 'fc3': (2, 6), 'prefc':(2,)}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
                 self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
                 self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3), 'conv3': (0, 6), 'conv4': (0, 8),
                                       'conv5': (0, 11), 'conv6': (0, 13), 'conv7': (0, 16), 'conv8': (0, 18),
-                                      'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6)}
+                                      'fc1': (2, 0), 'fc2': (2, 3), 'fc3': (2, 6),'prefc':(2,)}
                 self.img_size = (224, 224)
             elif net == 'vggface':
                 self.model = Vgg_face()
                 self.model.load_state_dict(torch.load(os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
                 self.layer2indices = {'conv1':(0,),'conv2':(2,),'conv3':(5,),'conv4':(7,),'conv5':(10,),'conv6':(12,),
                                       'conv7':(14,),'conv8':(17,),'conv9':(19,),'conv10':(21,),'conv11':(24,),
-                                      'conv12':(26,),'conv13':(28,),'fc1':(31,),'fc2':(34,),'fc3':(37,)}
+                                      'conv12':(26,),'conv13':(28,),'fc1':(31,),'fc2':(34,),'fc3':(37,),'prefc':(31,)}
                 self.img_size = (224, 224)
         else:
             print('Not internal supported, please call netloader function to assign model, layer2indices and picture size.')

@@ -30,10 +30,12 @@ def dnn_activation(input, netname, layer, channel=None):
     actmodel = dnn_truncate(loader, layer)
     actmodel.eval()
     dnnact = []
-    for picdata, target in input:
+    for i,(picdata, target) in enumerate(input):
         dnnact_part = actmodel(picdata)
         dnnact.extend(dnnact_part.detach().numpy())
+        print("The activation of the {} image has been calculated.".format((i+1)*input.batch_size))
     dnnact = np.array(dnnact)
+    print("The activation of all images have been calculated.")
 
     if channel:
         channel_new = [cl - 1 for cl in channel]
