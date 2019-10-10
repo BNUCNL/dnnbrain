@@ -22,14 +22,15 @@ def dnn_truncate(netloader, layer):
     assert netloader.model is not None, "Please define netloader by calling NetLoader from module io"
     assert netloader.layer2indices is not None, "Please define netloader by calling NetLoader from module io"
     indices = netloader.layer2indices[layer]
+    prefc_indices = netloader.layer2indices['prefc']
     model_frame = nn.Sequential(*netloader.model.children())
     truncate_model = _get_truncate_layers(model_frame, indices)
     if 'fc' in layer:
         # Re-define forward method
         def forward(x):
-            x = truncate_model[:-1](x)
+            x = truncate_model[:prefc_indices[0]](x)
             x = torch.flatten(x, 1)
-            x = truncate_model[-1](x)
+            x = truncate_model[prefc_indices[0]:](x)
             return x
         truncate_model.forward = forward
     return truncate_model
