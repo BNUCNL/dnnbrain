@@ -222,10 +222,11 @@ class NetLoader:
                 self.model = torchvision.models.alexnet()
                 self.model.load_state_dict(torch.load(
                         os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv2': (0, 3), 'conv2_relu': (0, 4),
-                                      'conv3': (0, 6), 'conv3_relu': (0, 7), 'conv4': (0, 8), 'conv4_relu': (0, 9),
-                                      'conv5': (0, 10), 'conv5_relu': (0, 11), 'fc1': (2, 1), 'fc1_relu': (2, 2),
-                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6)}
+                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'maxpool1':(0,2),'conv2': (0, 3),
+                                      'conv2_relu': (0, 4), 'maxpool2':(0,5),'conv3': (0, 6), 'conv3_relu': (0, 7),
+                                      'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
+                                      'maxpool3':(0,12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
+                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6),'prefc':(2,)}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
@@ -236,7 +237,7 @@ class NetLoader:
                                       'conv5': (0, 11), 'conv6': (0, 13),
                                       'conv7': (0, 16), 'conv8': (0, 18),
                                       'fc1': (2, 0), 'fc2': (2, 3),
-                                      'fc3': (2, 6)}
+                                      'fc3': (2, 6), 'prefc':(2,)}
                 self.img_size = (224, 224)
             elif net == 'vggface':
                 self.model = Vgg_face()
@@ -249,7 +250,7 @@ class NetLoader:
                                       'conv9': (19,), 'conv10': (21,),
                                       'conv11': (24,), 'conv12': (26,),
                                       'conv13': (28,), 'fc1': (31,),
-                                      'fc2': (34,), 'fc3': (37,)}
+                                      'fc2': (34,), 'fc3': (37,), 'prefc':(31,)}
                 self.img_size = (224, 224)
         else:
             print('Not internal supported, please call netloader function'
