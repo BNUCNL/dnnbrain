@@ -57,9 +57,10 @@ def main():
                         'and channles are listed.')
     # The option layer and channle is exclusive to the dbmask. If layer and channel
     # The user can not use the two set of parameters at the same time.
-    parser.add_argument('-out',
-                        metavar='Output .topstim.hd5 file which list top stimulus '
-                        ' for intereested layers and channles',
+    parser.add_argument('-outdir',
+                        metavar='Output dir to save the top stimulus for '
+                        'intereested layers and channles, and assocaited '
+                        'topact.hd5 file',
                         required=True,
                         type=str,
                         help='an output stim.hd5 file')

@@ -18,7 +18,7 @@ def main():
     parser.add_argument('-net',
                         type = str,
                         required = True,
-                        metavar='NetName',
+                        metavar='Name of interested DNN',
                         choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
     parser.add_argument('-layer',

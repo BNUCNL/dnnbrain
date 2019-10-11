@@ -19,6 +19,7 @@ def main():
                         type=str,
                         required=True,
                         metavar='PretrainedNetName',
+                        choices=['alexnet','vgg11','vgg16','vgg19'],
                         help='Pretrained convolutional network name')
     parser.add_argument('-stim',
                         type=str,

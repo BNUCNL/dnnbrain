@@ -1,35 +1,51 @@
 #! /usr/bin/env python
 
 """
-minimal stimulus
+Simplify a stimulus into a minimal part which could cause equivalent activation
+as the raw stimlus in intereseted channels
 """
 
 import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description='minimal stimulus')
+    parser = argparse.ArgumentParser(description='Simplify a stimulus into ' 
+                                     'a minimal part which could cause equivalent '
+                                     'activation as the original stimlus '
+                                     'in intereseted channels')
     parser.add_argument('-net',
-                        metavar='Net',
-                        required=True,
+                        type = str,
+                        required = True,
+                        metavar='Name of target DNN',
+                        choices=['alexnet','vgg11','vgg16','vgg19'],
+                        help = 'Name of interested DNN')
+    parser.add_argument('-layer',
+                        nargs='+',
+                        metavar='Layer id list',
                         type=str,
-                        help='a neural network name')
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, reLU, '
+                             'pooling, and fc layer, respectively.The top stimulis '
+                             'are selected for all layers and channels default.')
+    parser.add_argument('-channel',
+                        nargs='+',
+                        metavar='Channel id list',
+                        type=str,
+                        help='Channel of interest.If no channels are specificied, '
+                        'each channel will be processed. The layer and channel '
+                        'should be one-to-one paired together in the order.')
     parser.add_argument('-dmask',
-                        metavar='DnnMask',
-                        required=True,
+                        metavar='.dmask.csv dnnmask file',
+                        required=False,
                         type=str,
-                        help='a .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest')
-    parser.add_argument('-pic',
-                        metavar='Picture',
-                        required=True,
-                        type=str,
-                        help='a picture')
-    parser.add_argument('-out',
-                        metavar='Output',
-                        required=True,
-                        type=str,
-                        help='a picture')
+                        help='A .dmask.csv file in which layers and channel of '
+                        'interest are listed')
+    parser.add_argument('-outdir',
+                        type = str,
+                        required = True,
+                        metavar='Outputdir',
+                        help = 'Output directory to save the simplfied image, ' 
+                        'and associated act.hd5 activation file.')
     args = parser.parse_args()
 
 
