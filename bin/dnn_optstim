@@ -21,6 +21,15 @@ def main():
                         metavar='Name of interested DNN',
                         choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
+    parser.add_argument('-initstim',
+                        type=str,
+                        required=False,
+                        metavar='A csv file lists initial stimuli '
+                        'to be optimized.',
+                        help='The file provide path of the images as  '
+                        'the initial value of the optimization. One image for '
+                        'each layer/channel with the same order as the specified '
+                        'layer/channels.')
     parser.add_argument('-layer',
                         nargs='+',
                         metavar='Layer',

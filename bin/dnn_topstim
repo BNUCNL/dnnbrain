@@ -11,12 +11,12 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description='Select top stimuli from '
-                                     'a set of stimuli for interested layer and channel')
+                                     'a set of stimuli for interested layers/channel.')
     parser.add_argument('-net',
-                        metavar='Net',
+                        metavar='Name of interested DNN',
                         required=True,
                         type=str,
-                        help='DNN of interest.')
+                        help='Name of interested DNN')
     parser.add_argument('-top',
                         metavar='The number of stimuli to be selected',
                         required=True,

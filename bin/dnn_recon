@@ -1,6 +1,7 @@
+#! /usr/bin/env python
+
 """
-Use CNN activation to recibstruct pictures
-Author: Yang Anmin and Zhang Yiyuan @ BNU
+Reconstruct the stimuli image using DNN activation of interested layers/channels
 """
 
 import os
@@ -13,55 +14,45 @@ from dnnbrain.dnn import representation
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Visualize what a channel sees in the image')
-    
+    parser = argparse.ArgumentParser(description='Reconstruct the stimuli image '
+                                     'using DNN activation of interested layers/channels')    
     parser.add_argument('-net',
-                        type=str,
+                        type = str,
                         required = True,
-                        choices=['alexnet', 'vgg11'],
-                        metavar = 'NetName',
-                        help ="a pretrained neural network's name such as 'alexnet' and 'vgg11'")
-    
-    parser.add_argument('-stim',
+                        metavar='Name of target DNN',
+                        choices=['alexnet','vgg11','vgg16','vgg19'],
+                        help = 'Name of interested DNN')
+    parser.add_argument('-act',
+                        metavar='DNN .act.hd5 file',
+                        required=False,
                         type=str,
-                        required=True,
-                        metavar='picture stimuli csv',
-                        help='table contains picture names, conditions and picture onset time.\
-                              This csv_file helps us connect cnn activation to brain images.\
-                              Please organize your information as:\
-                              [PicPath]\
-                              stimID     condition   onset(optional) measurement(optional)\
-                              face1.png  face        1.1             3\
-                              face2.png  face        3.1             5\
-                              scene1.png scene       5.1             4'
-                        )
-    
+                        help='The DNN activation to be reconstructed')
     parser.add_argument('-layer',
+                        nargs='+',
+                        metavar='Layer id list',
                         type=str,
-                        required=True,
-                        metavar='Layer',
-                        help="The name of the layer which is connected to predict brain activity."
-                             "For example, 'conv1' represents the first convolution layer, and"
-                             "'fc1' represents the first full connection layer.")
-    
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, reLU, '
+                             'pooling, and fc layer, respectively.The top stimulis '
+                             'are selected for all layers and channels default.')
     parser.add_argument('-channel',
-                        type=int,
-                        required = True,
-                        metavar = 'ChannelNumber',
-                        help = "The sequence numbers of out channels of the selected layer"
-                               "If not specificly interested in one or a few channels, that is you are interested only in layer, the sequence number is 0.")
-    
-    parser.add_argument('-unit',
-                        type=int,
-                        required = False,
-                        metavar = 'unitNumber',
-                        help = "position for a specific unit")
-    
-    parser.add_argument('-out',
+                        nargs='+',
+                        metavar='Channel id list',
                         type=str,
+                        help='Channel of interest.If no channels are specificied, '
+                        'each channel will be processed. The layer and channel '
+                        'should be one-to-one paired together in the order.')
+    parser.add_argument('-dmask',
+                        metavar='.dmask.csv dnnmask file',
+                        required=False,
+                        type=str,
+                        help='A .dmask.csv file in which layers and channel of '
+                        'interest are listed')
+    parser.add_argument('-outdir',
+                        type = str,
                         required = True,
-                        metavar = 'OutputDir',
-                        help = 'out in this dir')
+                        metavar='Outputdir',
+                        help = 'Output directory to save the reconstructed image.')
     
     args = parser.parse_args()
 

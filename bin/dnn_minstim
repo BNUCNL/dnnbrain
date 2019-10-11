@@ -19,6 +19,12 @@ def main():
                         metavar='Name of target DNN',
                         choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
+   parser.add_argument('-stim',
+                        type=str,
+                        required=True,
+                        metavar='A csv file lists top stimuli to be simplyfied.',
+                        help='The file provide path of the top stimuli images '
+                        'to be simplified.')
     parser.add_argument('-layer',
                         nargs='+',
                         metavar='Layer id list',
