@@ -1,8 +1,7 @@
 #! /usr/bin/env python
 
 """
-find the characterize relative to one unit
-Author: Yiyuan Zhang @ BNU
+Optimized stimuli synthesis for interested channels using activation maximization
 """
 
 
@@ -14,39 +13,41 @@ from dnnbrain.dnn import io as dnn_io
 
 
 def main():
-    
-    parser = argparse.ArgumentParser(description='DNN units optimal stimuli')
-    
+    parser = argparse.ArgumentParser(description='Optimized stimuli synthesis for '
+                                     'interested channels using activation maximization')
     parser.add_argument('-net',
                         type = str,
                         required = True,
                         metavar='NetName',
-                        choices=['alexnet', 'vgg11'],
-                        help = 'specific name of CNN')
-
+                        choices=['alexnet', 'vgg11','vgg16','vgg19'],
+                        help = 'Name of interested DNN')
     parser.add_argument('-layer',
-                        type = str,
-                        required=True,
-                        metavar='LayerName',
-                        help='activation for specific layers, please input conv1 or fc1 for activation')
-    
+                        nargs='+',
+                        metavar='Layer',
+                        type=str,
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, reLU, '
+                             'pooling, and fc layer, respectively.The top stimulis '
+                             'are selected for all layers and channels default.')
     parser.add_argument('-channel',
-                        type = int,
-                        required = True,
-                        metavar='ChannelNumber',
-                        help = 'activation for specific channels')
-
-    parser.add_argument('-unit',
-                        type = int,
-                        required = False,
-                        metavar='UnitNumber',
-                        help = 'position for a specific unit')
+                        nargs='+',
+                        metavar='Channel id list',
+                        type=str,
+                        help='Channel of of interest.')
+    parser.add_argument('-dmask',
+                        metavar='.dmask.csv dnnmask file',
+                        required=True,
+                        type=str,
+                        help='A .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest')
+    # The option layer and channle is exclusive to the dbmask. If layer and channel
+    # The user can not use the two set of parameters at the same time.
     
     parser.add_argument('-outdir',
                         type = str,
                         required = True,
-                        metavar='OutputDir',
-                        help = 'output directory in Linux')
+                        metavar='Outputdir',
+                        help = 'Output directory to save the synthesized image.')
     
     args = parser.parse_args()
       
