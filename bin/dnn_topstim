@@ -8,28 +8,59 @@ import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Top stimuli')
+    parser = argparse.ArgumentParser(description='Select top stimuli from 
+                                     'a set of stimuli for interested layer and channel')
     parser.add_argument('-net',
                         metavar='Net',
                         required=True,
                         type=str,
-                        help='a neural network name')
-    parser.add_argument('-dmask',
-                        metavar='DnnMask',
+                        help='DNN of interest.')
+    parser.add_argument('-top',
+                        metavar='The number of stimuli to be selected',
                         required=True,
-                        type=str,
-                        help='a .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest')
+                        type=int,
+                        help='Top N stimuli will be selected.')
     parser.add_argument('-stim',
-                        metavar='Stimulus',
+                        type=str,
+                        required=True,
+                        metavar='A csv file lists info for stimuli of interest',
+                        help='The file provide info of inuput stimuli images.'
+                        'The stimuli will be selected from the stimuli lsit. ') 
+    parser.add_argument('-act',
+                        metavar='DNN .act.hd5 file',
+                        required=false,
+                        type=str,
+                        help='DNN activation file. If activation file is input '
+                        'the top stimuli are selected on it. Otherwise, the activation  '
+                        'will be directly computed on the listed stimlui')
+    parser.add_argument('-layer',
+                        nargs='+',
+                        metavar='Layer',
+                        type=str,
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, reLU, '
+                             "pooling, and full connection layer, respectively.' 
+                             "Defaultly, the top stimulis for all layers '
+                             'and all channels are selected')
+     parser.add_argument('-channel',
+                        nargs='+',
+                        metavar='Channel id list',
+                        type=str,
+                        help="Channel of of interest. ")
+     parser.add_argument('-dmask',
+                        metavar='.dmask.csv dnnmask file',
                         required=True,
                         type=str,
-                        help='a .stim.csv file which contains stimulus information')
+                        help='A .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest')
+    # The option layer and channle is exclusive to the dbmask. If layer and channel
+    # The user can not use the two set of parameters at the same time.
     parser.add_argument('-out',
-                        metavar='Output',
+                        metavar='Output .topstim.hd5 file which list top stimulus '
+                        ' for intereested layers and channles',
                         required=True,
                         type=str,
-                        help='an output .csv file')
+                        help='an output stim.hd5 file')
     args = parser.parse_args()
 
 
