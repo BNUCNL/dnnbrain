@@ -26,8 +26,8 @@ def main():
                         type=str,
                         required=True,
                         metavar='A csv file lists info for stimuli of interest',
-                        help='The file provide info of inuput stimuli images.'
-                        'The stimuli will be selected from the stimuli lsit. ') 
+                        help='The file provide info of inuput stimuli images from '
+                        'which the top stimuli will be selected.')
     parser.add_argument('-act',
                         metavar='DNN .act.hd5 file',
                         required=False,
@@ -48,13 +48,13 @@ def main():
                         nargs='+',
                         metavar='Channel id list',
                         type=str,
-                        help="Channel of of interest. ")
+                        help="Channel of interest. ")
     parser.add_argument('-dmask',
                         metavar='.dmask.csv dnnmask file',
                         required=True,
                         type=str,
-                        help='A .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest')
+                        help='A .dmask.csv file in which interested layers '
+                        'and channles are listed.')
     # The option layer and channle is exclusive to the dbmask. If layer and channel
     # The user can not use the two set of parameters at the same time.
     parser.add_argument('-out',

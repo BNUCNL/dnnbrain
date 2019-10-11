@@ -19,7 +19,7 @@ def main():
                         type = str,
                         required = True,
                         metavar='NetName',
-                        choices=['alexnet', 'vgg11','vgg16','vgg19'],
+                        choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
     parser.add_argument('-layer',
                         nargs='+',
@@ -33,13 +33,13 @@ def main():
                         nargs='+',
                         metavar='Channel id list',
                         type=str,
-                        help='Channel of of interest.')
+                        help='Channel of interest')
     parser.add_argument('-dmask',
                         metavar='.dmask.csv dnnmask file',
                         required=True,
                         type=str,
-                        help='A .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest')
+                        help='A .dmask.csv file in which layers and channel of '
+                        'interest are  listed')
     # The option layer and channle is exclusive to the dbmask. If layer and channel
     # The user can not use the two set of parameters at the same time.
     
