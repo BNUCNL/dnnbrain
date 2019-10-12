@@ -104,7 +104,7 @@ def dnn_activation(data_loader, net_loader, layer):
     dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
 
     hook_handle.remove()
-    return dnn_acts
+    return dnn_acts, raw_shape
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
