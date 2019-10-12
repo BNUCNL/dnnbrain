@@ -4,7 +4,16 @@
 Extract activation from DNN
 """
 
+import sys
+import time
+import h5py
 import argparse
+
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from dnnbrain.dnn.io import NetLoader, PicDataset, VidDataset
+from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.dnn.analyzer import dnn_activation
 
 
 def main():
@@ -14,11 +23,9 @@ def main():
                         required=True,
                         type=str,
                         help='a neural network name')
-    parser.add_argument('-notrained',
-                        action='store_true',
-                        help='If used, use the neural network without pre-trained.')
     parser.add_argument('-layer',
                         metavar='Layer',
+                        required=True,
                         type=str,
                         nargs='+',
                         help="names of the layers used to specify where activation is extracted from "
@@ -36,6 +43,37 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
+    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
+
+    # -load DNN-
+    net_loader = NetLoader(args.net)
+    transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
+
+    # --Load stimuli--
+    stim_dict = read_stim_csv(args.stim)
+    if stim_dict['type'] == 'picture':
+        dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             stim_dict['stim'].get('condition', None), transform)
+    elif stim_dict['type'] == 'video':
+        dataset = VidDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             stim_dict['stim'].get('condition', None), transform)
+    else:
+        raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
+    data_loader = DataLoader(dataset, batch_size=8, shuffle=False)
+
+    # extract activation
+    wf = h5py.File(args.out, 'w')
+    for layer in args.layer:
+        dnn_acts, raw_shape = dnn_activation(data_loader, net_loader, layer)
+        dset = wf.create_dataset(layer, data=dnn_acts)
+        dset.attrs['raw_shape'] = raw_shape
+    # create some information
+    wf.attrs['title'] = '{} activation'.format(args.net)
+    cmd = ' '.join(sys.argv)
+    wf.attrs['cmd'] = cmd
+    date = time.asctime()
+    wf.attrs['date'] = date
+    wf.close()
 
 
 if __name__ == '__main__':

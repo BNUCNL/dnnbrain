@@ -5,8 +5,8 @@ from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
 
 
-def dnn_activation(input, netname, layer, channel=None, column=None, 
-                   fe_axis=None, fe_meth=None):
+def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
+                              fe_axis=None, fe_meth=None):
     """
     Extract DNN activation
 
@@ -65,6 +65,46 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
             raise ValueError('fe_axis should be layer, channel or column')
     
     return dnnact
+
+
+def dnn_activation(data_loader, net_loader, layer):
+    """
+    Extract DNN activation from the specified layer
+
+    Parameters:
+    ------------
+    data_loader[DataLoader]: stimuli loader
+    net_loader[NetLoader]: neural network loader
+    layer[str]: layer name of a DNN
+
+    Returns:
+    ---------
+    dnn_act[numpy.array]: DNN activation, A 3D array with its shape as (n_picture, n_channel, n_column)
+    """
+    # change to eval mode
+    net_loader.model.eval()
+
+    # prepare dnn activation hook
+    dnn_acts = []
+
+    def hook_act(module, input, output):
+        dnn_acts.extend(output.detach().numpy().copy())
+
+    module = net_loader.model
+    for k in net_loader.layer2keys[layer]:
+        module = module._modules[k]
+    hook_handle = module.register_forward_hook(hook_act)
+
+    # extract dnn activation
+    for stims, _ in data_loader:
+        net_loader.model(stims)
+        print('Extracted acts:', len(dnn_acts))
+    dnn_acts = np.asarray(dnn_acts)
+    raw_shape = dnn_acts.shape
+    dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+
+    hook_handle.remove()
+    return dnn_acts, raw_shape
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
