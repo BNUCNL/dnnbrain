@@ -4,7 +4,12 @@
 Pooling DNN activation for each channel
 """
 
+import sys
+import time
+import h5py
 import argparse
+
+from dnnbrain.dnn.analyzer import dnn_pooling
 
 
 def main():
@@ -38,6 +43,22 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
+    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
+
+    # pooling DNN activation
+    src_h5 = h5py.File(args.act)
+    trg_h5 = h5py.File(args.out, 'w')
+    layers = src_h5.keys() if args.layer is None else args.layer
+    for layer in layers:
+        trg_h5.create_dataset(layer, data=dnn_pooling(src_h5[layer], args.meth))
+
+    # write some information
+    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' pooled'
+    trg_h5.attrs['cmd'] = ' '.join(sys.argv)
+    trg_h5.attrs['date'] = time.asctime()
+
+    src_h5.close()
+    trg_h5.close()
 
 
 if __name__ == '__main__':

@@ -131,6 +131,33 @@ def dnn_mask(dnn_acts, chn=None, col=None):
     return dnn_acts
 
 
+def dnn_pooling(dnn_acts, method):
+    """
+    Pooling DNN activation for each channel
+
+    Parameters:
+    ------------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    method[str]: pooling method, choices=(max, mean, median)
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation after pooling
+        a 3D array with its shape as (n_stim, n_chn, 1)
+    """
+    # feature extraction
+    if method == 'max':
+        dnn_acts = np.max(dnn_acts, 2)[:, :, None]
+    elif method == 'mean':
+        dnn_acts = np.mean(dnn_acts, 2)[:, :, None]
+    elif method == 'median':
+        dnn_acts = np.median(dnn_acts, 2)[:, :, None]
+    else:
+        raise ValueError('Not supported method:', method)
+
+    return dnn_acts
+
+
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
     """
     Convolve each X's column iteratively with HRF and align with the timeline of BOLD signal
