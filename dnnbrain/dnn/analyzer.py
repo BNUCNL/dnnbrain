@@ -79,7 +79,8 @@ def dnn_activation(data_loader, net_loader, layer):
 
     Returns:
     ---------
-    dnn_act[numpy.array]: DNN activation, A 3D array with its shape as (n_picture, n_channel, n_column)
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    raw_shape[tuple]: the DNN activation's raw shape
     """
     # change to eval mode
     net_loader.model.eval()
@@ -105,6 +106,56 @@ def dnn_activation(data_loader, net_loader, layer):
 
     hook_handle.remove()
     return dnn_acts, raw_shape
+
+
+def dnn_mask(dnn_acts, chn=None, col=None):
+    """
+    Extract DNN activation
+
+    Parameters:
+    ------------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    chn[list]: channel indices of interest
+    col[list]: column indices of interest
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation after mask
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    """
+    if chn is not None:
+        dnn_acts = dnn_acts[:, chn, :]
+    if col is not None:
+        dnn_acts = dnn_acts[:, :, col]
+
+    return dnn_acts
+
+
+def dnn_pooling(dnn_acts, method):
+    """
+    Pooling DNN activation for each channel
+
+    Parameters:
+    ------------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    method[str]: pooling method, choices=(max, mean, median)
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation after pooling
+        a 3D array with its shape as (n_stim, n_chn, 1)
+    """
+    # feature extraction
+    if method == 'max':
+        dnn_acts = np.max(dnn_acts, 2)[:, :, None]
+    elif method == 'mean':
+        dnn_acts = np.mean(dnn_acts, 2)[:, :, None]
+    elif method == 'median':
+        dnn_acts = np.median(dnn_acts, 2)[:, :, None]
+    else:
+        raise ValueError('Not supported method:', method)
+
+    return dnn_acts
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
