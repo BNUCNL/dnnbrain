@@ -53,6 +53,13 @@ def main():
                         type=str,
                         help='A .dmask.csv file in which layers and channel of '
                         'interest are listed')
+    parser.add_argument('-meth',
+                        metavar='Method to define RF',
+                        required=True,
+                        help='Two methods are supported: maximum upsampling(mu), '
+                        'slide-occluding(so). For mu, two-tuple parameters '
+                        'are needed: -mu threshold; For so(default), three parametes ' 
+                        'are needed: -so windowsize stride.')
     parser.add_argument('-outdir',
                         type = str,
                         required = True,

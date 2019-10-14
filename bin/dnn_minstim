@@ -19,7 +19,7 @@ def main():
                         metavar='Name of target DNN',
                         choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
-   parser.add_argument('-stim',
+    parser.add_argument('-stim',
                         type=str,
                         required=True,
                         metavar='A csv file lists top stimuli to be simplyfied.',
