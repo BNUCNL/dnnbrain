@@ -30,8 +30,7 @@ def main():
                         nargs='+',
                         help="names of the layers used to specify where activation is extracted from "
                              "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. "
-                             "Default is extracting all layers.")
+                             "'fc1' represents the first full connection layer. ")
     parser.add_argument('-stim',
                         metavar='Stimulus',
                         required=True,

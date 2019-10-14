@@ -447,3 +447,70 @@ def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
             variable_vals = np.array(list(variables.values()), dtype=np.str).T
             variable_vals = [','.join(row) for row in variable_vals]
         f.write('\n'.join(variable_vals))
+
+
+def read_dmask_csv(fpath):
+    """
+    Read pre-designed .dmask.csv file.
+
+    Parameters:
+    ----------
+    fpath: path of .dmask.csv file
+
+    Return:
+    ------
+    dmask_dict[OrderedDict]: Dictionary of the DNN mask information
+    """
+    # -load csv data-
+    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+    with open(fpath) as rf:
+        lines = rf.read().splitlines()
+
+    # extract layers, channels and columns of interest
+    dmask_dict = OrderedDict()
+    for l_idx, line in enumerate(lines):
+        if '=' in line:
+            # layer
+            layer, axes = line.split('=')
+            dmask_dict[layer] = {'chn': None, 'col': None}
+
+            # channels and columns
+            axes = axes.split(',')
+            while '' in axes:
+                axes.remove('')
+            assert len(axes) <= 2, \
+                "The number of a layer's axes must be less than or equal to 2."
+            for a_idx, axis in enumerate(axes, 1):
+                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
+                numbers = [int(num) for num in lines[l_idx+a_idx].split(',')]
+                dmask_dict[layer][axis] = numbers
+
+    return dmask_dict
+
+
+def save_dmask_csv(fpath, dmask_dict):
+    """
+    Generate .dmask.csv
+
+    Parameters
+    ---------
+    fpath[str]: output file path, ending with .dmask.csv
+    dmask_dict[dict]: Dictionary of the DNN mask information
+    """
+    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+    with open(fpath, 'w') as wf:
+        for layer, axes_dict in dmask_dict.items():
+            axes = []
+            num_lines = []
+            assert len(axes_dict) <= 2, \
+                "The number of a layer's axes must be less than or equal to 2."
+            for axis, numbers in axes_dict.items():
+                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
+                if numbers is not None:
+                    axes.append(axis)
+                    num_line = ','.join(map(str, numbers))
+                    num_lines.append(num_line)
+
+            wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
+            for num_line in num_lines:
+                wf.write(num_line+'\n')

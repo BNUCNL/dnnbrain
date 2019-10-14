@@ -12,12 +12,12 @@ def read_stim_csv(fpath):
     fpath[str]: Path of .stim.csv file.
         Format of .stim.csv of picture stimuli is
         --------------------------
-        title:picture stimuli
-        type:picture
-        path:parent_dir_to_pictures
-        [Several optional keys] (eg., hrf_tr:2)
-        stim:stimID,[onset],[duration],[condition]
-        meas:accuracy, reaction time
+        title=picture stimuli
+        type=picture
+        path=parent_dir_to_pictures
+        [Several optional keys] (eg., hrf_tr=2)
+        stim=stimID,[onset],[duration],[condition]
+        meas=accuracy, reaction time
         pic1_path,0,1,cat,0.4,0.5
         pic2_path,1,1,dog,0.6,0.4
         pic3_path,2,1,cat,0.7,0.5
@@ -25,12 +25,12 @@ def read_stim_csv(fpath):
 
         Format of .stim.csv of video stimuli is
         --------------------------
-        title:video stimuli
-        type:video
-        path:path_to_video_file
-        [Several optional keys] (eg., hrf_tr:2)
-        stim:stimID,[onset],[duration],[condition]
-        meas:accuracy, reaction time
+        title=video stimuli
+        type=video
+        path=path_to_video_file
+        [Several optional keys] (eg., hrf_tr=2)
+        stim=stimID,[onset],[duration],[condition]
+        meas=accuracy, reaction time
         1,0,1,cat,0.4,0.5
         2,1,1,dog,0.6,0.4
         3,2,1,cat,0.7,0.5
@@ -38,7 +38,7 @@ def read_stim_csv(fpath):
 
     Return:
     -------
-    stim_dict[dict]: Dictionary of the output variable
+    stim_dict[OrderedDict]: Dictionary of the stimuli information
     """
     # -load csv data-
     assert fpath.endswith('.stim.csv'), "File suffix must be .stim.csv"
