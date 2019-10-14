@@ -124,7 +124,7 @@ class VidDataset:
         # get frame
         self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_nums[idx]-1)
         _, frame = self.vid_cap.read()
-        frame_img = Image.fromarray(frame)
+        frame_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
         # crop frame
         if self.crops is not None:
