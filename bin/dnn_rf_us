@@ -1,0 +1,72 @@
+#! /usr/bin/env python
+
+"""
+Estimate receptive field using activation upsampling(us) method 
+for interested channels. The method only works for conv layers.
+"""
+
+import argparse
+
+
+def main():
+    
+    parser = argparse.ArgumentParser(description='Estimate receptive field using '
+                                     'using activation upsampling method for '
+                                     'interested channels')
+    parser.add_argument('-net',
+                        type = str,
+                        required = True,
+                        metavar='Name of target DNN',
+                        choices=['alexnet','vgg11','vgg16','vgg19'],
+                        help = 'Name of interested DNN')
+    parser.add_argument('-layer',
+                        nargs='+',
+                        metavar='Layer id list',
+                        type=str,
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, reLU, '
+                             'pooling, and fc layer, respectively.The top stimulis '
+                             'are selected for all layers and channels default.')
+    parser.add_argument('-channel',
+                        nargs='+',
+                        metavar='Channel id list',
+                        type=str,
+                        help='Channel of interest.If no channels are specificied, '
+                        'each channel will be processed. The layer and channel '
+                        'should be paired together.')
+    parser.add_argument('-stim',
+                        type=str,
+                        required=True,
+                        metavar='A csv file lists top stimuli to be used to '
+                        'estimate receptive field.',
+                        help='The file provide path of the top stimuli images '
+                        'used to estimate receptive field.')
+    parser.add_argument('-act',
+                        metavar='DNN .act.hd5 file',
+                        required=False,
+                        type=str,
+                        help='DNN activation file from the stimuli. '
+                        'If activation file is input, it will be used directly '
+                        'to estimate the RF. Otherwise, the activation  '
+                        'will be recomputed for the input stimlui.')
+    parser.add_argument('-dmask',
+                        metavar='.dmask.csv dnnmask file',
+                        required=True,
+                        type=str,
+                        help='A .dmask.csv file in which layers and channel of '
+                        'interest are listed')
+    parser.add_argument('-thr',
+                        metavar='A threshold for activation',
+                        required=False,
+                        help='The threshold is in the range of 0-1. Default is 0.5')
+    parser.add_argument('-outdir',
+                        type = str,
+                        required = True,
+                        metavar='Outputdir',
+                        help = 'Output directory to save RF images.')
+    
+    args = parser.parse_args()
+    
+    
+if __name__ == '__main__':
+    main()
