@@ -29,7 +29,7 @@ def main():
                         help='The file provide info of inuput stimuli images from '
                         'which the top stimuli will be selected.')
     parser.add_argument('-act',
-                        metavar='DNN .act.hd5 file',
+                        metavar='DNN .act.h5 file',
                         required=False,
                         type=str,
                         help='DNN activation file. If activation file is input '

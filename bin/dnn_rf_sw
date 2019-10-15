@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
 """
-Estimate receptive field for interested channels using its top stimuli
+Estimate receptive field using slide-window(sw) occulding method 
+for interested channels. The method work for both conv and fc layers
 """
 
 import argparse
@@ -39,20 +40,26 @@ def main():
                         'estimate receptive field.',
                         help='The file provide path of the top stimuli images '
                         'used to estimate receptive field.')
-    parser.add_argument('-act',
-                        metavar='DNN .act.hd5 file',
-                        required=False,
-                        type=str,
-                        help='DNN activation file from the stimuli. '
-                        'If activation file is input, it will be used directly '
-                        'to estimate the RF. Otherwise, the activation  '
-                        'will be recomputed for the input stimlui.')
     parser.add_argument('-dmask',
                         metavar='.dmask.csv dnnmask file',
                         required=True,
                         type=str,
                         help='A .dmask.csv file in which layers and channel of '
                         'interest are listed')
+    parser.add_argument('-wsize',
+                        metavar='Window size',
+                        required=True,
+                        help='Windows size in pixel unit. default is 5x5')
+    parser.add_argument('-stride',
+                        metavar='Stride in moving window',
+                        required=True,
+                        help='Stride used in moving windows')
+    parser.add_argument('-dist',
+                        metavar='Metric of discrpancy',
+                        required=True,
+                        choices=['max','mean','L1','L2'],
+                        help='Discripancy metric to measure the differnce between '
+                        'original activation and activation from occulding.')
     parser.add_argument('-outdir',
                         type = str,
                         required = True,

@@ -23,7 +23,7 @@ def main():
                         choices=['alexnet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
     parser.add_argument('-act',
-                        metavar='DNN .act.hd5 file',
+                        metavar='DNN .act.h5 file',
                         required=False,
                         type=str,
                         help='The DNN activation to be reconstructed')
