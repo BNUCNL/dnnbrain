@@ -1,0 +1,78 @@
+#! /usr/bin/env python
+
+"""
+Decode brain response to DNN activation
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Decode brain response to DNN activation')
+    parser.add_argument('-anal',
+                        metavar='Analysis',
+                        required=True,
+                        type=str,
+                        choices=('uva', 'mva'),
+                        help="uva: Do univariate analysis. "
+                             "mva: Do multivariate analysis.")
+    parser.add_argument('-resp',
+                        metavar='Response',
+                        required=True,
+                        type=str,
+                        help='a .roi.h5/.nii file '
+                             'If it is .nii file, -meas will be ignored. '
+                             'If it is .roi.h5 file, -bmask will be ignored')
+    parser.add_argument('-bmask',
+                        metavar='BrainMask',
+                        type=str,
+                        help='Brain mask is used to extract activation locally. '
+                             'Only used when the response file is .nii file.')
+    parser.add_argument('-meas',
+                        metavar='Measurement',
+                        type=str,
+                        nargs='+',
+                        help='Specify measurements for decoding. '
+                             'Default is using all measurements in response file.')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="names of the layers which are decoded "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Default is decoding all layers in the DNN activation file.")
+    parser.add_argument('-hrf',
+                        action='store_true',
+                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
+                             'And match it with the time points of Brain activation.')
+    parser.add_argument('-model',
+                        metavar='Model',
+                        required=True,
+                        type=str,
+                        choices=('glm', 'lasso', 'svc', 'lrc'),
+                        help='Select a model to predict brain or behavior responses by dnn activation. '
+                             'Use glm (general linear model) for regression. '
+                             'Use lasso (lasso regression) for regression. ' 
+                             'Use svc (support vector machine) for classification. '
+                             'Use lrc (logistic regression) for classification.')
+    parser.add_argument('-cvfold',
+                        metavar='FoldNumber',
+                        type=int,
+                        default=3,
+                        help='cross validation fold number')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output directory')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

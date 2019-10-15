@@ -1,0 +1,55 @@
+#! /usr/bin/env python
+
+"""
+Characterise DNN activation's representation similarity matrix.
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Characterise DNN activation's RSM")
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="names of the layers which will be used to do rsa "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Default is probe all layers in the DNN activation file.")
+    parser.add_argument('-iteraxis',
+                        type=str,
+                        metavar='Axis',
+                        choices=('channel', 'column'),
+                        default='layer',
+                        help="Iterate along the specified axis."
+                             "channel: Do rsa on each channel. "
+                             "column: Do rsa on each column. "
+                             "default: Do rsa the whole layer.")
+    parser.add_argument('-level',
+                        metavar='Level',
+                        required=True,
+                        type=str,
+                        choices=('item', 'category'),
+                        help='item: do rsa item-wise'
+                             'category: do rsa category-wise')
+    parser.add_argument('-cate',
+                        metavar='Category',
+                        type=str,
+                        help='a .stim.csv file which contains category information '
+                             'which is needed when -level is category')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .drsm.h5')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

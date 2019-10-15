@@ -124,7 +124,7 @@ class VidDataset:
         # get frame
         self.vid_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_nums[idx]-1)
         _, frame = self.vid_cap.read()
-        frame_img = Image.fromarray(frame)
+        frame_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
         # crop frame
         if self.crops is not None:
@@ -222,10 +222,20 @@ class NetLoader:
                 self.model = torchvision.models.alexnet()
                 self.model.load_state_dict(torch.load(
                         os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv2': (0, 3), 'conv2_relu': (0, 4),
-                                      'conv3': (0, 6), 'conv3_relu': (0, 7), 'conv4': (0, 8), 'conv4_relu': (0, 9),
-                                      'conv5': (0, 10), 'conv5_relu': (0, 11), 'fc1': (2, 1), 'fc1_relu': (2, 2),
-                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6)}
+                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv1_maxpool': (0, 2), 'conv2': (0, 3),
+                                      'conv2_relu': (0, 4), 'conv2_maxpool': (0, 5), 'conv3': (0, 6), 'conv3_relu': (0, 7),
+                                      'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
+                                      'conv5_maxpool': (0, 12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
+                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6), 'prefc': (2,)}
+                self.layer2keys = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                                    'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                                    'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                                    'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                                    'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                                    'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
+                                    'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
+                                    'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
+                                    'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
@@ -236,7 +246,7 @@ class NetLoader:
                                       'conv5': (0, 11), 'conv6': (0, 13),
                                       'conv7': (0, 16), 'conv8': (0, 18),
                                       'fc1': (2, 0), 'fc2': (2, 3),
-                                      'fc3': (2, 6)}
+                                      'fc3': (2, 6), 'prefc':(2,)}
                 self.img_size = (224, 224)
             elif net == 'vggface':
                 self.model = Vgg_face()
@@ -249,7 +259,7 @@ class NetLoader:
                                       'conv9': (19,), 'conv10': (21,),
                                       'conv11': (24,), 'conv12': (26,),
                                       'conv13': (28,), 'fc1': (31,),
-                                      'fc2': (34,), 'fc3': (37,)}
+                                      'fc2': (34,), 'fc3': (37,), 'prefc':(31,)}
                 self.img_size = (224, 224)
         else:
             print('Not internal supported, please call netloader function'
@@ -437,3 +447,70 @@ def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
             variable_vals = np.array(list(variables.values()), dtype=np.str).T
             variable_vals = [','.join(row) for row in variable_vals]
         f.write('\n'.join(variable_vals))
+
+
+def read_dmask_csv(fpath):
+    """
+    Read pre-designed .dmask.csv file.
+
+    Parameters:
+    ----------
+    fpath: path of .dmask.csv file
+
+    Return:
+    ------
+    dmask_dict[OrderedDict]: Dictionary of the DNN mask information
+    """
+    # -load csv data-
+    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+    with open(fpath) as rf:
+        lines = rf.read().splitlines()
+
+    # extract layers, channels and columns of interest
+    dmask_dict = OrderedDict()
+    for l_idx, line in enumerate(lines):
+        if '=' in line:
+            # layer
+            layer, axes = line.split('=')
+            dmask_dict[layer] = {'chn': None, 'col': None}
+
+            # channels and columns
+            axes = axes.split(',')
+            while '' in axes:
+                axes.remove('')
+            assert len(axes) <= 2, \
+                "The number of a layer's axes must be less than or equal to 2."
+            for a_idx, axis in enumerate(axes, 1):
+                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
+                numbers = [int(num) for num in lines[l_idx+a_idx].split(',')]
+                dmask_dict[layer][axis] = numbers
+
+    return dmask_dict
+
+
+def save_dmask_csv(fpath, dmask_dict):
+    """
+    Generate .dmask.csv
+
+    Parameters
+    ---------
+    fpath[str]: output file path, ending with .dmask.csv
+    dmask_dict[dict]: Dictionary of the DNN mask information
+    """
+    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+    with open(fpath, 'w') as wf:
+        for layer, axes_dict in dmask_dict.items():
+            axes = []
+            num_lines = []
+            assert len(axes_dict) <= 2, \
+                "The number of a layer's axes must be less than or equal to 2."
+            for axis, numbers in axes_dict.items():
+                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
+                if numbers is not None:
+                    axes.append(axis)
+                    num_line = ','.join(map(str, numbers))
+                    num_lines.append(num_line)
+
+            wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
+            for num_line in num_lines:
+                wf.write(num_line+'\n')

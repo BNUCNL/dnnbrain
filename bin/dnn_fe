@@ -1,0 +1,64 @@
+#! /usr/bin/env python
+
+"""
+Extract features of DNN activation
+"""
+
+import argparse
+
+from collections import namedtuple
+
+
+class MethodAction(argparse.Action):
+    def __call__(self, parser, args, values, option_string=None):
+        method, n_feat = values
+        methods = ('pca', 'hist', 'psd')
+        if method not in methods:
+            raise ValueError('invalid name: {0} (choose from {1})'.format(method, methods))
+        n_feat = int(n_feat)
+        Meth = namedtuple('Meth', ('method', 'n_feat'))
+        setattr(args, self.dest, Meth(method, n_feat))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="Layers of interest to do feature extraxtion. "
+                             "E.g., 'conv1' represents the first convolution layer, "
+                             "and 'fc1' represents the first full connection layer. "
+                             "Default is to do feature extraction for all layers "
+                             "in the activation file.")
+    parser.add_argument('-meth',
+                        nargs=2,
+                        metavar=('Method', 'N_feature'),
+                        required=True,
+                        action=MethodAction,
+                        help='Feature extraction method: '
+                             'hist: use histogram of activation as feature; '
+                             'psd: use power spectral density as feature; '
+                             'pca: use some principal components as features. '
+                             'N_feature is used to specify the number of features we will use.')
+    parser.add_argument('-axis',
+                        metavar='Axis',
+                        type=str,
+                        choices=('channel', 'column'),
+                        help='axis for feature extraction '
+                             'Default is extracting features from the whole layer.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='Output filename with suffix .act.h5')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

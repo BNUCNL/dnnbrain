@@ -1,4 +1,4 @@
 # dnnbrain(db)
-Use DNN to study the brain and use brain measurement to evaluate DNN.
+Use dnn to study the brain and use brain measurement to evaluate dnn.
 
-dnnbrain is abbreviated as db in importing.
+dnnbrain includes both tools to explore internal representation of dnn and tools to examine the correspondences between dnn and the brain. 

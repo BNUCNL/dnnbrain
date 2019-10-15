@@ -5,8 +5,8 @@ from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
 
 
-def dnn_activation(input, netname, layer, channel=None, column=None, 
-                   fe_axis=None, fe_meth=None):
+def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
+                              fe_axis=None, fe_meth=None):
     """
     Extract DNN activation
 
@@ -65,6 +65,97 @@ def dnn_activation(input, netname, layer, channel=None, column=None,
             raise ValueError('fe_axis should be layer, channel or column')
     
     return dnnact
+
+
+def dnn_activation(data_loader, net_loader, layer):
+    """
+    Extract DNN activation from the specified layer
+
+    Parameters:
+    ------------
+    data_loader[DataLoader]: stimuli loader
+    net_loader[NetLoader]: neural network loader
+    layer[str]: layer name of a DNN
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    raw_shape[tuple]: the DNN activation's raw shape
+    """
+    # change to eval mode
+    net_loader.model.eval()
+
+    # prepare dnn activation hook
+    dnn_acts = []
+
+    def hook_act(module, input, output):
+        dnn_acts.extend(output.detach().numpy().copy())
+
+    module = net_loader.model
+    for k in net_loader.layer2keys[layer]:
+        module = module._modules[k]
+    hook_handle = module.register_forward_hook(hook_act)
+
+    # extract dnn activation
+    for stims, _ in data_loader:
+        net_loader.model(stims)
+        print('Extracted acts:', len(dnn_acts))
+    dnn_acts = np.asarray(dnn_acts)
+    raw_shape = dnn_acts.shape
+    dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+
+    hook_handle.remove()
+    return dnn_acts, raw_shape
+
+
+def dnn_mask(dnn_acts, chn=None, col=None):
+    """
+    Extract DNN activation
+
+    Parameters:
+    ------------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    chn[list]: channel indices of interest
+    col[list]: column indices of interest
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation after mask
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    """
+    if chn is not None:
+        dnn_acts = dnn_acts[:, chn, :]
+    if col is not None:
+        dnn_acts = dnn_acts[:, :, col]
+
+    return dnn_acts
+
+
+def dnn_pooling(dnn_acts, method):
+    """
+    Pooling DNN activation for each channel
+
+    Parameters:
+    ------------
+    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
+    method[str]: pooling method, choices=(max, mean, median)
+
+    Returns:
+    ---------
+    dnn_acts[array]: DNN activation after pooling
+        a 3D array with its shape as (n_stim, n_chn, 1)
+    """
+    # feature extraction
+    if method == 'max':
+        dnn_acts = np.max(dnn_acts, 2)[:, :, None]
+    elif method == 'mean':
+        dnn_acts = np.mean(dnn_acts, 2)[:, :, None]
+    elif method == 'median':
+        dnn_acts = np.median(dnn_acts, 2)[:, :, None]
+    else:
+        raise ValueError('Not supported method:', method)
+
+    return dnn_acts
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):

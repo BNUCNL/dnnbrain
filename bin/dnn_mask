@@ -1,0 +1,90 @@
+#! /usr/bin/env python
+
+"""
+Extract DNN activation for layer, channel, and column of interest
+"""
+
+import sys
+import time
+import h5py
+import argparse
+
+from dnnbrain.dnn.io import read_dmask_csv
+from dnnbrain.dnn.analyzer import dnn_mask
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        help="Layer name used to specify where activation is extracted from "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Note: this option will be ignored if -dmask is used.")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="Channel numbers used to specify where activation is extracted from "
+                             "Default is extracting all channels of the layer specified by -layer.")
+    parser.add_argument('-col',
+                        metavar='Column',
+                        type=int,
+                        nargs='+',
+                        help="Column numbers used to specify where activation is extracted from "
+                             "Default is extracting all columns of the layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .act.h5')
+    args = parser.parse_args()
+    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
+    assert args.layer or args.dmask, 'At least one of (layer, dmask) should be used!'
+
+    # extract dnn activation with mask
+    src_h5 = h5py.File(args.act)
+    trg_h5 = h5py.File(args.out, 'w')
+    if args.dmask is None:
+        dnn_acts = src_h5[args.layer]
+        chn = args.chn if args.chn is None else [i-1 for i in args.chn]
+        col = args.col if args.col is None else [i-1 for i in args.col]
+        dnn_acts = dnn_mask(dnn_acts, chn, col)
+        trg_h5.create_dataset(args.layer, data=dnn_acts)
+    else:
+        dmask_dict = read_dmask_csv(args.dmask)
+        for layer, axes_dict in dmask_dict.items():
+            dnn_acts = src_h5[layer]
+            if axes_dict['chn'] is None:
+                chn = None
+            else:
+                chn = [i-1 for i in axes_dict['chn']]
+            if axes_dict['col'] is None:
+                col = None
+            else:
+                col = [i-1 for i in axes_dict['col']]
+            dnn_acts = dnn_mask(dnn_acts, chn, col)
+            trg_h5.create_dataset(layer, data=dnn_acts)
+
+    # write some information
+    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' masked'
+    trg_h5.attrs['cmd'] = ' '.join(sys.argv)
+    trg_h5.attrs['date'] = time.asctime()
+
+    src_h5.close()
+    trg_h5.close()
+
+
+if __name__ == '__main__':
+    main()

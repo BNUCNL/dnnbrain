@@ -1,0 +1,47 @@
+#! /usr/bin/env python
+
+"""
+Find topological mapping between dnn and brain
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Find topological mapping between dnn and brain')
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="names of the layers which are probed "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. "
+                             "Default is probe all layers in the DNN activation file.")
+    parser.add_argument('-hrf',
+                        action='store_true',
+                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
+                             'And match it with the time points of Brain activation.')
+    parser.add_argument('-resp',
+                        metavar='Response',
+                        required=True,
+                        type=str,
+                        help='a .nii file')
+    parser.add_argument('-bmask',
+                        metavar='BrainMask',
+                        type=str,
+                        help='Brain mask is used to extract activation locally.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='eccentricity and polarity in an output directory')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

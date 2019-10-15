@@ -1,0 +1,78 @@
+#! /usr/bin/env python
+
+"""
+DNN finetune
+"""
+
+import argparse
+
+
+def main():
+    parser = argparse.ArgumentParser(description='DNN finetune')
+    parser.add_argument('-net',
+                        metavar='Net',
+                        required=True,
+                        type=str,
+                        help='a neural network name')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        required=True,
+                        type=str,
+                        help="For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer.")
+    parser.add_argument('-stim',
+                        metavar='Stimulus',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        required=True,
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels or columns of interest')
+    parser.add_argument('-hrf',
+                        action='store_true',
+                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
+                             'And match it with the time points of Brain activation.')
+    parser.add_argument('-resp',
+                        metavar='Response',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv/.roi.h5/.nii file '
+                             'If it is .nii file, -cmeas and -rmeas will be ignore. '
+                             "All voxels' activation will be regarded as the "
+                             "ground truth of a regression task. ")
+    parser.add_argument('-bmask',
+                        metavar='BrainMask',
+                        type=str,
+                        help='Brain mask is used to extract activation locally. '
+                             'Only used when the response file is .nii file.')
+    parser.add_argument('-cmeas',
+                        metavar='ClassifiedMeasurement',
+                        type=str,
+                        help='Specify a measurement as the ground truth of '
+                             'a classification task.')
+    parser.add_argument('-rmeas',
+                        metavar='RegressiveMeasurement',
+                        type=str,
+                        nargs='+',
+                        help='Specify measurements as the ground truth of '
+                             'a regression task. Default is using all measurements '
+                             'in response file. The number of measurements must be '
+                             'equal with the units in the last layer of the net.')
+    parser.add_argument('-cvfold',
+                        metavar='FoldNumber',
+                        type=int,
+                        default=3,
+                        help='cross validation fold number')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output directory')
+    args = parser.parse_args()
+
+
+if __name__ == '__main__':
+    main()
