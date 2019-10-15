@@ -39,14 +39,16 @@ def main():
                         'estimate receptive field.',
                         help='The file provide path of the top stimuli images '
                         'used to estimate receptive field.')
-    parser.add_argument('-act',
-                        metavar='DNN .act.hd5 file',
-                        required=False,
-                        type=str,
-                        help='DNN activation file from the stimuli. '
-                        'If activation file is input, it will be used directly '
-                        'to estimate the RF. Otherwise, the activation  '
-                        'will be recomputed for the input stimlui.')
+#    parser.add_argument('-act',
+#                        metavar='DNN .act.hd5 file',
+#                        required=False,
+#                        type=str,
+#                        help='DNN activation file from the stimuli. '
+#                        'If activation file is input, it will be used directly '
+#                        'to estimate the RF. Otherwise, the activation  '
+#                        'will be recomputed for the input stimlui.')
+# ZZL: we can ignore this option temporally 
+# 
     parser.add_argument('-dmask',
                         metavar='.dmask.csv dnnmask file',
                         required=True,
