@@ -4,9 +4,14 @@
 Extract features of DNN activation
 """
 
+import sys
+import time
+import h5py
 import argparse
+import numpy as np
 
 from collections import namedtuple
+from dnnbrain.dnn.analyzer import dnn_fe
 
 
 class MethodAction(argparse.Action):
@@ -49,7 +54,7 @@ def main():
     parser.add_argument('-axis',
                         metavar='Axis',
                         type=str,
-                        choices=('channel', 'column'),
+                        choices=('chn', 'col'),
                         help='axis for feature extraction '
                              'Default is extracting features from the whole layer.')
     parser.add_argument('-out',
@@ -58,6 +63,23 @@ def main():
                         type=str,
                         help='Output filename with suffix .act.h5')
     args = parser.parse_args()
+    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
+
+    src_h5 = h5py.File(args.act)
+    trg_h5 = h5py.File(args.out, 'w')
+    layers = src_h5.keys() if args.layer is None else args.layer
+    for layer in layers:
+        data = dnn_fe(np.array(src_h5[layer]), args.meth.method,
+                      args.meth.n_feat, args.axis)
+        trg_h5.create_dataset(layer, data=data)
+
+    # write some information
+    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' fe'
+    trg_h5.attrs['cmd'] = ' '.join(sys.argv)
+    trg_h5.attrs['date'] = time.asctime()
+
+    src_h5.close()
+    trg_h5.close()
 
 
 if __name__ == '__main__':
