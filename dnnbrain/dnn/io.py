@@ -138,26 +138,39 @@ class VidDataset:
         return len(self.frame_nums)
 
 
-def read_imagefolder(parpath):
+def read_Imagefolder(parpath):
     """
-    Get picture path and conditions of a Imagefolder directory
+    The function read from a already organized Image folder or a folder that only have pictures
+    and return picname list and condition list
+    for generate csv file more quickly.
 
-    Parameters:
-    ------------
-    parpath[str]: Parent path of ImageFolder.
-
-    Returns:
-    ---------
-    picpath[list]: picture path list
-    conditions[list]: condition list
+    :param parpath[str]:already organized folder,Parent path of ImageFolder.
+    :return:
+        picpath[list]:contains all subpath of Images in parpath
+        condition[list]:contains the class of all Images
     """
-    targets = os.listdir(parpath)
-    picname_tmp = [os.listdir(os.path.join(parpath, tg)) for tg in targets]
-    picnames = [pn for sublist in picname_tmp for pn in sublist]
-    conditions = [tg for tg in targets for _ in picname_tmp]
-    picpath = [os.path.join(conditions[i], picnames[i]) for i, _
-               in enumerate(picnames)]
-    return picpath, conditions
+    test_set = list(os.walk(parpath))
+
+    picpath = []
+    condition = []
+    if len(test_set) == 1:  # the folder only have pictures, the folder name will be the condition
+        label = test_set[0]
+        condition_name = os.path.basename(label[0])
+        picpath_tem = label[2]
+        condition_tem = [condition_name for i in label[2]]
+        picpath.append(picpath_tem)
+        condition.append(condition_tem)
+    else:                   # the folder have have some sub-folders as pytorch ImageFolder,
+        for label in test_set[1:]:
+            condition_name = os.path.basename(label[0])
+            picpath_tem = [condition_name + '/' + pic for pic in label[2]]
+            condition_tem = [condition_name for i in label[2]]  # the sub-folders name will be the conditions.
+            picpath.append(picpath_tem)
+            condition.append(condition_tem)
+
+    picpath = sum(picpath, [])
+    condition = sum(condition, [])
+    return picpath, condition
 
 
 def save_activation(activation, outpath):
