@@ -1,8 +1,10 @@
 import numpy as np
+
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
-from scipy.signal import convolve
+from scipy.signal import convolve, periodogram
+from sklearn.decomposition import PCA
 
 
 def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
@@ -145,7 +147,6 @@ def dnn_pooling(dnn_acts, method):
     dnn_acts[array]: DNN activation after pooling
         a 3D array with its shape as (n_stim, n_chn, 1)
     """
-    # feature extraction
     if method == 'max':
         dnn_acts = np.max(dnn_acts, 2)[:, :, None]
     elif method == 'mean':
@@ -156,6 +157,69 @@ def dnn_pooling(dnn_acts, method):
         raise ValueError('Not supported method:', method)
 
     return dnn_acts
+
+
+def dnn_fe(dnn_acts, meth, n_feat, axis=None):
+    """
+    Extract features of DNN activation
+
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    meth[str]: feature extraction method, choices=(pca, hist, psd)
+        pca: use n_feat principal components as features
+        hist: use histogram of activation as features
+            Note: n_feat equal-width bins in the given range will be used!
+        psd: use power spectral density as features
+    n_feat[int]: The number of features to extract
+    axis{str}: axis for feature extraction, choices=(chn, col)
+        If it's None, extract features from the whole layer. Note:
+        The result of this will be an array with shape (n_stim, n_feat, 1), but
+        We also regard it as (n_stim, n_chn, n_col)
+
+    Returns:
+    -------
+    dnn_acts_new[array]: DNN activation
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    """
+    # adjust iterative axis
+    n_stim, n_chn, n_col = dnn_acts.shape
+    if axis is None:
+        dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+    elif axis == 'chn':
+        dnn_acts = dnn_acts.transpose((0, 2, 1))
+    elif axis == 'col':
+        pass
+    else:
+        raise ValueError('not supported axis:', axis)
+    _, n_iter, _ = dnn_acts.shape
+
+    # extract features
+    dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
+    if meth == 'pca':
+        pca = PCA(n_components=n_feat)
+        for i in range(n_iter):
+            dnn_acts_new[:, i, :] = pca.fit_transform(dnn_acts[:, i, :])
+    elif meth == 'hist':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                dnn_acts_new[j, i, :] = np.histogram(dnn_acts[j, i, :], n_feat)[0]
+    elif meth == 'psd':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                f, p = periodogram(dnn_acts[j, i, :])
+                dnn_acts_new[j, i, :] = p[:n_feat]
+    else:
+        raise ValueError('not supported method:', meth)
+
+    # adjust iterative axis
+    if axis is None:
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+    elif axis == 'chn':
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+
+    return dnn_acts_new
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
