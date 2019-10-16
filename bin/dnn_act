@@ -66,12 +66,11 @@ def main():
         dnn_acts, raw_shape = dnn_activation(data_loader, net_loader, layer)
         dset = wf.create_dataset(layer, data=dnn_acts)
         dset.attrs['raw_shape'] = raw_shape
+
     # create some information
-    wf.attrs['title'] = '{} activation'.format(args.net)
-    cmd = ' '.join(sys.argv)
-    wf.attrs['cmd'] = cmd
-    date = time.asctime()
-    wf.attrs['date'] = date
+    wf.attrs['title'] = args.net + ' act'
+    wf.attrs['cmd'] = ' '.join(sys.argv)
+    wf.attrs['date'] = time.asctime()
     wf.close()
 
 
