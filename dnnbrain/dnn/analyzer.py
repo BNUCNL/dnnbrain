@@ -98,13 +98,20 @@ def dnn_activation(data_loader, net_loader, layer):
         module = module._modules[k]
     hook_handle = module.register_forward_hook(hook_act)
 
-    # extract dnn activation
-    for stims, _ in data_loader:
-        net_loader.model(stims)
+    if type(data_loader).__name__=='DataLoader': # if data_loader is a DataLoader object
+        # extract dnn activation
+        for stims, _ in data_loader:
+            net_loader.model(stims)
+            print('Extracted acts:', len(dnn_acts))
+        dnn_acts = np.asarray(dnn_acts)
+        raw_shape = dnn_acts.shape
+        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+    else: # if data_loader is a tensor
+        net_loader.model(data_loader)
         print('Extracted acts:', len(dnn_acts))
-    dnn_acts = np.asarray(dnn_acts)
-    raw_shape = dnn_acts.shape
-    dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+        dnn_acts = np.asarray(dnn_acts)
+        raw_shape = dnn_acts.shape
+        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
 
     hook_handle.remove()
     return dnn_acts, raw_shape
