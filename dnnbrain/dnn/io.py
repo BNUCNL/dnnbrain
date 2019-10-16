@@ -138,16 +138,20 @@ class VidDataset:
         return len(self.frame_nums)
 
 
-def read_Imagefolder(parpath):
+def read_imagefolder(parpath):
     """
     The function read from a already organized Image folder or a folder that only have pictures
-    and return picname list and condition list
+    and return picpath list and condition list
     for generate csv file more quickly.
 
-    :param parpath[str]:already organized folder,Parent path of ImageFolder.
-    :return:
-        picpath[list]:contains all subpath of Images in parpath
-        condition[list]:contains the class of all Images
+    Parameters:
+    ----------
+    parpath[str]: parent path of pictures
+    
+    Return:
+    ------
+    picpath[list]: contains all subpath of pictures in parpath
+    condition[list]: contains categories of all pictures
     """
     test_set = list(os.walk(parpath))
 
