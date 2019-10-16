@@ -69,7 +69,7 @@ class PicDataset:
         trg_label: target of each sample (label)
         """
         # load picture
-        pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx])).convert('RGB')
+        pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx]))
 
         # crop picture
         if self.crops is not None:

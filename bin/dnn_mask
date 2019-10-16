@@ -54,7 +54,7 @@ def main():
     assert args.layer or args.dmask, 'At least one of (layer, dmask) should be used!'
 
     # extract dnn activation with mask
-    src_h5 = h5py.File(args.act)
+    src_h5 = h5py.File(args.act, 'r')
     trg_h5 = h5py.File(args.out, 'w')
     if args.dmask is None:
         dnn_acts = src_h5[args.layer]
@@ -78,7 +78,7 @@ def main():
             trg_h5.create_dataset(layer, data=dnn_acts)
 
     # write some information
-    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' masked'
+    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' mask'
     trg_h5.attrs['cmd'] = ' '.join(sys.argv)
     trg_h5.attrs['date'] = time.asctime()
 

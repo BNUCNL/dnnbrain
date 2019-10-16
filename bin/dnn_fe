@@ -65,7 +65,7 @@ def main():
     args = parser.parse_args()
     assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
 
-    src_h5 = h5py.File(args.act)
+    src_h5 = h5py.File(args.act, 'r')
     trg_h5 = h5py.File(args.out, 'w')
     layers = src_h5.keys() if args.layer is None else args.layer
     for layer in layers:
