@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Thu Oct 17 14:39:00 2019
@@ -9,14 +8,16 @@ Created on Thu Oct 17 14:39:00 2019
 import matplotlib.pyplot as plt
 import numpy as np
 
-def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
-               figsize=[10, 6], cmap='coolwarm', frame_on=True, show=True):
+def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
+               figsize=[10, 6], cmap='coolwarm', frame_on=True,
+               show=True, save_path=None):
     """
-
+    create a figure showing multiple images.
+    
     Parameters
     ----------
-    x[list]: list of image array (2d or 3d-RGB)
-    nrows, ncols[int]: int, default: 1
+    x[list]: list of image array (2d or 3d-RGB[A])
+    nrows, ncols[int]: number of rows/columns of the subplot grid
     row_label[list]: lsit of str 
     vmin, vmax[scalar]: vmin and vmax define the data range 
         that the colormap covers. By default, the colormap covers 
@@ -27,10 +28,6 @@ def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
     frame_on[bool]: set whether the axes rectangle patch is drawn
     show[bool]: set whether the figure is displayed
     
-    
-    Return:
-    -------
-    image
     """
 
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,
@@ -38,7 +35,7 @@ def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
                                         'frame_on': frame_on},
                             figsize=figsize)
 
-    for ax, i in zip(axs.flat[:len(x)], range(len(x))):
+    for i, ax in enumerate(axs.flat[:len(x)]):
         if np.mod(i, ncols) == 0:
             ax.set_ylabel(row_label[i//ncols])
         ax.imshow(x[i], cmap=cmap, vmin=vmin, vmax=vmax)
@@ -46,3 +43,7 @@ def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
     plt.tight_layout()
     if show is True:
         plt.show()
+    
+    if save_path is not None:
+        plt.savefig(save_path)
+        
