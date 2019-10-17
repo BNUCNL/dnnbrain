@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
-               figsize=[10, 6], colormap=None, frame_on=True, show=True):
+               figsize=[10, 6], cmap='coolwarm', frame_on=True, show=True):
     """
 
     Parameters
@@ -22,7 +22,7 @@ def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
         that the colormap covers. By default, the colormap covers 
         the complete value range of the supplied data. 
     figsize[float, float]: width, height of figure in inches.
-    colormap[str]: The Colormap instance or registered colormap name used 
+    cmap[str]: The Colormap instance or registered colormap name used 
         to map scalar data to colors. 
     frame_on[bool]: set whether the axes rectangle patch is drawn
     show[bool]: set whether the figure is displayed
@@ -37,11 +37,6 @@ def imshow_bat(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
                             subplot_kw={'xticks': [], 'yticks': [],
                                         'frame_on': frame_on},
                             figsize=figsize)
-
-    if colormap is not None:
-        cmap = plt.cm.get_cmap(colormap)
-    else:
-        cmap = plt.cm.coolwarm
 
     for ax, i in zip(axs.flat[:len(x)], range(len(x))):
         if np.mod(i, ncols) == 0:
