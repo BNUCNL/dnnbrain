@@ -8,6 +8,7 @@ import sys
 import time
 import h5py
 import argparse
+import numpy as np
 
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -48,7 +49,7 @@ def main():
     net_loader = NetLoader(args.net)
     transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
 
-    # --Load stimuli--
+    # -load stimuli-
     stim_dict = read_stim_csv(args.stim)
     if stim_dict['type'] == 'picture':
         dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
@@ -60,10 +61,19 @@ def main():
         raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
     data_loader = DataLoader(dataset, batch_size=8, shuffle=False)
 
-    # extract activation
+    # -extract activation-
+    n_stim = len(dataset)
     wf = h5py.File(args.out, 'w')
     for layer in args.layer:
-        dnn_acts, raw_shape = dnn_activation(data_loader, net_loader, layer)
+        dnn_acts = []
+        for stims, _ in data_loader:
+            dnn_acts.extend(dnn_activation(stims, net_loader.model, net_loader.layer2keys[layer]))
+            print('Extracted acts: {0}/{1}'.format(len(dnn_acts), n_stim))
+        dnn_acts = np.array(dnn_acts)
+        raw_shape = dnn_acts.shape
+        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+
+        # write to file
         dset = wf.create_dataset(layer, data=dnn_acts)
         dset.attrs['raw_shape'] = raw_shape
 

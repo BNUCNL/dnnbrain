@@ -69,52 +69,42 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     return dnnact
 
 
-def dnn_activation(data_loader, net_loader, layer):
+def dnn_activation(data, model, layer_keys):
     """
     Extract DNN activation from the specified layer
 
     Parameters:
-    ------------
-    data_loader[DataLoader]: stimuli loader
-    net_loader[NetLoader]: neural network loader
-    layer[str]: layer name of a DNN
+    ----------
+    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, n_r, n_c)
+    model[model]: DNN model
+    layer_keys[sequence]: a sequence of keys to find the location of
+        the target layer in the DNN model.
 
-    Returns:
-    ---------
-    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    raw_shape[tuple]: the DNN activation's raw shape
+    Return:
+    ------
+    dnn_acts[array]: DNN activation
+        a 4D array with its shape as (n_stim, n_chn, n_r, n_c)
     """
     # change to eval mode
-    net_loader.model.eval()
+    model.eval()
 
     # prepare dnn activation hook
     dnn_acts = []
 
     def hook_act(module, input, output):
-        dnn_acts.extend(output.detach().numpy().copy())
+        dnn_acts.append(output.detach().numpy().copy())
 
-    module = net_loader.model
-    for k in net_loader.layer2keys[layer]:
+    module = model
+    for k in layer_keys:
         module = module._modules[k]
     hook_handle = module.register_forward_hook(hook_act)
 
-    if type(data_loader).__name__=='DataLoader': # if data_loader is a DataLoader object
-        # extract dnn activation
-        for stims, _ in data_loader:
-            net_loader.model(stims)
-            print('Extracted acts:', len(dnn_acts))
-        dnn_acts = np.asarray(dnn_acts)
-        raw_shape = dnn_acts.shape
-        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
-    else: # if data_loader is a tensor
-        net_loader.model(data_loader)
-        print('Extracted acts:', len(dnn_acts))
-        dnn_acts = np.asarray(dnn_acts)
-        raw_shape = dnn_acts.shape
-        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+    # extract dnn activation
+    model(data)
+    dnn_acts = dnn_acts[0]
 
     hook_handle.remove()
-    return dnn_acts, raw_shape
+    return dnn_acts
 
 
 def dnn_mask(dnn_acts, chn=None, col=None):
