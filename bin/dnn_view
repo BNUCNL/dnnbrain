@@ -71,7 +71,7 @@ def main():
     transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
 
     # -load stimuli-
-    batch_size = 3
+    batch_size = 6
     stim_dict = read_stim_csv(args.stim)
     if stim_dict['type'] == 'picture':
         dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
