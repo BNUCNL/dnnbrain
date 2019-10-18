@@ -157,7 +157,7 @@ def main():
         if args.resp.endswith('.stim.csv'):
             # save score
             score_df = pd.DataFrame(score_arr, columns=measurements)
-            score_df.to_csv(pjoin(trg_dir, 'max_score.csv'), index=False)
+            score_df.to_csv(pjoin(trg_dir, 'score_corr.csv'), index=False)
             del score_arr
 
             # save position
@@ -174,7 +174,7 @@ def main():
             # save score
             score_img = np.zeros((n_iter, *bshape))
             score_img[:, bmask] = score_arr
-            save_brainimg(pjoin(trg_dir, 'max_score.' + resp_suffix), score_img, header)
+            save_brainimg(pjoin(trg_dir, 'score_corr.' + resp_suffix), score_img, header)
             del score_arr
 
             # save position

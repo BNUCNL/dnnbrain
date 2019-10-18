@@ -4,11 +4,22 @@
 Use DNN activation to encode brain or behavior response
 """
 
+import os
+import time
+import h5py
 import argparse
+import numpy as np
+import pandas as pd
+import pickle as pkl
+
+from os.path import join as pjoin
+from dnnbrain.brain.io import load_brainimg, save_brainimg
+from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.dnn.analyzer import db_uva, db_mva
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Use DNN activation to encode brain or behavior response')
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-anal',
                         metavar='Analysis',
                         required=True,
@@ -29,15 +40,10 @@ def main():
                              "For example, 'conv1' represents the first convolution layer, and "
                              "'fc1' represents the first full connection layer. "
                              "Default is encoding all layers in the DNN activation file.")
-    parser.add_argument('-hrf',
-                        action='store_true',
-                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
-                             'And match it with the time points of Brain activation.')
     parser.add_argument('-iteraxis',
                         type=str,
                         metavar='Axis',
                         choices=('channel', 'column'),
-                        default='layer',
                         help="Iterate along the specified axis."
                              "If -anal is uva:"
                              "channel: Summarize the maximal prediction score for each channel. "
@@ -87,6 +93,93 @@ def main():
                         type=str,
                         help='an output directory')
     args = parser.parse_args()
+
+    # -Load response start-
+    if args.resp.endswith('.stim.csv'):
+        resp_dict = read_stim_csv(args.resp)
+        if args.meas is None:
+            Y = list(resp_dict['meas'].values())
+            measurements = list(resp_dict['meas'].keys())
+        else:
+            Y = [resp_dict['meas'][k] for k in args.meas]
+            measurements = args.meas
+        Y = np.array(Y).T
+
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        Y, header = load_brainimg(args.resp)
+        bshape = Y.shape[1:]
+
+        # Get resp data within brain mask
+        if args.bmask is None:
+            bmask = np.any(Y, 0)
+        else:
+            bmask, _ = load_brainimg(args.bmask, ismask=True)
+            assert bshape == bmask.shape, 'brain mask and brain response mismatched in space'
+            bmask = bmask.astype(np.bool)
+        Y = Y[:, bmask]
+
+    else:
+        raise IOError('Only .stim.csv and nifti/cifti are supported')
+    print('Finish loading response: ', args.resp)
+    # -Load response end-
+
+    act_h5 = h5py.File(args.act)
+    layers = act_h5.keys() if args.layer is None else args.layer
+    for layer in layers:
+        start = time.time()
+        # load DNN activation
+        X = np.array(act_h5[layer])
+        # do prediction
+        if args.anal == 'uva':
+            pred_dict = db_uva(X, Y, args.model, args.iteraxis, args.cvfold)
+        else:
+            pred_dict = db_mva(X, Y, args.model, args.iteraxis, args.cvfold)
+        end = time.time()
+        print('Finish prediction in {0}: cost {1} seconds'.format(layer, end - start))
+
+        # -save out start-
+        # prepare directory
+        trg_dir = pjoin(args.out, layer)
+        if not os.path.isdir(trg_dir):
+            os.makedirs(trg_dir)
+        if args.iteraxis is not None:
+            trg_dir = pjoin(trg_dir, args.iteraxis)
+            if not os.path.isdir(trg_dir):
+                os.makedirs(trg_dir)
+
+        # save files
+        if args.resp.endswith('.stim.csv'):
+            # save score
+            score_df = pd.DataFrame(pred_dict['score'], columns=measurements)
+            score_df.to_csv(pjoin(trg_dir, 'score_{}.csv'.format(args.anal)), index=False)
+
+            # save position
+            if args.anal == 'uva':
+                chn_pos_df = pd.DataFrame(pred_dict['chn_pos'], columns=measurements)
+                chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
+                col_pos_df = pd.DataFrame(pred_dict['col_pos'], columns=measurements)
+                col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
+
+        elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+            resp_suffix = '.'.join(args.resp.split('.')[1:])
+
+            # save score
+            score_img = np.zeros((pred_dict['score'].shape[0], *bshape))
+            score_img[:, bmask] = pred_dict['score']
+            save_brainimg(pjoin(trg_dir, 'score_{}.{}'.format(args.anal, resp_suffix)),
+                          score_img, header)
+
+            # save position
+            if args.anal == 'uva':
+                chn_pos_img = np.zeros_like(score_img, dtype=np.int)
+                chn_pos_img[:, bmask] = pred_dict['chn_pos']
+                save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
+                col_pos_img = np.zeros_like(score_img, dtype=np.int)
+                col_pos_img[:, bmask] = pred_dict['col_pos']
+                save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
+
+        pkl.dump(pred_dict['model'], open(pjoin(trg_dir, 'model_{}.pkl'.format(args.anal)), 'wb'))
+        # -save out end-
 
 
 if __name__ == '__main__':
