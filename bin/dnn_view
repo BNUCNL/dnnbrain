@@ -1,0 +1,115 @@
+#! /usr/bin/env python
+
+"""
+view feature maps of stimuli
+"""
+
+import argparse
+
+from os.path import join as pjoin
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from dnnbrain.dnn.io import NetLoader, PicDataset, VidDataset
+from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.utils.plot import imgarray_show
+from dnnbrain.dnn.analyzer import dnn_activation
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-net',
+                        metavar='Net',
+                        required=True,
+                        type=str,
+                        help='a neural network name')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        required=True,
+                        type=str,
+                        help="convolution layers used to specify where activation is extracted from "
+                             "For example, 'conv1' represents the first convolution layer.")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        required=True,
+                        type=int,
+                        nargs='+',
+                        help="Channel numbers used to specify which channels are used to "
+                             "extract feature maps")
+    parser.add_argument('-stim',
+                        metavar='Stimulus',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-cmap',
+                        metavar='Colormap',
+                        type=str,
+                        default='coolwarm',
+                        help='show feature maps with the specified colormap')
+    parser.add_argument('-vmin',
+                        metavar='Vmin',
+                        type=float,
+                        help='The minimal value used in colormap is applied in all feature maps.'
+                             'Default is the minimal value of each feature map for itself.')
+    parser.add_argument('-vmax',
+                        metavar='Vmax',
+                        type=float,
+                        help='The maximal value used in colormap is applied in all feature maps.'
+                             'Default is the maximal value of each feature map for itself.')
+    parser.add_argument('-show',
+                        action='store_true',
+                        help='If used, display stimuli and feature maps in figures.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        type=str,
+                        help='an output directory where the figures are saved')
+    args = parser.parse_args()
+    assert args.layer.startswith('conv'), 'Only support convolution layer!'
+    assert len(args.chn) <= 5, "Don't support view more than 5 channels at once!"
+
+    # -load DNN-
+    net_loader = NetLoader(args.net)
+    transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
+
+    # -load stimuli-
+    batch_size = 6
+    stim_dict = read_stim_csv(args.stim)
+    if stim_dict['type'] == 'picture':
+        dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             stim_dict['stim'].get('condition', None), transform)
+    elif stim_dict['type'] == 'video':
+        dataset = VidDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             stim_dict['stim'].get('condition', None), transform)
+    else:
+        raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    # -display feature maps-
+    count = 1
+    n_stim = len(dataset)
+    n_row = len(args.chn) + 1
+    for stims, _ in data_loader:
+        # extract activation
+        dnn_acts = dnn_activation(stims, net_loader.model, net_loader.layer2keys[args.layer])
+        # prepare images
+        stims = stims.numpy().transpose((0, 2, 3, 1))
+        images = list(stims)
+        for chn in args.chn:
+            images.extend(dnn_acts[:, chn-1, :, :])
+        # prepare row_names
+        row_names = ['chn{}'.format(chn) for chn in args.chn]
+        row_names.insert(0, 'stim')
+        # prepare save path
+        if args.out is None:
+            save_path = None
+        else:
+            save_path = pjoin(args.out, '{0}_{1}_fig{2}.jpg'.format(args.net, args.layer, count))
+
+        n_col = len(stims)
+        imgarray_show(images, n_row, n_col, row_names, args.vmin, args.vmax,
+                      cmap=args.cmap, show=args.show, save_path=save_path)
+        print('Finish: {0}/{1}'.format((count-1)*batch_size+n_col, n_stim))
+        count += 1
+
+
+if __name__ == '__main__':
+    main()
