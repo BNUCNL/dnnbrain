@@ -9,7 +9,7 @@ import argparse
 from os.path import join as pjoin
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from dnnbrain.dnn.io import NetLoader, PicDataset, VidDataset
+from dnnbrain.dnn.io import NetLoader, ImgDataset, VidDataset
 from dnnbrain.utils.io import read_stim_csv
 from dnnbrain.utils.plot import imgarray_show
 from dnnbrain.dnn.analyzer import dnn_activation
@@ -73,12 +73,12 @@ def main():
     # -load stimuli-
     batch_size = 6
     stim_dict = read_stim_csv(args.stim)
-    if stim_dict['type'] == 'picture':
-        dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             stim_dict['stim'].get('condition', None), transform)
+    if stim_dict['type'] == 'image':
+        dataset = ImgDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             transform=transform)
     elif stim_dict['type'] == 'video':
         dataset = VidDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             stim_dict['stim'].get('condition', None), transform)
+                             transform=transform)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
