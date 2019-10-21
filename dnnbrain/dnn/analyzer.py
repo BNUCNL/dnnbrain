@@ -72,7 +72,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     return dnnact
 
 
-def dnn_activation(data, model, layer_keys):
+def dnn_activation(data, model, layer_loc):
     """
     Extract DNN activation from the specified layer
 
@@ -80,7 +80,7 @@ def dnn_activation(data, model, layer_keys):
     ----------
     data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, n_r, n_c)
     model[model]: DNN model
-    layer_keys[sequence]: a sequence of keys to find the location of
+    layer_loc[sequence]: a sequence of keys to find the location of
         the target layer in the DNN model.
 
     Return:
@@ -98,7 +98,7 @@ def dnn_activation(data, model, layer_keys):
         dnn_acts.append(output.detach().numpy().copy())
 
     module = model
-    for k in layer_keys:
+    for k in layer_loc:
         module = module._modules[k]
     hook_handle = module.register_forward_hook(hook_act)
 
