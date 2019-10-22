@@ -2,6 +2,7 @@ import numpy as np
 
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
+from dnnbrain.utils.util import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
 from sklearn.decomposition import PCA
@@ -147,16 +148,7 @@ def dnn_pooling(dnn_acts, method):
     dnn_acts[array]: DNN activation after pooling
         a 3D array with its shape as (n_stim, n_chn, 1)
     """
-    if method == 'max':
-        dnn_acts = np.max(dnn_acts, 2)[:, :, None]
-    elif method == 'mean':
-        dnn_acts = np.mean(dnn_acts, 2)[:, :, None]
-    elif method == 'median':
-        dnn_acts = np.median(dnn_acts, 2)[:, :, None]
-    else:
-        raise ValueError('Not supported method:', method)
-
-    return dnn_acts
+    return array_fe(dnn_acts, method, 2, True)
 
 
 def dnn_fe(dnn_acts, meth, n_feat, axis=None):
