@@ -6,11 +6,12 @@ import torchvision
 import numpy as np
 
 from PIL import Image
+from os.path import join as pjoin
 from torchvision import transforms
 from collections import OrderedDict
 from dnnbrain.dnn.models import Vgg_face
 
-DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
+DNNBRAIN_MODEL_DIR = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
 class ImgDataset:
