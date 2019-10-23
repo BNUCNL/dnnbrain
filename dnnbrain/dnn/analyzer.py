@@ -1,15 +1,21 @@
+import heapq
+import collections
 import numpy as np
-
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
 from dnnbrain.utils.util import array_fe
-from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
 
+try:
+    from nipy.modalities.fmri.hemodynamic_models import spm_hrf
+except:
+    1
+else:
+    1
 
 def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
                               fe_axis=None, fe_meth=None):
@@ -18,7 +24,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
 
     Parameters:
     ------------
-    input[dataloader]: input image dataloader	
+    input[dataloader]: input image dataloader
     netname[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
@@ -49,9 +55,9 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     # mask the data
     if channel is not None:
         dnnact = dnnact[:, channel, :]
-    if column is not None: 
+    if column is not None:
         dnnact = dnnact[:, :, column]
-        
+
     # feature extraction
     if fe_axis is not None:
         fe_meths = {
@@ -69,7 +75,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
             dnnact = fe_meths[fe_meth](dnnact, 2)[:, :, np.newaxis]
         else:
             raise ValueError('fe_axis should be layer, channel or column')
-    
+
     return dnnact
 
 
@@ -471,3 +477,46 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
         print('hrf convolution: sample {0} to {1} finished'.format(bat_idx+1, bat_indices[idx+1]))
 
     return X_hrfed
+
+def measure_fm(fm,metric):
+    if metric == 'mean':
+        return np.mean(fm)
+    if metric == 'max':
+        return np.max(fm)
+    if metric == 'L1':
+        return np.sum(np.abs(fm))
+    if metric == 'L2':
+        return np.sum(np.multiply(fm,fm))
+
+def lay_chn_to_dmask_dict(ly_list,chn_list):
+    dmask_dict = collections.OrderedDict()
+    if not type(chn_list) == list:
+        for i in ly_list:
+            tmplist = []
+            tmplist.append(chn_list)
+            dmask_dict[i] = {'chn': tmplist, 'col': None}
+    if not type(ly_list) == list:
+        for i in chn_list:
+            dmask_dict[ly_list] = {'chn': chn_list, 'col': None}
+    if type(ly_list) == type(chn_list):
+        for i in range(0,len(ly_list)):
+            dmask_dict[ly_list[i]] = {'chn': chn_list[i], 'col': None}
+
+    return dmask_dict
+
+def dnn_count_top(act,stim_dict,top,metric,chn_list):
+
+    '''
+        act is an 4D np-array.such as (138,384,13,13)
+    '''
+
+    act = act.reshape([act.shape[0],act.shape[1],-1])
+    act = array_fe(act,metric, axis=2, keepdims=False).T
+    act = act[[i-1 for i in chn_list],:]
+
+    res = np.empty((len(chn_list),top))
+
+    for i in range(len(act)):
+        tmpIndex=heapq.nlargest(top, range(act[i].size), act[i].take)
+        res[i,:]=tmpIndex
+    return res.astype(np.int32)
