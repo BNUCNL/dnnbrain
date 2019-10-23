@@ -4,15 +4,12 @@
 Extract activation from DNN
 """
 
-import sys
-import time
-import h5py
 import argparse
 import numpy as np
 
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from dnnbrain.dnn.io import NetLoader, ImgDataset, VidDataset
+from dnnbrain.dnn.io import NetLoader, ImgDataset, VidDataset, ActWriter
 from dnnbrain.utils.io import read_stim_csv
 from dnnbrain.dnn.analyzer import dnn_activation
 
@@ -43,7 +40,6 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
 
     # -load DNN-
     net_loader = NetLoader(args.net)
@@ -63,7 +59,7 @@ def main():
 
     # -extract activation-
     n_stim = len(dataset)
-    wf = h5py.File(args.out, 'w')
+    writer = ActWriter(args.out, args.net + ' act')
     for layer in args.layer:
         dnn_acts = []
         for stims, _ in data_loader:
@@ -74,14 +70,10 @@ def main():
         dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
 
         # write to file
-        dset = wf.create_dataset(layer, data=dnn_acts)
-        dset.attrs['raw_shape'] = raw_shape
+        writer.set_act(layer, dnn_acts)
+        writer.set_attr(layer, 'raw_shape', raw_shape)
 
-    # create some information
-    wf.attrs['title'] = args.net + ' act'
-    wf.attrs['cmd'] = ' '.join(sys.argv)
-    wf.attrs['date'] = time.asctime()
-    wf.close()
+    writer.close()
 
 
 if __name__ == '__main__':

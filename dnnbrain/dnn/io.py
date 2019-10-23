@@ -397,6 +397,7 @@ class ActWriter:
         fpath[str]: DNN activation file
         title[str]: a simple description for the file
         """
+        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
         self._file = h5py.File(fpath, 'w')
         self._file.attrs['title'] = title
 

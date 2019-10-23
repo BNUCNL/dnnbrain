@@ -5,12 +5,9 @@ Convolve DNN activation with SPM canonical hemodynamic response function.
 And match it with the time points of Brain activation.
 """
 
-import sys
-import time
-import h5py
 import argparse
-import numpy as np
 
+from dnnbrain.dnn.io import ActReader, ActWriter
 from dnnbrain.dnn.analyzer import convolve_hrf
 from dnnbrain.utils.io import read_stim_csv
 
@@ -58,32 +55,26 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
 
     # prepare DNN activation
-    src_h5 = h5py.File(args.act, 'r')
-    trg_h5 = h5py.File(args.out, 'w')
-    layers = src_h5.keys() if args.layer is None else args.layer
+    reader = ActReader(args.act)
+    writer = ActWriter(args.out, reader.title + ' hrf')
+    layers = reader.layers if args.layer is None else args.layer
     # prepare stimulus information
     stim_dict = read_stim_csv(args.stim)
     onsets = stim_dict['stim']['onset']
     durations = stim_dict['stim']['duration']
     # start convolution
     for layer in layers:
-        dnn_acts = np.array(src_h5[layer])
+        dnn_acts = reader.get_act(layer)
         n_stim, n_chn, n_col = dnn_acts.shape
         dnn_acts = convolve_hrf(dnn_acts.reshape(n_stim, -1), onsets, durations,
                                 args.n_vol, args.tr, args.ops)
         dnn_acts = dnn_acts.reshape(args.n_vol, n_chn, n_col)
-        trg_h5.create_dataset(layer, data=dnn_acts)
+        writer.set_act(layer, dnn_acts)
 
-    # write some information
-    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' hrf'
-    trg_h5.attrs['cmd'] = ' '.join(sys.argv)
-    trg_h5.attrs['date'] = time.asctime()
-
-    src_h5.close()
-    trg_h5.close()
+    reader.close()
+    writer.close()
 
 
 if __name__ == '__main__':
