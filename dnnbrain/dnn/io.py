@@ -1,6 +1,9 @@
 import os
+import sys
+import time
 import cv2
 import scipy.io
+import h5py
 import torch
 import torchvision
 import numpy as np
@@ -286,6 +289,148 @@ class NetLoader:
         self.layer2indices = layer2indices
         self.img_size = input_imgsize
         print('You had assigned a model into netloader.')
+
+
+class ActReader:
+    def __init__(self, fpath):
+        """
+        Get DNN activation from .act.h5 file
+
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        """
+        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self._file = h5py.File(fpath, 'r')
+
+    def close(self):
+        self._file.close()
+
+    def get_act(self, layer, to_numpy=True):
+        """
+        Get a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        to_numpy[bool]:
+            If False, return HDF5 dataset directly.
+            If True, transform to numpy array.
+
+        Return:
+        ------
+        act: DNN activation
+        """
+        act = self._file[layer]
+        if to_numpy:
+            act = np.array(act)
+
+        return act
+
+    def get_attr(self, layer, attr):
+        """
+        Get an attribution of a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        attr[str]: attribution name
+
+        Return:
+        ------
+            attribution
+        """
+        return self._file[layer].attrs[attr]
+
+    @property
+    def title(self):
+        """
+        Get the title of the file
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['title']
+
+    @property
+    def cmd(self):
+        """
+        Get the command used to generate the file
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['cmd']
+
+    @property
+    def date(self):
+        """
+        Get the date when the file was generated
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['date']
+
+    @property
+    def layers(self):
+        """
+        Get all layer names in the file
+
+        Return:
+        ------
+            a list
+        """
+        return list(self._file.keys())
+
+
+class ActWriter:
+    def __init__(self, fpath, title):
+        """
+        Save DNN activation into .act.h5 file
+
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        title[str]: a simple description for the file
+        """
+        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self._file = h5py.File(fpath, 'w')
+        self._file.attrs['title'] = title
+
+    def close(self):
+        """
+        Write some information and close the file
+        """
+        self._file.attrs['cmd'] = ' '.join(sys.argv)
+        self._file.attrs['date'] = time.asctime()
+        self._file.close()
+
+    def set_act(self, layer, act):
+        """
+        Set a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        act[array]: DNN activation
+        """
+        self._file.create_dataset(layer, data=act)
+
+    def set_attr(self, layer, attr, value):
+        """
+        Set an attribution of a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        attr[str]: attribution name
+        value: the value of the attribution
+        """
+        self._file[layer].attrs[attr] = value
 
 
 def read_dmask_csv(fpath):
