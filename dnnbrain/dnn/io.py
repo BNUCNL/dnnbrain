@@ -498,3 +498,4 @@ def save_stim_csv(fpath, title, type, path, stim_var_dict,
 
         var_data = [','.join(row) for row in var_data]
         wf.write('\n'.join(var_data))
+#
