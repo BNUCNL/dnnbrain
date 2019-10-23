@@ -1,159 +1,108 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
 
-"""
-Select top stimuli from provided stimuli for interested layer and channel from
-a DNN network.
-
-"""
-import numpy as np
-import csv,os,sys,argparse, h5py
+import os
+import sys
+import h5py
+import time
+import copy
+import torch
+import argparse
+from PIL import Image
 from torchvision import transforms
-from torch.utils.data import DataLoader
-from dnnbrain.utils.io import read_stim_csv
-from dnnbrain.dnn.io import NetLoader, PicDataset
-from dnnbrain.dnn.analyzer import dnn_activation
+from dnnbrain.dnn.io import NetLoader
+from dnnbrain.dnn.io import read_stim_csv,read_dmask_csv,save_stim_csv
+from dnnbrain.dnn.analyzer import dnn_count_top,lay_chn_to_dmask_dict,dnn_activation
 
 def main():
 
     parser = argparse.ArgumentParser(description = 'Select top stimuli from '
                                      'a set of stimuli for interested layers & channel.')
 
-    parser.add_argument('-net',
-                        metavar = 'Name of interested DNN',
-                        type = str,
-                        required = True,
+    parser.add_argument('-net',metavar = 'Name of interested DNN',
+                        type = str,required = False,
                         help = 'Name of interested DNN net')
 
-    parser.add_argument('-top',
-                        metavar = 'The number of stimuli to be selected',
-                        type = int,
-                        required = True,
+    parser.add_argument('-top',metavar = 'The number of stimuli to be selected',
+                        type = int,required = False,
                         help = 'Top N stimuli will be selected.')
 
-    parser.add_argument('-stim',
-                        type = str,
-                        required = True,
-                        metavar = 'A csv file lists info for stimuli of interest',
-                        help = 'The file provide info of inuput stimuli images from '
-                        'which the top stimuli will be selected.')
+    parser.add_argument('-metric',metavar = 'The metric of top K',
+                        type = str,required = False,
+                        help = 'The metric of top K.mean,max,L1,L2')
 
-    parser.add_argument('-act',
-                        metavar = 'DNN .act.h5 file',
-                        type = str,
-                        required = False,
-                        help = 'DNN activation file. If activation file is input '
-                        'the top stimuli are selected on it. Otherwise, the activation  '
-                        'will be directly computed on the listed stimlui')
+    parser.add_argument('-stimdir',metavar = 'A path for stimuli of interest',
+                        type = str,required = False,
+                        help = 'A path for stimuli of interest')
 
-    parser.add_argument('-layer',
-                        nargs = '+',
-                        metavar = 'Layer',
-                        type = str,
-                        required = False,
+    parser.add_argument('-layer',nargs = '+',metavar = 'Layer',
+                        type = str,required = False,default = None,
                         help = 'Layers of interest. '
                                 'conv, relu, pool, fc represents convolution, reLU, '
                                 'pooling, and full connection layer, respectively.'
                                 'Default, the top stimulis are selected for '
                                 'all layers and all channels.')
 
-    parser.add_argument('-channel',
-                        nargs = '+',
-                        metavar = 'Channel id list',
-                        type = int,
-                        required = False,
+    parser.add_argument('-channel',nargs = '+',metavar = 'Channel id list',
+                        type = int,required = False,default = None,
                         help = "Channel of interest. ")
 
-    parser.add_argument('-dmask',
-                        metavar = '.dmask.csv dnnmask file',
-                        required = False,
-                        type = str,
+    parser.add_argument('-dmask',metavar = '.dmask.csv dnnmask file',
+                        type = str,required = False,default = None,
                         help = "A *.dmask.csv list of interested layers and channels. " )
-        
-    parser.add_argument('-metric',
-                        choice=('max', 'mean','L1','L2'),
-                        required=True,
-                        type = str,
-                        help='Metric for channel activation.')
 
-    parser.add_argument('-outdir',
-                        metavar='Output dir to save the top stimulus for '
+    parser.add_argument('-outdir',metavar='an output stim.hd5 file',
+                        type = str,required = False,
+                        help = 'Output dir to save the top stimulus for '
                         'interested layers and channels, and assocaited '
-                        'topact.hd5 file',
-                        required = True,
-                        type = str,
-                        help = 'an output stim.hd5 file')
+                        'topact.hd5 file')
 
     args = parser.parse_args()
-
-#    args.net = 'alexnet'
-#        # str, yes
-#    args.top = 4
-#        # int(list), yes
-#    args.stim = 'img.stim.csv'
-#        # str, yes
-#    args.act = None
-#        # str, no/yes
-#    args.layer = ['conv5', 'conv5']
-#        # str(list), no if args.dmask exists
-#    args.channel = [13,12]
-#        # int(list), no if args.dmask exists
-#    args.dmask = 'test.dmask.csv'
-#        # str, no if args.layer,args.channel exist (dmask优先于layer&channel)
-#    args.outdir = 'generated'
-#        # str, yes
 
     if not os.path.exists(args.outdir):
         os.mkdir(args.outdir)
 
     net_loader = NetLoader(args.net)
+    stim_dict = read_stim_csv(args.stimdir)
+
+    assert args.dmask == None or args.channel == None,'-layer -channel & -dmask is exclusive!'
+
+    if args.layer == None:
+        dmask_dict = read_dmask_csv(args.dmask)
+    else:
+        dmask_dict = lay_chn_to_dmask_dict(args.layer,args.channel)
+
     transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
 
-    stim_dict = read_stim_csv(args.stim)
-    dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'], transform=transform)
-    data_loader = DataLoader(dataset, batch_size=10, shuffle=False)
+    print('start calculating...')
 
-    if args.dmask == None:
-        lychlist = list(zip(args.layer,args.channel))
-    else:
-        f = open(args.dmask, 'r')
-        csvreader = csv.reader(f)
-        lychlist = list(csvreader)
+    img_set = torch.zeros([len(stim_dict['stim']['stimID']),3,net_loader.img_size[0],net_loader.img_size[0]])
 
-    for t in lychlist:
-        layer,channel = t[0],int(t[1])
-        if args.act == None:
-            tmpact = args.outdir + '/stinfo'+'_top_'+str(args.top)+'_ly_'+layer+'_ch_'+str(channel)+'.h5'
-            f = h5py.File(tmpact, 'w')
-            dnn_acts, raw_shape = dnn_activation(data_loader, net_loader,layer)
-            dset = f.create_dataset(layer, data = dnn_acts)
-            dset.attrs['raw_shape'] = raw_shape
-            f.attrs['title'] = args.net + 'activation'
-            f.attrs['cmd'] = ' '.join(sys.argv)
-            f.close()
-        else:
-            tmpact = args.act
-        f = h5py.File(tmpact, 'r')
-        dnn_acts = f[layer][:]
-        f.close()
-        Nsize = int(np.sqrt(dnn_acts.shape[2]))
-        countTOP = np.zeros([1, dnn_acts.shape[0]], dtype = float, order = 'C')
-        for whichpic in range(1, dnn_acts.shape[0]+1):
-        	dnnRawMap = np.array(dnn_acts[whichpic-1,channel-1,]).reshape(Nsize,Nsize)
-        	countTOP[0,whichpic-1] = np.sum(dnnRawMap)
-        	print(whichpic)
-        topK = np.argsort(countTOP)+1
-        topK = topK[0,::-1]
-        f = open(args.outdir + '/top'+str(args.top)+'_ly_'+layer+'_ch_'+str(channel)+'.stim.csv','w+')
-        f.write('title=picture stimuli\r')
-        f.write('type=picture\r')
-        f.write('path=D:\code\DNN-Brain\r')
-        f.write('stim=stimID,condition\r')
-        f.write('meas=\r')
-        for i in range(0,args.top):
-        	f.write('img\pic'+str(topK[i])+'.jpg,XXX\r')
-        f.close()
+    for i in enumerate(stim_dict['stim']['stimID']):
+        img_set[i[0]] = transform(Image.open(stim_dict['path'] + '\\'+i[1]))
+
+    for ly in list(dmask_dict.keys()):
+        h5_name = args.net+'.'+ly+'.'+os.path.basename(args.stimdir).rstrip('.stim.csv')+'.act.h5'
+        if not os.path.exists(args.outdir+'\\'+h5_name):
+            dnn_acts = dnn_activation(img_set, net_loader.model,net_loader.layer2keys[ly])
+            wf = h5py.File(args.outdir+'\\'+h5_name, 'w')
+            wf.attrs['title'] = h5_name.rstrip('.act.h5')
+            wf.attrs['cmd'] = ' '.join(sys.argv)
+            wf.attrs['date'] = time.asctime()
+            dset = wf.create_dataset(name = ly,data=dnn_acts)
+            dset.attrs['raw_shape'] = [args.top,256,13,13]
+            wf.close
+        rf = h5py.File(args.outdir+'\\'+h5_name, 'r')
+        top_result = dnn_count_top(rf[ly][()],stim_dict,args.top,args.metric,dmask_dict[ly]['chn'])
+        print(h5_name + ' is counted!')
+        for chn in enumerate(dmask_dict[ly]['chn']):
+            csv_name = args.net+'.'+'top'+str(args.top)+'.'+args.metric+'.'+ly+\
+            '.'+str(chn[1])+'.'+os.path.basename(args.stimdir)
+            if not os.path.exists(args.outdir+'\\'+csv_name):
+                tmp_stim_dict = copy.deepcopy(stim_dict)
+                tmp_stim_dict['stim']['stimID'] = tmp_stim_dict['stim']['stimID'][list(top_result[chn[0]])]
+                tmp_stim_dict['stim']['condition'] = tmp_stim_dict['stim']['condition'][list(top_result[chn[0]])]
+                save_stim_csv(args.outdir+'\\'+csv_name,tmp_stim_dict['title'],tmp_stim_dict['type'],\
+                              tmp_stim_dict['path'],tmp_stim_dict['stim'])
 
 if __name__ == '__main__':
-    main()
-    print('completed.')
+    a= main()
