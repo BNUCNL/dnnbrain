@@ -105,4 +105,4 @@ def main():
                               tmp_stim_dict['path'],tmp_stim_dict['stim'])
 
 if __name__ == '__main__':
-    a= main()
+    main()
