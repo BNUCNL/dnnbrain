@@ -16,11 +16,11 @@ def read_stim_csv(fpath):
         type=image
         path=parent_dir_to_images
         [Several optional keys] (eg., hrf_tr=2)
-        stim=stimID,[onset],[duration],[condition]
+        stim=stimID,[onset],[duration],[label],[condition]
         meas=accuracy, reaction time
-        pic1_path,0,1,cat,0.4,0.5
-        pic2_path,1,1,dog,0.6,0.4
-        pic3_path,2,1,cat,0.7,0.5
+        pic1_path,0,1,0,cat,0.4,0.5
+        pic2_path,1,1,1,dog,0.6,0.4
+        pic3_path,2,1,0,cat,0.7,0.5
         ...,...,...,...,...,...
 
         Format of .stim.csv of video stimuli is
@@ -29,11 +29,11 @@ def read_stim_csv(fpath):
         type=video
         path=path_to_video_file
         [Several optional keys] (eg., hrf_tr=2)
-        stim=stimID,[onset],[duration],[condition]
+        stim=stimID,[onset],[duration],[label],[condition]
         meas=accuracy, reaction time
-        1,0,1,cat,0.4,0.5
-        2,1,1,dog,0.6,0.4
-        3,2,1,cat,0.7,0.5
+        1,0,1,0,cat,0.4,0.5
+        2,1,1,1,dog,0.6,0.4
+        3,2,1,0,cat,0.7,0.5
         ...,...,...,...,...,...
 
     Return:
@@ -61,6 +61,7 @@ def read_stim_csv(fpath):
     assert 'title' in stim_dict.keys(), "'title' needs to be included in meta data."
     assert 'type' in stim_dict.keys(), "'type' needs to be included in meta data."
     assert 'path' in stim_dict.keys(), "'path' needs to be included in meta data."
+    assert stim_dict['type'] in ('image', 'video'), 'not supported type: {}'.format(stim_dict['type'])
 
     # --operate var_lines--
     # prepare keys
@@ -74,39 +75,26 @@ def read_stim_csv(fpath):
     # prepare variable data
     var_data = [line.split(',') for line in var_lines]
     var_data = list(zip(*var_data))
-    if stim_dict['type'] == 'image':
-        # data type for stimID or condition is str, others float.
-        for i, v in enumerate(var_data[:n_stim_key]):
-            dtype = np.str if stim_keys[i] in ['stimID', 'condition'] else np.float
-            var_data[i] = np.asarray(v, dtype=dtype)
-    elif stim_dict['type'] == 'video':
-        for i, v in enumerate(var_data[:n_stim_key]):
-            if stim_keys[i] == 'stimID':
-                dtype = np.int
-            elif stim_keys[i] == 'condition':
-                dtype = np.str
-            else:
-                dtype = np.float
-            var_data[i] = np.asarray(v, dtype=dtype)
-    else:
-        raise ValueError('not supported stimulus type: {}'.format(stim_dict['type']))
 
-    # get stimulus variable dict
+    # fill stimulus variable data
     stim_var_dict = OrderedDict()
     for idx, key in enumerate(stim_keys):
-        stim_var_dict[key] = var_data[idx]
+        if key == 'stimID':
+            dtype = np.str if stim_dict['type'] == 'image' else np.int
+        elif key == 'label':
+            dtype = np.int
+        elif key == 'condition':
+            dtype = np.str
+        else:
+            dtype = np.float
+        stim_var_dict[key] = np.array(var_data[idx], dtype=dtype)
     stim_dict['stim'] = stim_var_dict
 
     # get measurement variable dict
-    if meas_keys:
-        for i, v in enumerate(var_data[n_stim_key:], n_stim_key):
-            var_data[i] = np.asarray(v, dtype=np.float)
-        meas_var_dict = OrderedDict()
-        for idx, key in enumerate(meas_keys, n_stim_key):
-            meas_var_dict[key] = var_data[idx]
-        stim_dict['meas'] = meas_var_dict
-    else:
-        stim_dict['meas'] = None
+    meas_var_dict = OrderedDict()
+    for idx, key in enumerate(meas_keys):
+        meas_var_dict[key] = np.array(var_data[idx+n_stim_key], dtype=np.float)
+    stim_dict['meas'] = meas_var_dict
 
     return stim_dict
 
@@ -143,11 +131,11 @@ def save_stim_csv(fpath, title, type, path, stim_var_dict,
         # write stim and meas
         wf.write('stim={}\n'.format(','.join(stim_var_dict.keys())))
         var_data = np.array(list(stim_var_dict.values()), dtype=np.str).T
-        if meas_var_dict is None:
-            wf.write('meas=\n')
-        else:
+        if meas_var_dict:
             wf.write('meas={}\n'.format(','.join(meas_var_dict.keys())))
             var_data = np.c_[var_data, np.array(list(meas_var_dict.values()), dtype=np.str).T]
+        else:
+            wf.write('meas=\n')
 
         var_data = [','.join(row) for row in var_data]
         wf.write('\n'.join(var_data))
