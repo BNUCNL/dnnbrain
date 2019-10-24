@@ -127,7 +127,7 @@ def read_imagefolder(parpath):
     Parameters:
     ----------
     parpath[str]: parent path of images
-    
+
     Return:
     ------
     imgpath[list]: contains all subpath of images in parpath
@@ -221,7 +221,7 @@ class NetLoader:
                         os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
                 self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv1_maxpool': (0, 2), 'conv2': (0, 3),
                                       'conv2_relu': (0, 4), 'conv2_maxpool': (0, 5), 'conv3': (0, 6), 'conv3_relu': (0, 7),
-                                      'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
+                                      'conv4': (0, 8), 'conv4_relu': (0, 9), 'conv5': (0, 10), 'conv5_relu': (0, 11),
                                       'conv5_maxpool': (0, 12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
                                       'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6), 'prefc': (2,)}
                 self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
@@ -243,7 +243,7 @@ class NetLoader:
                                       'conv5': (0, 11), 'conv6': (0, 13),
                                       'conv7': (0, 16), 'conv8': (0, 18),
                                       'fc1': (2, 0), 'fc2': (2, 3),
-                                      'fc3': (2, 6), 'prefc':(2,)}
+                                      'fc3': (2, 6), 'prefc': (2,)}
                 self.img_size = (224, 224)
             elif net == 'vggface':
                 self.model = Vgg_face()

@@ -18,7 +18,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
 
     Parameters:
     ------------
-    input[dataloader]: input image dataloader	
+    input[dataloader]: input image dataloader
     netname[str]: DNN network
     layer[str]: layer name of a DNN network
     channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
@@ -49,9 +49,9 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     # mask the data
     if channel is not None:
         dnnact = dnnact[:, channel, :]
-    if column is not None: 
+    if column is not None:
         dnnact = dnnact[:, :, column]
-        
+
     # feature extraction
     if fe_axis is not None:
         fe_meths = {
@@ -69,7 +69,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
             dnnact = fe_meths[fe_meth](dnnact, 2)[:, :, np.newaxis]
         else:
             raise ValueError('fe_axis should be layer, channel or column')
-    
+
     return dnnact
 
 
@@ -475,3 +475,15 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
         print('hrf convolution: sample {0} to {1} finished'.format(bat_idx+1, bat_indices[idx+1]))
 
     return X_hrfed
+
+
+def dnn_top(act, top, metric, chn_list):
+    if chn_list == 'all':
+        chn_list = range(0, act.shape[1])
+    act = dnn_pooling(act, metric)[:, :, 0].T
+    act = act[[i - 1 for i in chn_list], :]
+    res = np.empty((len(chn_list), top))
+    for i in range(len(act)):
+        res[i, :] = res[i, :] = np.argsort(-act[i])[range(top)]
+
+    return res.astype(np.int32), len(chn_list)
