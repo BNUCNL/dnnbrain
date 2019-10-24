@@ -224,15 +224,15 @@ class NetLoader:
                                       'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
                                       'conv5_maxpool': (0, 12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
                                       'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6), 'prefc': (2,)}
-                self.layer2keys = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                                    'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                                    'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                                    'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                                    'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                                    'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
-                                    'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
-                                    'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
-                                    'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
+                self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                                  'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                                  'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                                  'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                                  'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                                  'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
+                                  'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
+                                  'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
+                                  'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
