@@ -4,12 +4,9 @@
 Extract DNN activation for layer, channel, and column of interest
 """
 
-import sys
-import time
-import h5py
 import argparse
 
-from dnnbrain.dnn.io import read_dmask_csv
+from dnnbrain.dnn.io import read_dmask_csv, ActReader, ActWriter
 from dnnbrain.dnn.analyzer import dnn_mask
 
 
@@ -50,22 +47,21 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
     assert args.layer or args.dmask, 'At least one of (layer, dmask) should be used!'
 
     # extract dnn activation with mask
-    src_h5 = h5py.File(args.act)
-    trg_h5 = h5py.File(args.out, 'w')
+    reader = ActReader(args.act)
+    writer = ActWriter(args.out, reader.title + ' mask')
     if args.dmask is None:
-        dnn_acts = src_h5[args.layer]
+        dnn_acts = reader.get_act(args.layer)
         chn = args.chn if args.chn is None else [i-1 for i in args.chn]
         col = args.col if args.col is None else [i-1 for i in args.col]
         dnn_acts = dnn_mask(dnn_acts, chn, col)
-        trg_h5.create_dataset(args.layer, data=dnn_acts)
+        writer.set_act(args.layer, dnn_acts)
     else:
         dmask_dict = read_dmask_csv(args.dmask)
         for layer, axes_dict in dmask_dict.items():
-            dnn_acts = src_h5[layer]
+            dnn_acts = reader.get_act(layer)
             if axes_dict['chn'] is None:
                 chn = None
             else:
@@ -75,15 +71,10 @@ def main():
             else:
                 col = [i-1 for i in axes_dict['col']]
             dnn_acts = dnn_mask(dnn_acts, chn, col)
-            trg_h5.create_dataset(layer, data=dnn_acts)
+            writer.set_act(layer, dnn_acts)
 
-    # write some information
-    trg_h5.attrs['title'] = src_h5.attrs['title'] + ' masked'
-    trg_h5.attrs['cmd'] = ' '.join(sys.argv)
-    trg_h5.attrs['date'] = time.asctime()
-
-    src_h5.close()
-    trg_h5.close()
+    reader.close()
+    writer.close()
 
 
 if __name__ == '__main__':

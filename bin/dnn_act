@@ -4,14 +4,12 @@
 Extract activation from DNN
 """
 
-import sys
-import time
-import h5py
 import argparse
+import numpy as np
 
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from dnnbrain.dnn.io import NetLoader, PicDataset, VidDataset
+from dnnbrain.dnn.io import NetLoader, ImgDataset, VidDataset, ActWriter
 from dnnbrain.utils.io import read_stim_csv
 from dnnbrain.dnn.analyzer import dnn_activation
 
@@ -42,37 +40,40 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert args.out.endswith('.act.h5'), "the output file's suffix must be .act.h5"
 
     # -load DNN-
     net_loader = NetLoader(args.net)
     transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
 
-    # --Load stimuli--
+    # -load stimuli-
     stim_dict = read_stim_csv(args.stim)
-    if stim_dict['type'] == 'picture':
-        dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             stim_dict['stim'].get('condition', None), transform)
+    if stim_dict['type'] == 'image':
+        dataset = ImgDataset(stim_dict['path'], stim_dict['stim']['stimID'],
+                             transform=transform)
     elif stim_dict['type'] == 'video':
         dataset = VidDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             stim_dict['stim'].get('condition', None), transform)
+                             transform=transform)
     else:
         raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
     data_loader = DataLoader(dataset, batch_size=8, shuffle=False)
 
-    # extract activation
-    wf = h5py.File(args.out, 'w')
+    # -extract activation-
+    n_stim = len(dataset)
+    writer = ActWriter(args.out, args.net + ' act')
     for layer in args.layer:
-        dnn_acts, raw_shape = dnn_activation(data_loader, net_loader, layer)
-        dset = wf.create_dataset(layer, data=dnn_acts)
-        dset.attrs['raw_shape'] = raw_shape
-    # create some information
-    wf.attrs['title'] = '{} activation'.format(args.net)
-    cmd = ' '.join(sys.argv)
-    wf.attrs['cmd'] = cmd
-    date = time.asctime()
-    wf.attrs['date'] = date
-    wf.close()
+        dnn_acts = []
+        for stims, _ in data_loader:
+            dnn_acts.extend(dnn_activation(stims, net_loader.model, net_loader.layer2loc[layer]))
+            print('Extracted acts: {0}/{1}'.format(len(dnn_acts), n_stim))
+        dnn_acts = np.array(dnn_acts)
+        raw_shape = dnn_acts.shape
+        dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+
+        # write to file
+        writer.set_act(layer, dnn_acts)
+        writer.set_attr(layer, 'raw_shape', raw_shape)
+
+    writer.close()
 
 
 if __name__ == '__main__':

@@ -4,11 +4,21 @@
 Correlate DNN activation with brain or behavior response
 """
 
+import os
+import time
 import argparse
+import numpy as np
+import pandas as pd
+
+from os.path import join as pjoin
+from dnnbrain.dnn.io import ActReader
+from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.brain.io import load_brainimg, save_brainimg
+from sklearn.metrics import pairwise_distances
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Correlate DNN activation with brain or behavior response')
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-act',
                         metavar='Activation',
                         required=True,
@@ -18,22 +28,17 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="names of the layers which are probed "
+                        help="names of the layers which are used "
                              "For example, 'conv1' represents the first convolution layer, and "
                              "'fc1' represents the first full connection layer. "
-                             "Default is probe all layers in the DNN activation file.")
-    parser.add_argument('-hrf',
-                        action='store_true',
-                        help='Convolute dnn activation with SPM canonical hemodynamic response function. '
-                             'And match it with the time points of Brain activation.')
+                             "Default using all layers in the DNN activation file.")
     parser.add_argument('-iteraxis',
                         type=str,
                         metavar='Axis',
-                        choices=('channel', 'column'),
-                        default='layer',
+                        choices=('chn', 'col'),
                         help="Iterate along the specified axis."
-                             "channel: Summarize the maximal R square for each channel. "
-                             "column: Summarize the maximal R square for each column. "
+                             "chn: Summarize the maximal R square for each channel. "
+                             "col: Summarize the maximal R square for each column. "
                              "default: Summarize the maximal R square for the whole layer.")
     parser.add_argument('-resp',
                         metavar='Response',
@@ -59,6 +64,131 @@ def main():
                         type=str,
                         help='R square and position in an output directory')
     args = parser.parse_args()
+
+    # -Load response start-
+    if args.resp.endswith('.stim.csv'):
+        resp_dict = read_stim_csv(args.resp)
+        if args.meas is None:
+            Y = list(resp_dict['meas'].values())
+            measurements = list(resp_dict['meas'].keys())
+        else:
+            Y = [resp_dict['meas'][k] for k in args.meas]
+            measurements = args.meas
+        Y = np.array(Y).T
+
+    elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
+        Y, header = load_brainimg(args.resp)
+        bshape = Y.shape[1:]
+
+        # Get resp data within brain mask
+        if args.bmask is None:
+            bmask = np.any(Y, 0)
+        else:
+            bmask, _ = load_brainimg(args.bmask, ismask=True)
+            assert bshape == bmask.shape, 'brain mask and brain response mismatched in space'
+            bmask = bmask.astype(np.bool)
+        Y = Y[:, bmask]
+
+    else:
+        raise IOError('Only .stim.csv and nifti/cifti are supported')
+    n_samp, n_meas = Y.shape  # n_sample x n_measures
+    print('Finish loading response: ', args.resp)
+    # -Load response end-
+
+    act_h5 = h5py.File(args.act)
+    layers = act_h5.keys() if args.layer is None else args.layer
+    for layer in layers:
+        start = time.time()
+        # load DNN activation
+        X = np.array(act_h5[layer])
+        n_stim, n_chn, n_col = X.shape
+        assert n_stim == n_samp, 'n_stim != n_samp'
+
+        # transpose axis to keep X's shape as (n_stimulus, n_iterator, n_element)
+        if args.iteraxis is None:
+            X = X.reshape((n_stim, 1, n_chn * n_col))
+        elif args.iteraxis == 'col':
+            X = X.transpose((0, 2, 1))
+        n_stim, n_iter, n_elem = X.shape
+
+        # --Perform correlation analysis--
+        # prepare container
+        score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
+        channel_arr = np.zeros_like(score_arr, dtype=np.int)
+        column_arr = np.zeros_like(score_arr, dtype=np.int)
+
+        # start iteration
+        for meas_idx in range(n_meas):
+            for iter_idx in range(n_iter):
+                # calculate correlation
+                score_tmp = pairwise_distances(X[:, iter_idx, :].T,
+                                               Y[:, meas_idx].reshape(1, -1), 'correlation')
+                score_tmp = (1 - np.squeeze(score_tmp)) ** 2
+
+                # find max score
+                max_elem_idx = np.argmax(score_tmp)
+                max_score = score_tmp[max_elem_idx]
+                score_arr[iter_idx, meas_idx] = max_score
+
+                # find position of the max score
+                if args.iteraxis is None:
+                    chn_idx = max_elem_idx // n_col
+                    col_idx = max_elem_idx % n_col
+                elif args.iteraxis == 'chn':
+                    chn_idx, col_idx = iter_idx, max_elem_idx
+                else:
+                    chn_idx, col_idx = max_elem_idx, iter_idx
+                channel_arr[iter_idx, meas_idx] = chn_idx + 1
+                column_arr[iter_idx, meas_idx] = col_idx + 1
+
+                print('Measure{0}/{1}: finish iteration{2}/{3}'.format(meas_idx + 1, n_meas, iter_idx + 1, n_iter))
+
+        # -save out start-
+        # prepare directory
+        trg_dir = pjoin(args.out, layer)
+        if not os.path.isdir(trg_dir):
+            os.makedirs(trg_dir)
+        if args.iteraxis is not None:
+            trg_dir = pjoin(trg_dir, args.iteraxis)
+            if not os.path.isdir(trg_dir):
+                os.makedirs(trg_dir)
+
+        # save files
+        if args.resp.endswith('.stim.csv'):
+            # save score
+            score_df = pd.DataFrame(score_arr, columns=measurements)
+            score_df.to_csv(pjoin(trg_dir, 'score_corr.csv'), index=False)
+            del score_arr
+
+            # save position
+            chn_pos_df = pd.DataFrame(channel_arr, columns=measurements)
+            chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
+            del channel_arr
+            col_pos_df = pd.DataFrame(column_arr, columns=measurements)
+            col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
+            del column_arr
+
+        else:
+            resp_suffix = '.'.join(args.resp.split('.')[1:])
+
+            # save score
+            score_img = np.zeros((n_iter, *bshape))
+            score_img[:, bmask] = score_arr
+            save_brainimg(pjoin(trg_dir, 'score_corr.' + resp_suffix), score_img, header)
+            del score_arr
+
+            # save position
+            chn_pos_img = np.zeros_like(score_img, dtype=np.int)
+            chn_pos_img[:, bmask] = channel_arr
+            save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
+            del channel_arr
+            col_pos_img = np.zeros_like(score_img, dtype=np.int)
+            col_pos_img[:, bmask] = column_arr
+            save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
+            del column_arr
+        # -save out end-
+        end = time.time()
+        print('Finish corr in {0}: cost {1} seconds'.format(layer, end - start))
 
 
 if __name__ == '__main__':

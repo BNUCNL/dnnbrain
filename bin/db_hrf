@@ -1,0 +1,81 @@
+#! /usr/bin/env python
+
+"""
+Convolve DNN activation with SPM canonical hemodynamic response function.
+And match it with the time points of Brain activation.
+"""
+
+import argparse
+
+from dnnbrain.dnn.io import ActReader, ActWriter
+from dnnbrain.dnn.analyzer import convolve_hrf
+from dnnbrain.utils.io import read_stim_csv
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="Layers of interest to do feature extraxtion. "
+                             "E.g., 'conv1' represents the first convolution layer, "
+                             "and 'fc1' represents the first full connection layer. "
+                             "Default is to do hrf convolution for all layers "
+                             "in the activation file.")
+    parser.add_argument('-stim',
+                        metavar='Stimulus',
+                        required=True,
+                        type=str,
+                        help='a .stim.csv file which contains onsets and durations')
+    parser.add_argument('-tr',
+                        metavar='TR',
+                        required=True,
+                        type=float,
+                        help='repetition time of BOLD signal acquisition')
+    parser.add_argument('-n_vol',
+                        metavar='N_volume',
+                        required=True,
+                        type=int,
+                        help='the number of volumes of BOLD signal')
+    parser.add_argument('-ops',
+                        metavar='Ops',
+                        type=int,
+                        default=100,
+                        choices=(10, 100, 1000),
+                        help='oversampling number per second')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .act.h5')
+    args = parser.parse_args()
+
+    # prepare DNN activation
+    reader = ActReader(args.act)
+    writer = ActWriter(args.out, reader.title + ' hrf')
+    layers = reader.layers if args.layer is None else args.layer
+    # prepare stimulus information
+    stim_dict = read_stim_csv(args.stim)
+    onsets = stim_dict['stim']['onset']
+    durations = stim_dict['stim']['duration']
+    # start convolution
+    for layer in layers:
+        dnn_acts = reader.get_act(layer)
+        n_stim, n_chn, n_col = dnn_acts.shape
+        dnn_acts = convolve_hrf(dnn_acts.reshape(n_stim, -1), onsets, durations,
+                                args.n_vol, args.tr, args.ops)
+        dnn_acts = dnn_acts.reshape(args.n_vol, n_chn, n_col)
+        writer.set_act(layer, dnn_acts)
+
+    reader.close()
+    writer.close()
+
+
+if __name__ == '__main__':
+    main()

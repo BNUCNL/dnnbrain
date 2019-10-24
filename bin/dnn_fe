@@ -5,8 +5,11 @@ Extract features of DNN activation
 """
 
 import argparse
+import numpy as np
 
 from collections import namedtuple
+from dnnbrain.dnn.io import ActReader, ActWriter
+from dnnbrain.dnn.analyzer import dnn_fe
 
 
 class MethodAction(argparse.Action):
@@ -49,7 +52,7 @@ def main():
     parser.add_argument('-axis',
                         metavar='Axis',
                         type=str,
-                        choices=('channel', 'column'),
+                        choices=('chn', 'col'),
                         help='axis for feature extraction '
                              'Default is extracting features from the whole layer.')
     parser.add_argument('-out',
@@ -58,6 +61,17 @@ def main():
                         type=str,
                         help='Output filename with suffix .act.h5')
     args = parser.parse_args()
+
+    reader = ActReader(args.act)
+    writer = ActWriter(args.out, reader.title + ' fe')
+    layers = reader.layers if args.layer is None else args.layer
+    for layer in layers:
+        data = dnn_fe(reader.get_act(layer), args.meth.method,
+                      args.meth.n_feat, args.axis)
+        writer.set_act(layer, data)
+
+    reader.close()
+    writer.close()
 
 
 if __name__ == '__main__':

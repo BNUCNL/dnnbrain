@@ -1,50 +1,45 @@
 import os
+import sys
+import time
 import cv2
 import scipy.io
+import h5py
+import torch
+import torchvision
 import numpy as np
 
+from PIL import Image
+from os.path import join as pjoin
 from torchvision import transforms
 from collections import OrderedDict
 from dnnbrain.dnn.models import Vgg_face
 
-try:
-    from PIL import Image
-except ModuleNotFoundError:
-    raise Exception('Please install pillow in your work station')
-
-try:
-    import torch
-    import torchvision
-except ModuleNotFoundError:
-    raise Exception(
-            'Please install pytorch and torchvision in your work station')
-
-DNNBRAIN_MODEL_DIR = os.environ['DNNBRAIN_MODEL_DIR']
+DNNBRAIN_MODEL_DIR = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
-class PicDataset:
+class ImgDataset:
     """
-    Build a dataset to load pictures
+    Build a dataset to load image
     """
-    def __init__(self, par_path, pic_ids, conditions=None, transform=None, crops=None):
+    def __init__(self, par_path, img_ids, conditions=None, transform=None, crops=None):
         """
-        Initialize PicDataset
+        Initialize ImgDataset
 
         Parameters:
         ------------
-        par_path[str]: picture parent path
-        pic_ids[sequence]: Each pic_id is a path which can find the picture file relative to par_path.
-        conditions[sequence]: Each picture's condition.
+        par_path[str]: image parent path
+        img_ids[sequence]: Each img_id is a path which can find the image file relative to par_path.
+        conditions[sequence]: Each image's condition.
         transform[callable function]: optional transform to be applied on a sample.
-        crops[array]: 2D array with shape (n_pic, 4)
-            Row index is corresponding to the index in pic_ids.
-            Each row is a bounding box which is used to crop the picture.
+        crops[array]: 2D array with shape (n_img, 4)
+            Row index is corresponding to the index in img_ids.
+            Each row is a bounding box which is used to crop the image.
             Each bounding box's four elements are:
                 left_coord, upper_coord, right_coord, lower_coord.
         """
         self.par_path = par_path
-        self.pic_ids = pic_ids
-        self.conditions = np.ones(len(self.pic_ids)) if conditions is None else conditions
+        self.img_ids = img_ids
+        self.conditions = np.ones(len(self.img_ids)) if conditions is None else conditions
         self.conditions_uniq = np.unique(self.conditions).tolist()
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
         self.crops = crops
@@ -53,46 +48,31 @@ class PicDataset:
         """
         Return sample size
         """
-        return len(self.pic_ids)
+        return len(self.img_ids)
 
     def __getitem__(self, idx):
         """
-        Get picture data and target label of each sample
+        Get image data and target label of each sample
 
         Parameters:
         -----------
-        idx: index of sample
+        idx[int]: index of sample
 
         Returns:
         ---------
-        pic_img: picture data, save as a pillow instance
-        trg_label: target of each sample (label)
+        image: image data
+        label[int]: target of each sample (label)
         """
-        # load picture
-        pic_img = Image.open(os.path.join(self.par_path, self.pic_ids[idx])).convert('RGB')
+        # load image
+        image = Image.open(os.path.join(self.par_path, self.img_ids[idx]))
 
-        # crop picture
+        # crop image
         if self.crops is not None:
-            pic_img = pic_img.crop(self.crops[idx])
+            image = image.crop(self.crops[idx])
 
-        pic_img = self.transform(pic_img)  # transform picture
-        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
-        return pic_img, trg_label
-
-    def get_picname(self, idx):
-        """
-        Get picture name and its condition (target condition)
-
-        Parameters:
-        -----------
-        idx: index of sample
-
-        Returns:
-        ---------
-        picname: picture name
-        condition: target condition
-        """
-        return os.path.basename(self.pic_ids[idx]), self.conditions[idx]
+        image = self.transform(image)  # transform image
+        label = self.conditions_uniq.index(self.conditions[idx])  # get label
+        return image, label
 
 
 class VidDataset:
@@ -107,7 +87,7 @@ class VidDataset:
         frame_nums[sequence]: sequence numbers of the frames of interest
         conditions[sequence]: each frame's condition
         transform[pytorch transform]
-        crops[array]: 2D array with shape (n_pic, 4)
+        crops[array]: 2D array with shape (n_img, 4)
             Row index is corresponding to the index in frame_nums.
             Each row is a bounding box which is used to crop the frame.
             Each bounding box's four elements are:
@@ -140,24 +120,41 @@ class VidDataset:
 
 def read_imagefolder(parpath):
     """
-    Get picture path and conditions of a Imagefolder directory
+    The function read from a already organized Image folder or a folder that only have images
+    and return imgpath list and condition list
+    for generate csv file more quickly.
 
     Parameters:
-    ------------
-    parpath[str]: Parent path of ImageFolder.
-
-    Returns:
-    ---------
-    picpath[list]: picture path list
-    conditions[list]: condition list
+    ----------
+    parpath[str]: parent path of images
+    
+    Return:
+    ------
+    imgpath[list]: contains all subpath of images in parpath
+    condition[list]: contains categories of all images
     """
-    targets = os.listdir(parpath)
-    picname_tmp = [os.listdir(os.path.join(parpath, tg)) for tg in targets]
-    picnames = [pn for sublist in picname_tmp for pn in sublist]
-    conditions = [tg for tg in targets for _ in picname_tmp]
-    picpath = [os.path.join(conditions[i], picnames[i]) for i, _
-               in enumerate(picnames)]
-    return picpath, conditions
+    test_set = list(os.walk(parpath))
+
+    picpath = []
+    condition = []
+    if len(test_set) == 1:  # the folder only have images, the folder name will be the condition
+        label = test_set[0]
+        condition_name = os.path.basename(label[0])
+        picpath_tem = label[2]
+        condition_tem = [condition_name for i in label[2]]
+        picpath.append(picpath_tem)
+        condition.append(condition_tem)
+    else:                   # the folder have have some sub-folders as pytorch ImageFolder,
+        for label in test_set[1:]:
+            condition_name = os.path.basename(label[0])
+            picpath_tem = [condition_name + '/' + pic for pic in label[2]]
+            condition_tem = [condition_name for i in label[2]]  # the sub-folders name will be the conditions.
+            picpath.append(picpath_tem)
+            condition.append(condition_tem)
+
+    picpath = sum(picpath, [])
+    condition = sum(condition, [])
+    return picpath, condition
 
 
 def save_activation(activation, outpath):
@@ -166,7 +163,7 @@ def save_activation(activation, outpath):
          csv format save a 2D.
             The first column is stimulus indexs
             The second column is channel indexs
-            Each row is the activation of a filter for a picture
+            Each row is the activation of a filter for a image
          mat format save a 2D or 4D array depend on the activation from
              convolution layer or fully connected layer.
             4D array Dimension:sitmulus x channel x pixel x pixel
@@ -227,15 +224,15 @@ class NetLoader:
                                       'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
                                       'conv5_maxpool': (0, 12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
                                       'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6), 'prefc': (2,)}
-                self.layer2keys = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                                    'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                                    'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                                    'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                                    'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                                    'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
-                                    'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
-                                    'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
-                                    'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
+                self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                                  'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                                  'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                                  'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                                  'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                                  'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
+                                  'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
+                                  'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
+                                  'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
                 self.img_size = (224, 224)
             elif net == 'vgg11':
                 self.model = torchvision.models.vgg11()
@@ -263,7 +260,7 @@ class NetLoader:
                 self.img_size = (224, 224)
         else:
             print('Not internal supported, please call netloader function'
-                  'to assign model, layer2indices and picture size.')
+                  'to assign model, layer2indices and image size.')
             self.model = None
             self.layer2indices = None
             self.img_size = None
@@ -281,7 +278,7 @@ class NetLoader:
             DNN frame layer.
             Please make dictionary as following format:
                 {'conv1': (0, 0), 'conv2': (0, 3), 'fc1': (2, 0)}
-        input_imgsize[tuple]: the input picture size
+        input_imgsize[tuple]: the input image size
         """
         self.model = dnn_model
         if model_param is not None:
@@ -294,159 +291,146 @@ class NetLoader:
         print('You had assigned a model into netloader.')
 
 
-def read_dnn_csv(dnn_csv):
-    """
-    Read pre-designed dnn csv file.
+class ActReader:
+    def __init__(self, fpath):
+        """
+        Get DNN activation from .act.h5 file
 
-    Parameters:
-    -----------
-    dnn_csv[str]: Path of csv file.
-        Note that the suffix of dnn_csv is .db.csv.
-        Format of db.csv of picture stimuli is
-        --------------------------
-        type:stimulus
-        title:picture stimuli
-        stimPath:parent_dir_to_pictures
-        stimType:picture
-        [Several optional keys] (eg., crop:True)
-        variableName:stimID,[onset],[duration],[condition]
-        pic1_path,0,1,cat
-        pic2_path,1,1,dog
-        pic3_path,2,1,cat
-        ...,...,...,...
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        """
+        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self._file = h5py.File(fpath, 'r')
 
-        Format of db.csv of video stimuli is
-        --------------------------
-        type:stimulus
-        title:video stimuli
-        stimPath:path_to_video_file
-        stimType:video
-        [Several optional keys] (eg., hrf_tr:2)
-        variableName:stimID,[onset],[duration],[condition]
-        1,0,1,cat
-        2,1,1,dog
-        3,2,1,cat
-        ...,...,...,...
+    def close(self):
+        self._file.close()
 
-        Format of db.csv of response is
-        --------------------------
-        type:response
-        title:visual roi
-        [Several optional keys] (eg., tr:2)
-        variableName:OFA,FFA
-        123,312
-        222,331
-        342,341
-        ...,...
+    def get_act(self, layer, to_numpy=True):
+        """
+        Get a layer's activation
 
-        Format of dnn_csv of dmask is
-        --------------------------
-        type:dmask
-        title:alexnet roi
-        [Several optional keys]
-        variableName:chn,col
-        1,2,3,5,7,124,...
-        3,4,...
+        Parameters:
+        ----------
+        layer[str]: layer name
+        to_numpy[bool]:
+            If False, return HDF5 dataset directly.
+            If True, transform to numpy array.
 
-    Return:
-    -------
-    dbcsv[dict]: Dictionary of the output variable
-    """
-    # ---Load csv data---
-    assert '.db.csv' in dnn_csv, 'Suffix of dnn_csv should be .db.csv'
-    with open(dnn_csv, 'r') as f:
-        csv_data = f.read().splitlines()
-    # remove null line
-    while '' in csv_data:
-        csv_data.remove('')
-    meta_idx = ['variableName' in i for i in csv_data].index(True)
-    csv_meta = csv_data[:meta_idx]
-    csv_val = csv_data[meta_idx:]
+        Return:
+        ------
+        act: DNN activation
+        """
+        act = self._file[layer]
+        if to_numpy:
+            act = np.array(act)
 
-    # ---Handle csv data---
-    dbcsv = {}
-    for cm in csv_meta:
-        k, v = cm.split(':')
-        dbcsv[k] = v
-    assert 'type' in dbcsv.keys(), 'type needs to be included in csvfiles.'
-    assert 'title' in dbcsv.keys(), 'title needs to be included in csvfiles.'
+        return act
 
-    # identify the type of data
-    assert dbcsv['type'] in ['stimulus', 'dmask', 'response'], \
-        'Type must be named as stimulus, dmask or response.'
+    def get_attr(self, layer, attr):
+        """
+        Get an attribution of a layer's activation
 
-    # Operate csv_val
-    variable_keys = csv_val[0].split(':')[1].split(',')
+        Parameters:
+        ----------
+        layer[str]: layer name
+        attr[str]: attribution name
 
-    # if dmask, variableAxis is row, each row can have different length.
-    if dbcsv['type'] == 'dmask':
-        variable_data = [np.asarray(i.split(','), dtype=np.int) - 1 for i in csv_val[1:]]
-    # if stim/resp, variableAxis is col, each col must have the same length.
-    else:
-        variable_data = [i.split(',') for i in csv_val[1:]]
-        variable_data = list(zip(*variable_data))
-        if dbcsv['type'] == 'stimulus':
-            if dbcsv['stimType'] == 'picture':
-                # data type for stimID or condition is str, others float.
-                for i, v_i in enumerate(variable_data):
-                    if variable_keys[i] in ['stimID', 'condition']:
-                        variable_data[i] = np.asarray(v_i, dtype=np.str)
-                    else:
-                        variable_data[i] = np.asarray(v_i, dtype=np.float)
-            elif dbcsv['stimType'] == 'video':
-                for i, v in enumerate(variable_data):
-                    if variable_keys[i] == 'stimID':
-                        variable_data[i] = np.array(v, dtype=np.int)
-                    elif variable_keys[i] == 'condition':
-                        variable_data[i] = np.array(v, dtype=np.str)
-                    else:
-                        variable_data[i] = np.array(v, dtype=np.float)
-            else:
-                raise ValueError('not supported stimulus type: {}'.format(dbcsv['stimType']))
-        elif dbcsv['type'] == 'response':
-            variable_data = np.asarray(variable_data, dtype=np.float)
-        else:
-            raise ValueError('not supported csv type: {}'.format(dbcsv['type']))
+        Return:
+        ------
+            attribution
+        """
+        return self._file[layer].attrs[attr]
 
-    var_dict = OrderedDict()
-    for idx, key in enumerate(variable_keys):
-        var_dict[key] = variable_data[idx]
-    dbcsv['var'] = var_dict
-    return dbcsv
+    @property
+    def title(self):
+        """
+        Get the title of the file
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['title']
+
+    @property
+    def cmd(self):
+        """
+        Get the command used to generate the file
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['cmd']
+
+    @property
+    def date(self):
+        """
+        Get the date when the file was generated
+
+        Return:
+        ------
+            a string
+        """
+        return self._file.attrs['date']
+
+    @property
+    def layers(self):
+        """
+        Get all layer names in the file
+
+        Return:
+        ------
+            a list
+        """
+        return list(self._file.keys())
 
 
-def save_dnn_csv(fpath, ftype, title, variables, opt_meta=None):
-    """
-    Generate dnn brain csv.
+class ActWriter:
+    def __init__(self, fpath, title):
+        """
+        Save DNN activation into .act.h5 file
 
-    Parameters:
-    ------------
-    fpath[str]: output file path, ending with .db.csv
-    ftype[str]: file type, ['stimulus', 'dmask', 'response'].
-    title[str]: customized title
-    variables[dict]: dictionary of signals or data
-    opt_meta[dict]: some other optional meta data
-    """
-    assert fpath.endswith('.db.csv'), "Suffix of dnnbrain csv file should be .db.csv"
-    with open(fpath, 'w') as f:
-        # First line, type
-        f.write('type:{}\n'.format(ftype))
-        # Second line, title
-        f.write('title:{}\n'.format(title))
-        # Optional meta data
-        if opt_meta is not None:
-            for k, v in opt_meta.items():
-                f.write('{0}:{1}\n'.format(k, v))
-        # variableName line
-        f.write('variableName:{}\n'.format(','.join(variables.keys())))
-        variable_vals = []
-        if ftype == 'dmask':
-            for variable_val in variables.values():
-                variable_vals.append(','.join(map(str, variable_val)))
-        else:
-            variable_vals = np.array(list(variables.values()), dtype=np.str).T
-            variable_vals = [','.join(row) for row in variable_vals]
-        f.write('\n'.join(variable_vals))
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        title[str]: a simple description for the file
+        """
+        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self._file = h5py.File(fpath, 'w')
+        self._file.attrs['title'] = title
+
+    def close(self):
+        """
+        Write some information and close the file
+        """
+        self._file.attrs['cmd'] = ' '.join(sys.argv)
+        self._file.attrs['date'] = time.asctime()
+        self._file.close()
+
+    def set_act(self, layer, act):
+        """
+        Set a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        act[array]: DNN activation
+        """
+        self._file.create_dataset(layer, data=act)
+
+    def set_attr(self, layer, attr, value):
+        """
+        Set an attribution of a layer's activation
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        attr[str]: attribution name
+        value: the value of the attribution
+        """
+        self._file[layer].attrs[attr] = value
 
 
 def read_dmask_csv(fpath):

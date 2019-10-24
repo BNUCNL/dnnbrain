@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 
 def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, after_vid=0):
@@ -43,3 +44,35 @@ def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, afte
         onsets.append(onsets[-1] + d)
 
     return frame_nums, onsets, durations
+
+
+def array_fe(arr, method, axis=None, keepdims=False):
+    """
+    extract features of an array
+
+    Parameters:
+    ----------
+    arr[array]: a numpy array
+    method[str]: feature extraction method
+    axis[int]: axis for feature extraction
+        If it's None, extract features from the whole array.
+    keepdims[bool]: keep the axis which is reduced
+
+    Return:
+    ------
+    arr[array]: extracted features
+    """
+    if method == 'max':
+        arr = np.max(arr, axis, keepdims=keepdims)
+    elif method == 'mean':
+        arr = np.mean(arr, axis, keepdims=keepdims)
+    elif method == 'median':
+        arr = np.median(arr, axis, keepdims=keepdims)
+    elif method == 'L1':
+        arr = np.linalg.norm(arr, 1, axis, keepdims=keepdims)
+    elif method == 'L2':
+        arr = np.linalg.norm(arr, 2, axis, keepdims=keepdims)
+    else:
+        raise ValueError('Not supported method:', method)
+
+    return arr

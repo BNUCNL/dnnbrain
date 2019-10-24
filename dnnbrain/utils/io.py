@@ -10,11 +10,11 @@ def read_stim_csv(fpath):
     Parameters:
     -----------
     fpath[str]: Path of .stim.csv file.
-        Format of .stim.csv of picture stimuli is
+        Format of .stim.csv of image stimuli is
         --------------------------
-        title=picture stimuli
-        type=picture
-        path=parent_dir_to_pictures
+        title=image stimuli
+        type=image
+        path=parent_dir_to_images
         [Several optional keys] (eg., hrf_tr=2)
         stim=stimID,[onset],[duration],[condition]
         meas=accuracy, reaction time
@@ -74,7 +74,7 @@ def read_stim_csv(fpath):
     # prepare variable data
     var_data = [line.split(',') for line in var_lines]
     var_data = list(zip(*var_data))
-    if stim_dict['type'] == 'picture':
+    if stim_dict['type'] == 'image':
         # data type for stimID or condition is str, others float.
         for i, v in enumerate(var_data[:n_stim_key]):
             dtype = np.str if stim_keys[i] in ['stimID', 'condition'] else np.float
@@ -120,9 +120,9 @@ def save_stim_csv(fpath, title, type, path, stim_var_dict,
     ------------
     fpath[str]: output file path, ending with .stim.csv
     title[str]: customized title
-    type[str]: stimulus type in ('picture', 'video')
+    type[str]: stimulus type in ('image', 'video')
     path[str]: path_to_stimuli
-        If type is 'picture', the path is the parent directory of the pictures.
+        If type is 'image', the path is the parent directory of the images.
         If type is 'video', the path is the file path of the video.
     stim_var_dict[dict]: dictionary of stimulus variables
     meas_var_dict[dcit]: dictionary of measurement variables

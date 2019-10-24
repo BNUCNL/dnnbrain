@@ -1,0 +1,3 @@
+Please put a test file to test each bin command you developed.
+Genearally, the test file is a shell script file in which the command is listed. In testing, we can directly run the script file.
+

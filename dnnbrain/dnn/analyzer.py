@@ -1,8 +1,14 @@
 import numpy as np
+
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
+from dnnbrain.utils.util import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
-from scipy.signal import convolve
+from scipy.signal import convolve, periodogram
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
+from sklearn.model_selection import cross_val_score
+from sklearn.svm import SVC
 
 
 def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
@@ -67,45 +73,46 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     return dnnact
 
 
-def dnn_activation(data_loader, net_loader, layer):
+def dnn_activation(data, model, layer_loc, channels=None):
     """
     Extract DNN activation from the specified layer
 
     Parameters:
-    ------------
-    data_loader[DataLoader]: stimuli loader
-    net_loader[NetLoader]: neural network loader
-    layer[str]: layer name of a DNN
+    ----------
+    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, n_r, n_c)
+    model[model]: DNN model
+    layer_loc[sequence]: a sequence of keys to find the location of
+        the target layer in the DNN model.
+    channels[list]: channel indices of interest
 
-    Returns:
-    ---------
-    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    raw_shape[tuple]: the DNN activation's raw shape
+    Return:
+    ------
+    dnn_acts[array]: DNN activation
+        a 4D array with its shape as (n_stim, n_chn, n_r, n_c)
     """
     # change to eval mode
-    net_loader.model.eval()
+    model.eval()
 
     # prepare dnn activation hook
     dnn_acts = []
 
     def hook_act(module, input, output):
-        dnn_acts.extend(output.detach().numpy().copy())
+        act = output.detach().numpy().copy()
+        if channels is not None:
+            act = act[:, channels]
+        dnn_acts.append(act)
 
-    module = net_loader.model
-    for k in net_loader.layer2keys[layer]:
+    module = model
+    for k in layer_loc:
         module = module._modules[k]
     hook_handle = module.register_forward_hook(hook_act)
 
     # extract dnn activation
-    for stims, _ in data_loader:
-        net_loader.model(stims)
-        print('Extracted acts:', len(dnn_acts))
-    dnn_acts = np.asarray(dnn_acts)
-    raw_shape = dnn_acts.shape
-    dnn_acts = dnn_acts.reshape((raw_shape[0], raw_shape[1], -1))
+    model(data)
+    dnn_acts = dnn_acts[0]
 
     hook_handle.remove()
-    return dnn_acts, raw_shape
+    return dnn_acts
 
 
 def dnn_mask(dnn_acts, chn=None, col=None):
@@ -145,17 +152,254 @@ def dnn_pooling(dnn_acts, method):
     dnn_acts[array]: DNN activation after pooling
         a 3D array with its shape as (n_stim, n_chn, 1)
     """
-    # feature extraction
-    if method == 'max':
-        dnn_acts = np.max(dnn_acts, 2)[:, :, None]
-    elif method == 'mean':
-        dnn_acts = np.mean(dnn_acts, 2)[:, :, None]
-    elif method == 'median':
-        dnn_acts = np.median(dnn_acts, 2)[:, :, None]
-    else:
-        raise ValueError('Not supported method:', method)
+    return array_fe(dnn_acts, method, 2, True)
 
-    return dnn_acts
+
+def dnn_fe(dnn_acts, meth, n_feat, axis=None):
+    """
+    Extract features of DNN activation
+
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    meth[str]: feature extraction method, choices=(pca, hist, psd)
+        pca: use n_feat principal components as features
+        hist: use histogram of activation as features
+            Note: n_feat equal-width bins in the given range will be used!
+        psd: use power spectral density as features
+    n_feat[int]: The number of features to extract
+    axis{str}: axis for feature extraction, choices=(chn, col)
+        If it's None, extract features from the whole layer. Note:
+        The result of this will be an array with shape (n_stim, n_feat, 1), but
+        We also regard it as (n_stim, n_chn, n_col)
+
+    Returns:
+    -------
+    dnn_acts_new[array]: DNN activation
+        a 3D array with its shape as (n_stim, n_chn, n_col)
+    """
+    # adjust iterative axis
+    n_stim, n_chn, n_col = dnn_acts.shape
+    if axis is None:
+        dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+    elif axis == 'chn':
+        dnn_acts = dnn_acts.transpose((0, 2, 1))
+    elif axis == 'col':
+        pass
+    else:
+        raise ValueError('not supported axis:', axis)
+    _, n_iter, _ = dnn_acts.shape
+
+    # extract features
+    dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
+    if meth == 'pca':
+        pca = PCA(n_components=n_feat)
+        for i in range(n_iter):
+            dnn_acts_new[:, i, :] = pca.fit_transform(dnn_acts[:, i, :])
+    elif meth == 'hist':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                dnn_acts_new[j, i, :] = np.histogram(dnn_acts[j, i, :], n_feat)[0]
+    elif meth == 'psd':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                f, p = periodogram(dnn_acts[j, i, :])
+                dnn_acts_new[j, i, :] = p[:n_feat]
+    else:
+        raise ValueError('not supported method:', meth)
+
+    # adjust iterative axis
+    if axis is None:
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+    elif axis == 'chn':
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+
+    return dnn_acts_new
+
+
+def db_uva(dnn_acts, resp, model, iter_axis=None, cvfold=3):
+    """
+    Use DNN activation to predict responses of brain or behavior
+    by univariate analysis.'
+
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        A 3D array with its shape as (n_stim, n_chn, n_col)
+    resp[array]: response of brain or behavior
+        A 2D array with its shape as (n_samp, n_meas)
+    model[str]: the name of model used to do prediction
+    iter_axis[str]: iterate along the specified axis
+        channel: Summarize the maximal prediction score for each channel.
+        column: Summarize the maximal prediction score for each column.
+        default: Summarize the maximal prediction score for the whole layer.
+    cvfold[int]: cross validation fold number
+
+    Return:
+    ------
+    pred_dict[dict]:
+        score_arr: max score array
+        channel_arr: channel position of the max score
+        column_arr: column position of the max score
+        model_arr: fitted model of the max score
+    """
+    n_stim, n_chn, n_col = dnn_acts.shape
+    n_samp, n_meas = resp.shape  # n_sample x n_measures
+    assert n_stim == n_samp, 'n_stim != n_samp'
+
+    # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
+    if iter_axis is None:
+        dnn_acts = dnn_acts.reshape((n_stim, 1, n_chn * n_col))
+    elif iter_axis == 'column':
+        dnn_acts = dnn_acts.transpose((0, 2, 1))
+    elif iter_axis == 'channel':
+        pass
+    else:
+        raise ValueError("Unspported iter_axis:", iter_axis)
+    n_stim, n_iter, n_elem = dnn_acts.shape
+
+    # prepare model
+    if model in ('lrc', 'svc'):
+        score_evl = 'accuracy'
+    elif model in ('glm', 'lasso'):
+        score_evl = 'explained_variance'
+    else:
+        raise ValueError('unsupported model:', model)
+
+    if model == 'lrc':
+        model = LogisticRegression()
+    elif model == 'svc':
+        model = SVC(kernel='linear', C=0.025)
+    elif model == 'lasso':
+        model = Lasso()
+    else:
+        model = LinearRegression()
+
+    # prepare container
+    score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
+    channel_arr = np.zeros_like(score_arr, dtype=np.int)
+    column_arr = np.zeros_like(score_arr, dtype=np.int)
+    model_arr = np.zeros_like(score_arr, dtype=np.object)
+
+    # start iteration
+    for meas_idx in range(n_meas):
+        for iter_idx in range(n_iter):
+            score_tmp = []
+            for elem_idx in range(n_elem):
+                cv_scores = cross_val_score(model, dnn_acts[:, iter_idx, elem_idx][:, None],
+                                            resp[:, meas_idx], scoring=score_evl, cv=cvfold)
+                score_tmp.append(np.mean(cv_scores))
+
+            # find max score
+            max_elem_idx = np.argmax(score_tmp)
+            max_score = score_tmp[max_elem_idx]
+            score_arr[iter_idx, meas_idx] = max_score
+
+            # find position for the max score
+            if iter_axis is None:
+                chn_idx = max_elem_idx // n_col
+                col_idx = max_elem_idx % n_col
+            elif iter_axis == 'channel':
+                chn_idx, col_idx = iter_idx, max_elem_idx
+            else:
+                chn_idx, col_idx = max_elem_idx, iter_idx
+
+            channel_arr[iter_idx, meas_idx] = chn_idx + 1
+            column_arr[iter_idx, meas_idx] = col_idx + 1
+
+            # fit the max-score model
+            model_arr[iter_idx, meas_idx] = model.fit(dnn_acts[:, iter_idx, max_elem_idx][:, None],
+                                                      resp[:, meas_idx])
+            print('Meas: {0}/{1}; iter:{2}/{3}'.format(meas_idx + 1, n_meas,
+                                                       iter_idx + 1, n_iter,))
+    pred_dict = {
+        'score': score_arr,
+        'chn_pos': channel_arr,
+        'col_pos': column_arr,
+        'model': model_arr
+    }
+    return pred_dict
+
+
+def db_mva(dnn_acts, resp, model, iter_axis=None, cvfold=3):
+    """
+    Use DNN activation to predict responses of brain or behavior
+    by multivariate analysis.'
+
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        A 3D array with its shape as (n_stim, n_chn, n_col)
+    resp[array]: response of brain or behavior
+        A 2D array with its shape as (n_samp, n_meas)
+    model[str]: the name of model used to do prediction
+    iter_axis[str]: iterate along the specified axis
+        channel: Do mva using all units in each channel.
+        column: Do mva using all units in each column.
+        default: Do mva using all units in the whole layer.
+    cvfold[int]: cross validation fold number
+
+    Return:
+    ------
+    pred_dict[dict]:
+        score_arr: prediction score array
+        model_arr: fitted model
+    """
+    n_stim, n_chn, n_col = dnn_acts.shape
+    n_samp, n_meas = resp.shape  # n_sample x n_measures
+    assert n_stim == n_samp, 'n_stim != n_samp'
+
+    # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
+    if iter_axis is None:
+        dnn_acts = dnn_acts.reshape((n_stim, 1, n_chn * n_col))
+    elif iter_axis == 'column':
+        dnn_acts = dnn_acts.transpose((0, 2, 1))
+    elif iter_axis == 'channel':
+        pass
+    else:
+        raise ValueError("Unspported iter_axis:", iter_axis)
+    n_stim, n_iter, n_elem = dnn_acts.shape
+
+    # prepare model
+    if model in ('lrc', 'svc'):
+        score_evl = 'accuracy'
+    elif model in ('glm', 'lasso'):
+        score_evl = 'explained_variance'
+    else:
+        raise ValueError('unsupported model:', model)
+
+    if model == 'lrc':
+        model = LogisticRegression()
+    elif model == 'svc':
+        model = SVC(kernel='linear', C=0.025)
+    elif model == 'lasso':
+        model = Lasso()
+    else:
+        model = LinearRegression()
+
+    score_arr = []
+    model_arr = []
+    # start iteration
+    for iter_idx in range(n_iter):
+        # cross validation
+        score_tmp = [cross_val_score(model, dnn_acts[:, iter_idx, :], resp[:, i],
+                                     scoring=score_evl, cv=cvfold) for i in range(n_meas)]
+        score_arr.append(np.array(score_tmp).mean(-1))
+
+        # fit model
+        model.fit(dnn_acts[:, iter_idx, :], resp)
+        model_arr.append(model)
+
+        print('Finish iteration{0}/{1}'.format(iter_idx + 1, n_iter))
+    score_arr = np.array(score_arr)
+    model_arr = np.array(model_arr)
+
+    pred_dict = {
+        'score': score_arr,
+        'model': model_arr
+    }
+    return pred_dict
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
