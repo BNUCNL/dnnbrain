@@ -89,7 +89,7 @@ def main():
     n_row = len(args.chn) + 1
     for stims, _ in data_loader:
         # extract activation
-        dnn_acts = dnn_activation(stims, net_loader.model, net_loader.layer2keys[args.layer])
+        dnn_acts = dnn_activation(stims, net_loader.model, net_loader.layer2loc[args.layer])
         # prepare images
         stims = stims.numpy().transpose((0, 2, 3, 1))
         images = list(stims)

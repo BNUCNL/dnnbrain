@@ -63,7 +63,7 @@ def main():
     for layer in args.layer:
         dnn_acts = []
         for stims, _ in data_loader:
-            dnn_acts.extend(dnn_activation(stims, net_loader.model, net_loader.layer2keys[layer]))
+            dnn_acts.extend(dnn_activation(stims, net_loader.model, net_loader.layer2loc[layer]))
             print('Extracted acts: {0}/{1}'.format(len(dnn_acts), n_stim))
         dnn_acts = np.array(dnn_acts)
         raw_shape = dnn_acts.shape

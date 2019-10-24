@@ -73,7 +73,7 @@ def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
     return dnnact
 
 
-def dnn_activation(data, model, layer_loc):
+def dnn_activation(data, model, layer_loc, channels=None):
     """
     Extract DNN activation from the specified layer
 
@@ -83,6 +83,7 @@ def dnn_activation(data, model, layer_loc):
     model[model]: DNN model
     layer_loc[sequence]: a sequence of keys to find the location of
         the target layer in the DNN model.
+    channels[list]: channel indices of interest
 
     Return:
     ------
@@ -96,7 +97,10 @@ def dnn_activation(data, model, layer_loc):
     dnn_acts = []
 
     def hook_act(module, input, output):
-        dnn_acts.append(output.detach().numpy().copy())
+        act = output.detach().numpy().copy()
+        if channels is not None:
+            act = act[:, channels]
+        dnn_acts.append(act)
 
     module = model
     for k in layer_loc:
