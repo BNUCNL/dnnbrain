@@ -101,7 +101,7 @@ def main():
             
     # if act is input, select top stimulus according to activation from act file 
     if args.act is not None:
-        act = dio.NetAct(args.out, dmask_dict) # get act from act file
+        act = dio.NetAct(args.out, dmask) 
         
     # if act file is not provided, calculate act from dnn
     else:
@@ -110,11 +110,10 @@ def main():
         # load stim
         stim = dio.StimCSV(args.stim)
         transform = dio.Transforms('resize',net.img_size)
-        imgset = ImgData(stim, transform)
-        stim = imgset.get(batch_size=10, shuffle=False)     
+        stim = ImgData(stim, transform)
         # calculate activation for stim
         net = analyzer.Net(args.net)
-        act = net.test(stim, layer,channel) # net.test return NetAct object
+        act = net.test(stim, dmask) # net.test return NetAct object
         
     # pooling data within each channel 
     pool_act = dnn_pool(act, args.metric)
