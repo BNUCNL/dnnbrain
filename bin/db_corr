@@ -6,12 +6,12 @@ Correlate DNN activation with brain or behavior response
 
 import os
 import time
-import h5py
 import argparse
 import numpy as np
 import pandas as pd
 
 from os.path import join as pjoin
+from dnnbrain.dnn.io import ActReader
 from dnnbrain.utils.io import read_stim_csv
 from dnnbrain.brain.io import load_brainimg, save_brainimg
 from sklearn.metrics import pairwise_distances
@@ -95,12 +95,12 @@ def main():
     print('Finish loading response: ', args.resp)
     # -Load response end-
 
-    act_h5 = h5py.File(args.act)
-    layers = act_h5.keys() if args.layer is None else args.layer
+    act_reader = ActReader(args.act)
+    layers = act_reader.layers if args.layer is None else args.layer
     for layer in layers:
         start = time.time()
         # load DNN activation
-        X = np.array(act_h5[layer])
+        X = act_reader.get_act(layer)
         n_stim, n_chn, n_col = X.shape
         assert n_stim == n_samp, 'n_stim != n_samp'
 

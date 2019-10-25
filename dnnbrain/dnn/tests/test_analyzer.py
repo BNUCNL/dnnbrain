@@ -1,25 +1,55 @@
-# Test module of analyzer
-import pytest
 import os
+import unittest
+import numpy as np
+
+from os.path import join as pjoin
 from dnnbrain.dnn import analyzer
-from dnnbrain.dnn import io as iofiles
-from torch.utils.data import dataloader
+from dnnbrain.dnn.io import NetLoader, ImgDataset
+from dnnbrain.utils.io import read_stim_csv
+from torch.utils.data import DataLoader
 from torchvision import transforms
 
-def test_dnn_activation(dnnbrain_path):
-    """
-    Test dnn_activation
-    """
-    # Prepare data as a dataloader
-    netname = 'alexnet'
-    alex_netloader = iofiles.NetLoader(netname)
-    transform = transforms.Compose([transforms.Resize(alex_netloader.img_size), transforms.ToTensor()])
-    pic_dataset = iofiles.PicDataset(os.path.join(dnnbrain_path, 'data', 'test_data', 'PicStim.csv'), transform = transform)
-    pic_dataloader = dataloader.DataLoader(pic_dataset, batch_size=2, shuffle=False)
-    dnnact_allchannel_layer1 = analyzer.dnn_activation(pic_dataloader, netname, 'conv1')
-    assert dnnact_allchannel_layer1.shape == (4,64,55,55)
-    dnnact_channel1_layer1 = analyzer.dnn_activation(pic_dataloader, netname, 'conv1', channel=[1])
-    assert dnnact_channel1_layer1.shape == (4,1,55,55)
-    
-    dnnact_allchannel_layer2 = analyzer.dnn_activation(pic_dataloader, netname, 'fc3')
-    assert dnnact_allchannel_layer2.shape == (4,1000)
+DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
+TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
+
+
+class TestAct(unittest.TestCase):
+
+    def test_dnn_activation(self):
+
+        # loader net
+        net_loader = NetLoader('alexnet')
+        transform = transforms.Compose([transforms.Resize(net_loader.img_size),
+                                        transforms.ToTensor()])
+
+        # read stimuli
+        stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
+        stim_dict = read_stim_csv(stim_file)
+        dataset = ImgDataset(stim_dict['path'], stim_dict['stim']['stimID'][:5],
+                             transform=transform)
+        data_loader = DataLoader(dataset, batch_size=5, shuffle=False)
+
+        # extract activation
+        acts_conv5 = []
+        acts_conv5_chn = []
+        acts_fc3 = []
+        for stims, _ in data_loader:
+            acts_conv5.extend(analyzer.dnn_activation(stims, net_loader.model,
+                                                      net_loader.layer2loc['conv5']))
+            acts_conv5_chn.extend(analyzer.dnn_activation(stims, net_loader.model,
+                                                          net_loader.layer2loc['conv5'], [1, 2, 5]))
+            acts_fc3.extend(analyzer.dnn_activation(stims, net_loader.model,
+                                                    net_loader.layer2loc['fc3']))
+        acts_conv5 = np.array(acts_conv5)
+        acts_conv5_chn = np.array(acts_conv5_chn)
+        acts_fc3 = np.array(acts_fc3)
+
+        # assert
+        self.assertEqual(acts_conv5.shape, (5, 256, 13, 13))
+        self.assertEqual(acts_conv5_chn.shape, (5, 3, 13, 13))
+        self.assertTrue(np.all(acts_conv5[:, [1, 2, 5]] == acts_conv5_chn))
+        self.assertEqual(acts_fc3.shape, (5, 1000))
+
+
+if __name__ == '__main__':
+    unittest.main()
