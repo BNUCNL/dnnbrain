@@ -86,74 +86,55 @@ def main():
 
     args = parser.parse_args()
 
-#    args.net = 'alexnet'
-#        # str, yes
-#    args.top = 4
-#        # int(list), yes
-#    args.stim = 'img.stim.csv'
-#        # str, yes
-#    args.act = None
-#        # str, no/yes
-#    args.layer = ['conv5', 'conv5']
-#        # str(list), no if args.dmask exists
-#    args.channel = [13,12]
-#        # int(list), no if args.dmask exists
-#    args.dmask = 'test.dmask.csv'
-#        # str, no if args.layer,args.channel exist (dmask优先于layer&channel)
-#    args.outdir = 'generated'
-#        # str, yes
-
-    if not os.path.exists(args.outdir):
-        os.mkdir(args.outdir)
-
-    net_loader = NetLoader(args.net)
-    transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
-
+    # load stimulus file
     stim_dict = read_stim_csv(args.stim)
-    dataset = PicDataset(stim_dict['path'], stim_dict['stim']['stimID'], transform=transform)
-    data_loader = DataLoader(dataset, batch_size=10, shuffle=False)
 
-    if args.dmask == None:
-        lychlist = list(zip(args.layer,args.channel))
+    # prepare dmask
+    if args.dmask is not None and args.layer is not None:
+        raise exception('dmask and layer-channel cannot be input at the same time')
+    if args.dmask is None and args.layer is None:
+        raise exception('Please input dmask or layer and channel pair to  '
+                        'specifiy interested layers and channels') 
+    if args.dmask is not None:
+            dmask_dict = dio.read_dmask_csv(args.dmask)
     else:
-        f = open(args.dmask, 'r')
-        csvreader = csv.reader(f)
-        lychlist = list(csvreader)
-
-    for t in lychlist:
-        layer,channel = t[0],int(t[1])
-        if args.act == None:
-            tmpact = args.outdir + '/stinfo'+'_top_'+str(args.top)+'_ly_'+layer+'_ch_'+str(channel)+'.h5'
-            f = h5py.File(tmpact, 'w')
-            dnn_acts, raw_shape = dnn_activation(data_loader, net_loader,layer)
-            dset = f.create_dataset(layer, data = dnn_acts)
-            dset.attrs['raw_shape'] = raw_shape
-            f.attrs['title'] = args.net + 'activation'
-            f.attrs['cmd'] = ' '.join(sys.argv)
-            f.close()
-        else:
-            tmpact = args.act
-        f = h5py.File(tmpact, 'r')
-        dnn_acts = f[layer][:]
-        f.close()
-        Nsize = int(np.sqrt(dnn_acts.shape[2]))
-        countTOP = np.zeros([1, dnn_acts.shape[0]], dtype = float, order = 'C')
-        for whichpic in range(1, dnn_acts.shape[0]+1):
-        	dnnRawMap = np.array(dnn_acts[whichpic-1,channel-1,]).reshape(Nsize,Nsize)
-        	countTOP[0,whichpic-1] = np.sum(dnnRawMap)
-        	print(whichpic)
-        topK = np.argsort(countTOP)+1
-        topK = topK[0,::-1]
-        f = open(args.outdir + '/top'+str(args.top)+'_ly_'+layer+'_ch_'+str(channel)+'.stim.csv','w+')
-        f.write('title=picture stimuli\r')
-        f.write('type=picture\r')
-        f.write('path=D:\code\DNN-Brain\r')
-        f.write('stim=stimID,condition\r')
-        f.write('meas=\r')
-        for i in range(0,args.top):
-        	f.write('img\pic'+str(topK[i])+'.jpg,XXX\r')
-        f.close()
-
+            dmask_dict = dio.dnn_index_comb(layer,channel)
+            
+    
+    actwriter = ActWriter(outfile, title)
+    csvwriter = CsvWriter(outfile, title)
+    # if act is input, select top stimulus according to activation from act file 
+    if args.act is not None:
+        reader = dio.ActReader(os.path.join(args.out, title))
+        for layer in dmask_dict.keys():
+            act = reader.get_act(layer,channel) # get act from act file
+            pool_act = dnn_pooling(act, args.metric) # pool act
+            I = np.argsort(pool_act) # sort act
+            topI = I(:args.top)
+            actwriter.set_act(layer, act(topI,:)  # write act for top stimulus
+            csvwriter(title, stim_dict(topI)) # write path csv for top stimulus
+            
+    # if act file is not provided, calculate act from dnn
+    else:
+        net = NetLoader(args.net)
+        transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
+        imgset = ImgDataset(stim_dict['path'], stim_dict['stim']['stimID'], transform=transform)
+        imgset = DataLoader(imgset, batch_size=10, shuffle=False)
+        for layer in dmask_dict.keys():
+            act = []
+            for stims, _ in imgset:
+                act.extend(dan.dnn_activation(stims, net.model, layer,channel))
+            act = np.array(act)
+            pool_act = dnn_pooling(act, args.metric)
+            I = np.argsort(pool_act)
+            topI = I(:args.top)
+            actwriter.set_act(layer, act(topI,:)
+            csvwriter(title, stim_dict(topI))
+            
+    actwriter.close()
+    csvwriter.close()
+            
+            
 if __name__ == '__main__':
     main()
     print('completed.')
