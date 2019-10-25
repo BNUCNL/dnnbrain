@@ -90,10 +90,10 @@ def main():
 
     # prepare dmask
     if args.dmask is not None and args.layer is not None:
-        raise exception('dmask and layer-channel cannot be input at the same time')
+        raise exception('dmask and layer options cannot be used at the same time')
     if args.dmask is None and args.layer is None:
-        raise exception('Please input dmask or layer and channel pair to  '
-                        'specifiy interested layers and channels') 
+        raise exception('Please use dmask or layer and channel pair to  '
+                        'specifiy target layers and channels') 
     if args.dmask is not None:
             dmask = dio.read_dmask_csv(args.dmask)
     else:
