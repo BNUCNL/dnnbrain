@@ -79,10 +79,11 @@ def dnn_activation(data, model, layer_loc, channels=None):
 
     Parameters:
     ----------
-    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, n_r, n_c)
+    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, height, width)
     model[model]: DNN model
     layer_loc[sequence]: a sequence of keys to find the location of
-        the target layer in the DNN model.
+        the target layer in the DNN model. For example, the location of the
+        fifth convolution layer in AlexNet is ('features', '10').
     channels[list]: channel indices of interest
 
     Return:
