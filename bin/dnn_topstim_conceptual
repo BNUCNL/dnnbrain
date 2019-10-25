@@ -86,8 +86,6 @@ def main():
 
     args = parser.parse_args()
 
- 
-
     # prepare dmask
     if args.dmask is not None and args.layer is not None:
         raise exception('dmask and layer options cannot be used at the same time')
