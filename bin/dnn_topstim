@@ -114,24 +114,22 @@ def main():
     for ly in dmask_dict.keys():
         # --- extract activation ---
         title = args.net + '.' + os.path.basename(args.stim).rstrip('.stim.csv') + '.' + ly + '.act.h5'
-        if not pexist(pjoin(args.out, title)):
-            n_stim = len(dataset)
-            writer = dio.ActWriter(pjoin(args.out, title), title)
-            tmp_act = []
-            for stims, _ in data_loader:
-                tmp_act.extend(dan.dnn_activation(stims, model.model, model.layer2loc[ly]))
-                print('Extracted acts: {0}/{1}'.format(len(tmp_act), n_stim))
-            tmp_act = np.array(tmp_act)
-            raw_shape = tmp_act.shape
-            tmp_act = tmp_act.reshape((raw_shape[0], raw_shape[1], -1))
-            writer.set_act(ly, tmp_act)
-            writer.set_attr(ly, 'raw_shape', raw_shape)
-            writer.close()
+        # if not pexist(pjoin(args.out, title)):
+        n_stim = len(dataset)
+        writer = dio.ActWriter(pjoin(args.out, title), title)
+        tmp_act = []
+        for stims, _ in data_loader:
+            tmp_act.extend(dan.dnn_activation(stims, model.model, model.layer2loc[ly]))
+            print('Extracted acts: {0}/{1}'.format(len(tmp_act), n_stim))
+        tmp_act = np.array(tmp_act)
+        raw_shape = tmp_act.shape
+        tmp_act = tmp_act.reshape((raw_shape[0], raw_shape[1], -1))
+        writer.set_act(ly, tmp_act)
+        writer.set_attr(ly, 'raw_shape', raw_shape)
+        writer.close()
 
         # --- read activation and count top ---
         reader = dio.ActReader(pjoin(args.out, title))
-        tmp_act = reader.get_act(ly)
-        tmp_act = dan.dnn_pooling(tmp_act, args.metric)
         tmp_act = reader.get_act(ly)
         top_result, chn_num = dan.dnn_top(tmp_act, args.top, args.metric, dmask_dict[ly]['chn'])
         if dmask_dict[ly]['chn'] == 'all':
@@ -139,12 +137,13 @@ def main():
         for chn in enumerate(dmask_dict[ly]['chn']):
             csv_name = args.net + '.' + 'top' + str(args.top) + '.' + args.metric + '.' + ly + \
                 '.' + str(chn[1]) + '.' + os.path.basename(args.stim)
-            if not pexist(pjoin(args.out, csv_name)):
-                tmp_stim_dict = copy.deepcopy(stim_dict)
-                tmp_stim_dict['stim']['stimID'] = tmp_stim_dict['stim']['stimID'][list(top_result[chn[0]])]
-                tmp_stim_dict['stim']['condition'] = tmp_stim_dict['stim']['condition'][list(top_result[chn[0]])]
-                uio.save_stim_csv(pjoin(args.out, csv_name), tmp_stim_dict['title'], tmp_stim_dict['type'],
-                                  tmp_stim_dict['path'], tmp_stim_dict['stim'])
+            # if not pexist(pjoin(args.out, csv_name)):
+            tmp_stim_dict = copy.deepcopy(stim_dict)
+            tmp_stim_dict['stim']['stimID'] = tmp_stim_dict['stim']['stimID'][list(top_result[chn[0]])]
+            tmp_stim_dict['stim']['condition'] = [0] * args.top
+            tmp_stim_dict['stim']['topRank'] = list(range(1, args.top + 1))
+            uio.save_stim_csv(pjoin(args.out, csv_name), tmp_stim_dict['title'], tmp_stim_dict['type'],
+                              tmp_stim_dict['path'], tmp_stim_dict['stim'])
             print(csv_name, 'is generated.')
         reader.close()
 
