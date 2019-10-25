@@ -21,7 +21,7 @@ class ImgDataset:
     """
     Build a dataset to load image
     """
-    def __init__(self, par_path, img_ids, conditions=None, transform=None, crops=None):
+    def __init__(self, par_path, img_ids, labels=None, transform=None, crops=None):
         """
         Initialize ImgDataset
 
@@ -29,7 +29,7 @@ class ImgDataset:
         ------------
         par_path[str]: image parent path
         img_ids[sequence]: Each img_id is a path which can find the image file relative to par_path.
-        conditions[sequence]: Each image's condition.
+        labels[sequence]: Each image's label.
         transform[callable function]: optional transform to be applied on a sample.
         crops[array]: 2D array with shape (n_img, 4)
             Row index is corresponding to the index in img_ids.
@@ -39,8 +39,7 @@ class ImgDataset:
         """
         self.par_path = par_path
         self.img_ids = img_ids
-        self.conditions = np.ones(len(self.img_ids)) if conditions is None else conditions
-        self.conditions_uniq = np.unique(self.conditions).tolist()
+        self.labels = np.ones(len(self.img_ids)) if labels is None else labels
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
         self.crops = crops
 
@@ -71,7 +70,7 @@ class ImgDataset:
             image = image.crop(self.crops[idx])
 
         image = self.transform(image)  # transform image
-        label = self.conditions_uniq.index(self.conditions[idx])  # get label
+        label = self.labels[idx]  # get label
         return image, label
 
 
@@ -79,13 +78,13 @@ class VidDataset:
     """
     Dataset for video data
     """
-    def __init__(self, vid_file, frame_nums, conditions=None, transform=None, crops=None):
+    def __init__(self, vid_file, frame_nums, labels=None, transform=None, crops=None):
         """
         Parameters:
         -----------
         vid_file[str]: video data file
         frame_nums[sequence]: sequence numbers of the frames of interest
-        conditions[sequence]: each frame's condition
+        labels[sequence]: each frame's label
         transform[pytorch transform]
         crops[array]: 2D array with shape (n_img, 4)
             Row index is corresponding to the index in frame_nums.
@@ -95,8 +94,7 @@ class VidDataset:
         """
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
-        self.conditions = np.ones(len(self.frame_nums)) if conditions is None else conditions
-        self.conditions_uniq = np.unique(self.conditions).tolist()
+        self.labels = np.ones(len(self.frame_nums)) if labels is None else labels
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
         self.crops = crops
 
@@ -111,8 +109,8 @@ class VidDataset:
             frame_img = frame_img.crop(self.crops[idx])
 
         frame = self.transform(frame_img)  # transform frame
-        trg_label = self.conditions_uniq.index(self.conditions[idx])  # get target
-        return frame, trg_label
+        label = self.labels[idx]  # get label
+        return frame, label
 
     def __len__(self):
         return len(self.frame_nums)
