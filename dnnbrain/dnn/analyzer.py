@@ -3,7 +3,7 @@ import numpy as np
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
 from dnnbrain.utils.util import array_fe
-from nipy.modalities.fmri.hemodynamic_models import spm_hrf
+# from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
