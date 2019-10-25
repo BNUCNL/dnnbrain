@@ -105,23 +105,21 @@ def main():
         
     # if act file is not provided, calculate act from dnn
     else:
+        # load net
+        net = analyzer.Net(args.net)
         # load stim
         stim = dio.StimCSV(args.stim)
-        transform = transforms.Compose([transforms.Resize(net.img_size),
-                                   transforms.ToTensor()])
+        transform = dio.Transforms('resize',net.img_size)
         imgset = ImgData(stim, transform)
-        stim = imgset.get(batch_size=10, shuffle=False)
-         
-       # load net and calculate activation
+        stim = imgset.get(batch_size=10, shuffle=False)     
+        # calculate activation for stim
         net = analyzer.Net(args.net)
-        act = net.test(stim, layer,channel)
+        act = net.test(stim, layer,channel) # net.test return NetAct object
         
-    # pooling data within channel 
-    pool_act = dnn_pool(act, args.metric) # pool act
-    
+    # pooling data within each channel 
+    pool_act = dnn_pool(act, args.metric)
     # sorting data
-    index = dnn_sort(act, args.metric) # sort act
-
+    index = dnn_sort(act, args.metric) 
     # get and save top act
     top_act = pool_act(index(:args.top)) 
     top_act.save('filename')
