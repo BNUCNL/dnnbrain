@@ -110,11 +110,11 @@ def main():
         transform = transforms.Compose([transforms.Resize(net.img_size),
                                    transforms.ToTensor()])
         imgset = ImgData(stim, transform)
-        stimset = DataLoader(imgset, batch_size=10, shuffle=False)
+        stim = imgset.get(batch_size=10, shuffle=False)
          
        # load net and calculate activation
         net = analyzer.Net(args.net)
-        act = net.test(stimset, layer,channel)
+        act = net.test(stim, layer,channel)
         
     # pooling data within channel 
     pool_act = dnn_pool(act, args.metric) # pool act
