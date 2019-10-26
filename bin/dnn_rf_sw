@@ -73,28 +73,30 @@ def main():
         raise exception('dmask and layer options cannot be used at the same time')
     if args.dmask is None and args.layer is None:
         raise exception('Please use dmask or layer and channel pair to  '
-                        'specifiy target layers and channels') 
+                        'specifiy target layers and channels')
+           
+    dmask = dio.DnnMask('mymask')
     if args.dmask is not None:
-            dmask = dio.DnnMask('mymask')
             dmask.load(args.dmask)
     else:
-            dmask = dio.DnnMask()
             dmask.set(layer,channel)
-            mymask = dmask.get(layer,channel)
     
+    # load stim
     stim = dio.StimCSV(args.stim)
     transform = dio.Transforms('resize',net.img_size)
     stim = ImgData(stim, transform)
+    
+    # make ooculded image for each stim
     occulder = ImageOcculde(kernel_size,stride)
     stim_oc = occulder(stim)
 
-      # load net
+    # calcualte difference map for each stim, and save it to disk
     net = analyzer.Net(args.net)
     for s in stim:
-        act = net.test(stim, dmask) # net.test r
-        diff = act(1:end) - act(0)
-        diff_map = pooling(diff,metric)
-        diff_map.save('myfile')
+        act = net.test(stim, dmask) 
+        dm = act(1:end) - act(0)
+        dm = pooling(dm,metric)
+        dm.save('myfile')
 
 
     
