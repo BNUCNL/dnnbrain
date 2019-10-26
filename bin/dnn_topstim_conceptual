@@ -91,25 +91,13 @@ def main():
         raise exception('dmask and layer options cannot be used at the same time')
     if args.dmask is None and args.layer is None:
         raise exception('Please use dmask or layer and channel pair to  '
-                        'specifiy target layers and channels') 
+                        'specifiy target layers and channels')          
+        
+    dmask = dio.DnnMask('mymask')
     if args.dmask is not None:
-            dmask = dio.DnnMask('mymask')
             dmask.load(args.dmask)
-            
-            class DnnMask(object):
-                index = xx;
-                
-                def load(self,fname):
-                  csv=  MaskCSV(fname)
-                  self.index = MaskCSV_csv.read()
-                 csv.save(fname)
-                  
-                  
-                
     else:
-            dmask = dio.DnnMask()
             dmask.set(layer,channel)
-            mymask = dmask.get(layer,channel)
             
     # if act is input, select top stimulus according to activation from act file 
     if args.act is not None:
@@ -119,12 +107,13 @@ def main():
     else:
         # load net
         net = analyzer.Net(args.net)
+        
         # load stim
         stim = dio.StimCSV(args.stim)
         transform = dio.Transforms('resize',net.img_size)
         stim = ImgData(stim, transform)
+        
         # calculate activation for stim
-        net = analyzer.Net(args.net)
         act = net.test(stim, dmask) # net.test return NetAct object
         
     # pooling data within each channel 
