@@ -80,14 +80,17 @@ def main():
             dmask.load(args.dmask)
     else:
             dmask.set(layer,channel)
-            
+    
+    # load stim
     stim = dio.StimCSV(args.stim)
     transform = dio.Transforms('resize',net.img_size)
     stim = ImgData(stim, transform)
+    
+    # make ooculded image for each stim
     occulder = ImageOcculde(kernel_size,stride)
     stim_oc = occulder(stim)
 
-      # load net
+    # calcualte difference map for each stim, and save it to disk
     net = analyzer.Net(args.net)
     for s in stim:
         act = net.test(stim, dmask) # net.test r

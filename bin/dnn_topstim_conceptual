@@ -118,8 +118,10 @@ def main():
         
     # pooling data within each channel 
     pool_act = dnn_pool(act, args.metric)
+    
     # sorting data
     index = dnn_sort(act, args.metric) 
+    
     # get and save top act
     top_act = pool_act(index(:args.top)) 
     top_act.save('filename')
