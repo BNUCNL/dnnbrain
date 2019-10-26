@@ -93,9 +93,23 @@ def main():
         raise exception('Please use dmask or layer and channel pair to  '
                         'specifiy target layers and channels') 
     if args.dmask is not None:
-            dmask = dio.read_dmask_csv(args.dmask)
+            dmask = dio.DnnMask('mymask')
+            dmask.load(args.dmask)
+            
+            class DnnMask(object):
+                index = xx;
+                
+                def load(self,fname):
+                  csv=  MaskCSV(fname)
+                  self.index = MaskCSV_csv.read()
+                 csv.save(fname)
+                  
+                  
+                
     else:
-            dmask = dio.dnn_index_comb(layer,channel)
+            dmask = dio.DnnMask()
+            dmask.set(layer,channel)
+            mymask = dmask.get(layer,channel)
             
     # if act is input, select top stimulus according to activation from act file 
     if args.act is not None:
