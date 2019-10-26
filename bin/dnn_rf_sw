@@ -93,7 +93,7 @@ def main():
     # calcualte difference map for each stim, and save it to disk
     net = analyzer.Net(args.net)
     for s in stim:
-        act = net.test(stim, dmask) # net.test r
+        act = net.test(stim, dmask) 
         dm = act(1:end) - act(0)
         dm = pooling(dm,metric)
         dm.save('myfile')
