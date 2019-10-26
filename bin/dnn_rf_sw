@@ -82,7 +82,7 @@ def main():
             dmask.set(layer,channel)
     
     # load stim
-    stim = dio.StimCSV(args.stim)
+    stim = dio.Stim(args.stim)
     transform = dio.Transforms('resize',net.img_size)
     stim = ImgData(stim, transform)
     
