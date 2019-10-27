@@ -87,8 +87,7 @@ def main():
     stim = ImgData(stim, transform)
     
     # make ooculded image for each stim
-    occulder = ImageOcculde(kernel_size,stride)
-    stim_oc = occulder(stim)
+    stim_oc = stim.occulde(stim,kernel_size,stride)
 
     # calcualte difference map for each stim, and save it to disk
     net = analyzer.Net(args.net)
