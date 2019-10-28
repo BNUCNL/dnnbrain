@@ -7,8 +7,14 @@ class StimulusFile:
     def __init__(self, file_path):
         assert file_path.endswith('.stim.h5'), "The file's suffix must be .stim.h5"
         self.path = file_path
+    
+    def set(file_path):
+        """file_path: path for target file"""
+        self.path = file_path
+        
     def read(self):
         pass
+    
     def write(self, stimulus):
         """
         stimulus: a stimulus object
@@ -20,10 +26,15 @@ class ActivationFile:
     def __init__(self, file_path):        
         assert file_path.endswith('.act.h5'), "the file's suffix must be .act.h5"
         self.path = file_path
+    
+    def set(file_path):
+       """file_path: path for target file"""
+       self.path = file_path
+  
     def read(self):
         return h5py.File(self.path, 'r')
-        
         pass
+    
     def write(self, activation):
         """
         Write an activation object to a hdf5 file
@@ -35,6 +46,10 @@ class NetFile:
     """a class to read and write net file"""
     def __init__(self, file_path):
         assert file_path.endswith('.pth'), "the file's suffix must be pth"
+        self.path = file_path
+        
+    def set(file_path):
+        """file_path: path for target file"""
         self.path = file_path
     def read(self):
         model = torch.load(self.path)
@@ -53,6 +68,10 @@ class MaskFile:
     def __init__(self, file_path):
         """file_path: path for target dmask file"""
         assert file_path.endswith('.act.h5'), "The file's suffix must be .dmask.csv"
+        self.path = file_path
+    
+    def set(file_path):
+        """file_path: path for target file"""
         self.path = file_path
         
     def read(self):
@@ -121,6 +140,11 @@ class RoiFile():
     def __init__(self, file_path):        
         assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
         self.path = file_path
+        
+    def set(file_path):
+        """file_path: path for target file"""
+        self.path = file_path
+        
     def read(self):
         return h5py.File(self.path, 'r')
         
