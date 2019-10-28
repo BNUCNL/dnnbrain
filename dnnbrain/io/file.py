@@ -8,7 +8,7 @@ class StimulusFile:
         assert file_path.endswith('.stim.h5'), "The file's suffix must be .stim.h5"
         self.path = file_path
     
-    def set(file_path):
+    def set(self, file_path):
         """file_path: path for target file"""
         self.path = file_path
         
@@ -27,7 +27,7 @@ class ActivationFile:
         assert file_path.endswith('.act.h5'), "the file's suffix must be .act.h5"
         self.path = file_path
     
-    def set(file_path):
+    def set(self, file_path):
        """file_path: path for target file"""
        self.path = file_path
   
@@ -48,13 +48,13 @@ class NetFile:
         assert file_path.endswith('.pth'), "the file's suffix must be pth"
         self.path = file_path
         
-    def set(file_path):
+    def set(self, file_path):
         """file_path: path for target file"""
         self.path = file_path
+        
     def read(self):
         model = torch.load(self.path)
         return model
-    
     
     def write(self, net):
         """
@@ -70,7 +70,7 @@ class MaskFile:
         assert file_path.endswith('.act.h5'), "The file's suffix must be .dmask.csv"
         self.path = file_path
     
-    def set(file_path):
+    def set(self, file_path):
         """file_path: path for target file"""
         self.path = file_path
         
@@ -137,26 +137,26 @@ class MaskFile:
 
 class RoiFile():
         """a class to read and write roi file """
-    def __init__(self, file_path):        
-        assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
-        self.path = file_path
-        
-    def set(file_path):
-        """file_path: path for target file"""
-        self.path = file_path
-        
-    def read(self):
-        return h5py.File(self.path, 'r')
-        
-    def write(self, roi):
-        """
-        Write an activation object to a hdf5 file
-        roi: a roi object
-        """
-        h5py.File(self.path, roi, 'w')
-        
+        def __init__(self, file_path):        
+            assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+            self.path = file_path
+            
+        def set(self, file_path):
+            """file_path: path for target file"""
+            self.path = file_path
+            
+        def read(self):
+            return h5py.File(self.path, 'r')
+            
+        def write(self, roi):
+            """
+            Write an activation object to a hdf5 file
+            roi: a roi object
+            """
+            h5py.File(self.path, roi, 'w')
+            
 class ImageFile():
-        """a class to read and write image file """
+    """a class to read and write image file """
     def __init__(self, file_path):        
         assert file_path.endswith('.png'), "the file's suffix must be .png"
         self.path = file_path
@@ -172,10 +172,10 @@ class ImageFile():
         Write an image object to disk file
         image: a image object
         """
-        h5py.File(self.path, roi, 'w')
+        h5py.File(self.path, image, 'w')
     
 class VideoFile():
-        """a class to read and write video file """
+    """a class to read and write video file """
     def __init__(self, file_path):        
         assert file_path.endswith('.mp4'), "the file's suffix must be .mp4"
         self.path = file_path
