@@ -134,7 +134,7 @@ class RoiFile():
 class ImageFile():
         """a class to read and write image file """
     def __init__(self, file_path):        
-        assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        assert file_path.endswith('.png'), "the file's suffix must be .png"
         self.path = file_path
         
     def set(self, file_path):
@@ -143,17 +143,17 @@ class ImageFile():
     def read(self):
         return h5py.File(self.path, 'r')
         
-    def write(self, roi):
+    def write(self, image):
         """
-        Write an activation object to a hdf5 file
-        roi: a roi object
+        Write an image object to disk file
+        image: a image object
         """
         h5py.File(self.path, roi, 'w')
     
 class VideoFile():
         """a class to read and write video file """
     def __init__(self, file_path):        
-        assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        assert file_path.endswith('.mp4'), "the file's suffix must be .mp4"
         self.path = file_path
         
     def set(self, file_path):
@@ -162,10 +162,10 @@ class VideoFile():
     def read(self):
         return h5py.File(self.path, 'r')
         
-    def write(self, roi):
+    def write(self, video):
         """
-        Write an activation object to a hdf5 file
-        roi: a roi object
+        Write an video object to the disk
+        video: a video object
         """
-        h5py.File(self.path, roi, 'w')
+        h5py.File(self.path, video, 'w')
       
