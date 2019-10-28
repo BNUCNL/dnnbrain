@@ -11,7 +11,32 @@ from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
 
 
-
+class StimulusFile:
+    """A class to read and write stimullus file """
+    def __init__(self,fname):
+        name = fname
+    def read(self):
+        pass
+    def write(self,stim):
+        """
+        stim: a stimulus obejct
+        """
+        pass
+    
+    
+class ActivationFile:
+    """a class to read and write activation file """
+    def __init__(self,fname):
+        name = fname
+    def read(self):
+        pass
+    def write(self,stim):
+        """
+        stim: a stimulus obejct
+        """
+        pass 
+    
+    
 def save_activation(activation, outpath):
     """
     Save activaiton data as a csv file or mat format file to outpath
