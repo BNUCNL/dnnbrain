@@ -130,5 +130,42 @@ class RoiFile():
         roi: a roi object
         """
         h5py.File(self.path, roi, 'w')
+        
+class ImageFile():
+        """a class to read and write image file """
+    def __init__(self, file_path):        
+        assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        self.path = file_path
+        
+    def set(self, file_path):
+        self.path = file_path;
+        
+    def read(self):
+        return h5py.File(self.path, 'r')
+        
+    def write(self, roi):
+        """
+        Write an activation object to a hdf5 file
+        roi: a roi object
+        """
+        h5py.File(self.path, roi, 'w')
     
-    
+class VideoFile():
+        """a class to read and write video file """
+    def __init__(self, file_path):        
+        assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        self.path = file_path
+        
+    def set(self, file_path):
+        self.path = file_path;
+        
+    def read(self):
+        return h5py.File(self.path, 'r')
+        
+    def write(self, roi):
+        """
+        Write an activation object to a hdf5 file
+        roi: a roi object
+        """
+        h5py.File(self.path, roi, 'w')
+      
