@@ -1,5 +1,7 @@
 import numpy as np
 
+from copy import deepcopy
+from dnnbrain.io import file as iofile
 from dnnbrain.dnn import io as dio
 from dnnbrain.dnn.models import dnn_truncate
 from dnnbrain.utils.util import array_fe
@@ -11,32 +13,251 @@ from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
 
 
-class StimulusFile:
-    """A class to read and write stimullus file """
-    def __init__(self,fname):
-        name = fname
-    def read(self):
+class DNN:
+    """DNN neural network"""
+    def __init__(self, net=None):
+        """
+        Parameter:
+        ---------
+        net[str]: deep neural network name
+        """
+        if net is not None:
+            self.load(net)
+
+    def load(self, net):
+        """
+        load DNN and its information
+
+        Parameter:
+        ---------
+        net[str]: deep neural network name
+        """
         pass
-    def write(self,stim):
+
+    def save(self, fpath):
         """
-        stim: a stimulus obejct
+        Save DNN
+
+        Parameter:
+        ---------
+        fpath[str]: file path
+        """
+
+    def get_act(self, data_loader, dmask):
+        """
+        Extract DNN activation
+
+        Parameters:
+        ----------
+        data_loader[DataLoader]: Pytorch DataLoader
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Return:
+        ------
+        act[Activation]: DNN activation
         """
         pass
-    
-    
-class ActivationFile:
-    """a class to read and write activation file """
-    def __init__(self,fname):
-        name = fname
-    def read(self):
-        pass
-    def write(self,stim):
+
+
+class Activation:
+    """DNN activation"""
+
+    def __init__(self, fpath=None, dmask=None):
         """
-        stim: a stimulus obejct
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
-        pass 
-    
-    
+        self.act = dict()
+        if fpath is not None:
+            self.load(fpath, dmask)
+
+    def load(self, fpath, dmask=None):
+        """
+        Load DNN activation
+
+        Parameters:
+        ----------
+        fpath[str]: DNN activation file
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        """
+        self.act = iofile.ActivationFile().read(fpath, dmask.mask)
+
+    def save(self, fpath):
+        """
+        Save DNN activation
+
+        Parameter:
+        ---------
+        fpath[str]: output file of DNN activation
+        """
+        iofile.ActivationFile().write(fpath, self.act)
+
+    def set(self, layer, data=None, **kwargs):
+        """
+        Set DNN activation or its attribution
+        If the layer doesn't exist, initiate it with the data.
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        data[array]: 3D DNN activation array with shape (n_stim, n_chn, n_col)
+        kwargs[dict]: the layer's attributions
+        """
+        if layer not in self.act:
+            if data is None:
+                raise ValueError("The data can't be None when initiating a new layer!")
+            self.act[layer] = {'data': data, 'attrs': kwargs}
+        else:
+            if data is not None:
+                self.act[layer]['data'] = data
+            self.act[layer]['attrs'].update(kwargs)
+
+    def delete(self, layer, *args):
+        """
+        Delete DNN activation or its attribution
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        args[tuple]: attribution names
+            If is empty, delete the whole layer.
+            else, only delete these attributions.
+        """
+        if args:
+            for attr in args:
+                self.act[layer]['attrs'].pop(attr)
+        else:
+            self.act.pop(layer)
+
+    def mask(self, dmask):
+        """
+        Mask DNN activation
+
+        Parameter:
+        ---------
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        act = Activation()
+        for layer, d in dmask.items():
+            data = self.act[layer]['data']
+            if d['chn'] != 'all':
+                channels = [chn-1 for chn in d['chn']]
+                data = data[:, channels, :]
+            if d['col'] != 'all':
+                columns = [col-1 for col in d['col']]
+                data = data[:, :, columns]
+            act.set(layer, data, **self.act[layer]['attrs'])
+
+        return act
+
+
+class Mask:
+    """DNN mask"""
+
+    def __init__(self, fpath=None):
+        """
+        Parameter:
+        ---------
+        fpath[str]: DNN mask file
+        """
+        self._mask = dict()
+        if fpath is not None:
+            self.load(fpath)
+
+    def load(self, fpath):
+        """
+        Load DNN mask, the whole mask will be overrode.
+
+        Parameter:
+        ---------
+        fpath[str]: DNN mask file
+        """
+        self._mask = iofile.MaskFile().read(fpath)
+
+    def update(self, dmask_dict):
+        """
+        Update DNN mask, the existed layer with the same name will be overrode.
+
+        Parameter:
+        ---------
+        dmask_dict[dict]: Dictionary of the DNN mask information
+        """
+        self._mask.update(dmask_dict)
+
+    def set(self, layer, channels=None, columns=None):
+        """
+        Set DNN mask.
+        If the layer doesn't exist, initiate it with all channels and columns.
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channels[list|str]:
+            If is list, it contains sequence numbers of channels of interest.
+            If is str, it must be 'all' that means all channels in the layer.
+            If is None, do nothing.
+        columns[list|str]:
+            If is list, it contains sequence numbers of columns of interest.
+            If is str, it must be 'all' that means all columns in the layer.
+            If is None, do nothing.
+        """
+        if layer not in self._mask:
+            self._mask[layer] = {'chn': 'all', 'col': 'all'}
+        if channels is not None:
+            self._mask[layer]['chn'] = channels
+        if columns is not None:
+            self._mask[layer]['col'] = columns
+
+    def copy(self):
+        """
+        Make a copy of the DNN mask
+        """
+        dmask = Mask()
+        dmask._mask = deepcopy(self._mask)
+
+        return dmask
+
+    def pop(self, layer):
+        """
+        Delete a layer
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+        """
+        return self.mask.pop(layer)
+
+    def clear(self):
+        """
+        Empty the DNN mask
+        """
+        self.mask.clear()
+
+    def save(self, fpath):
+        """
+        Save DNN mask
+
+        Parameter:
+        ---------
+        fpath[str]: output file path of DNN mask
+        """
+        iofile.MaskFile().write(fpath, self.mask)
+
+    @property
+    def mask(self):
+        """Get mask"""
+        if not self._mask:
+            raise AttributeError("The mask in this instance is empty. "
+                                 "Please set it through load(), update(), or set().")
+        return self._mask
+
+
 def save_activation(activation, outpath):
     """
     Save activaiton data as a csv file or mat format file to outpath
