@@ -13,6 +13,155 @@ from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
 
 
+class Stimulus:
+    """
+    Store and handle stimulus-related information
+    """
+    def __init__(self, path=None):
+        """
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        self.meta = dict()
+        self._data = dict()
+        if path is not None:
+            self.load(path)
+
+    def load(self, path):
+        """
+        Load stimulus-related information
+
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        stim_file = iofile.StimulusFile(path)
+        stimuli = stim_file.read()
+        self._data = stimuli.pop('data')
+        self.meta = stimuli
+
+    def save(self, path):
+        """
+        Save stimulus-related information
+
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        stim_file = iofile.StimulusFile(path)
+        meta = self.meta.copy()
+        stim_file.write(meta.pop('type'), meta.pop('path'),
+                        self._data, **meta)
+
+    def get(self, item):
+        """
+        Get a column of data according to the item
+
+        Parameter:
+        ---------
+        item[str]: item name of each column
+
+        Return:
+        ------
+        col[array]: a column of data
+        """
+        return self._data[item]
+
+    def set(self, item, value):
+        """
+        Set a column of data according to the item
+
+        Parameters:
+        ----------
+        item[str]: item name of the column
+        value[array_like]: an array_like data with shape as (n_stim,)
+        """
+        self._data[item] = np.asarray(value)
+
+    def delete(self, item):
+        """
+        Delete a column of data according to item
+
+        Parameter:
+        ---------
+        item[str]: item name of each column
+        """
+        self._data.pop(item)
+
+    @property
+    def items(self):
+        return list(self._data.keys())
+
+    def __getitem__(self, indices):
+        """
+        Get part of the Stimulus object by imitating 2D array's subscript index
+
+        Parameter:
+        ---------
+        indices[int|tuple|slice]: subscript indices
+
+        Return:
+        ------
+        stim[Stimulus]: a part of the self.
+        """
+        # parse subscript indices
+        if isinstance(indices, (int, slice, list)):
+            # regard it all as row indices
+            # get all columns
+            rows = indices
+            cols = self.items
+        elif isinstance(indices, tuple):
+            if len(indices) == 0:
+                # get all rows and columns
+                rows = slice(None, None, None)
+                cols = self.items
+            elif len(indices) == 1:
+                # regard the only element as row indices
+                # get all columns
+                rows = indices[0]
+                cols = self.items
+            elif len(indices) == 2:
+                # regard the first element as row indices
+                # regard the second element as column indices
+                rows, cols = indices
+                if isinstance(cols, int):
+                    # get a column according to an integer
+                    cols = [self.items[cols]]
+                elif isinstance(cols, str):
+                    # get a column according to an string
+                    cols = [cols]
+                elif isinstance(cols, list):
+                    if np.all([isinstance(i, int) for i in cols]):
+                        # get columns according to a list of integers
+                        cols = [self.items[i] for i in cols]
+                    elif np.all([isinstance(i, str) for i in cols]):
+                        # get columns according to a list of strings
+                        pass
+                    else:
+                        raise IndexError("only integer [list], string [list] and slices (`:`) "
+                                         "are valid column indices")
+                elif isinstance(cols, slice):
+                    # get columns according to a slice
+                    cols = self.items[cols]
+                else:
+                    raise IndexError("only integer [list], string [list] and slices (`:`) "
+                                     "are valid column indices")
+            else:
+                raise IndexError("This is a 2D data, "
+                                 "and can't support more than 3 subscript indices!")
+        else:
+            raise IndexError("only integer, slices (`:`), list and tuple are valid indices")
+
+        # get part of self
+        stim = Stimulus()
+        stim.meta = self.meta.copy()
+        for item in cols:
+            stim.set(item, self.get(item)[rows])
+
+        return stim
+
+
 class DNN:
     """DNN neural network"""
     def __init__(self, net=None):
