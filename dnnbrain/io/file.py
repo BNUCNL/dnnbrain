@@ -119,56 +119,63 @@ class StimulusFile:
 class ActivationFile:
     """a class to read and write activation file """
 
-    def read(self, fpath, dmask_dict=None):
+    def __init__(self, path):
         """
-        Read DNN activation and its attribution
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .act.h5
+        """
+        assert path.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self.path = path
 
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        dmask_dict[dict]: Dictionary of the DNN mask information
+    def read(self, dmask=None):
+        """
+        Read DNN activation and its raw_shape (if exist)
 
-        Returns:
-        -------
-        act_dict[dict]: DNN activation with its attribution
+        Parameter:
+        ---------
+        dmask[dict]: Dictionary of the DNN mask information
+
+        Return:
+        ------
+        act[dict]: DNN activation with its attribution
         """
         # open file
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        rf = h5py.File(fpath, 'r')
+        rf = h5py.File(self.path, 'r')
 
         # read activation and attribution
-        act_dict = dict()
-        layers = rf.keys() if dmask_dict is None else dmask_dict.keys()
+        act = dict()
+        layers = rf.keys() if dmask is None else dmask.keys()
         for layer in layers:
+            act[layer] = dict()
             ds = rf[layer]
-            if dmask_dict['chn'] != 'all':
-                channels = [chn-1 for chn in dmask_dict['chn']]
+            if dmask['chn'] != 'all':
+                channels = [chn-1 for chn in dmask['chn']]
                 ds = ds[:, channels, :]
-            if dmask_dict['col'] != 'all':
-                columns = [col-1 for col in dmask_dict['col']]
+            if dmask['col'] != 'all':
+                columns = [col-1 for col in dmask['col']]
                 ds = ds[:, :, columns]
 
-            act_dict[layer]['data'] = np.asarray(ds)
-            act_dict[layer]['attrs'] = dict(rf[layer].attrs)
+            act[layer]['data'] = np.asarray(ds)
+            if 'raw_shape' in rf[layer].attrs:
+                act[layer]['raw_shape'] = tuple(rf[layer].attrs['raw_shape'])
 
         rf.close()
-        return act_dict
+        return act
     
-    def write(self, fpath, act_dict):
+    def write(self, act):
         """
         Write DNN activation to a hdf5 file
 
-        Parameters:
-        ----------
-        fpath[str]: output file of the DNN activation
-        act_dict[dict]: DNN activation with its attribution
+        Parameter:
+        ---------
+        act[dict]: DNN activation with its attribution
         """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        wf = h5py.File(fpath, 'w')
-        for k, v in act_dict.items():
-            ds = wf.create_dataset(k, data=v['data'])
-            if 'attrs' in v:
-                ds.attrs.update(v['attrs'])
+        wf = h5py.File(self.path, 'w')
+        for layer, value in act.items():
+            ds = wf.create_dataset(layer, data=value['data'])
+            if 'raw_shape' in value:
+                ds.attrs['raw_shape'] = value['raw_shape']
         wf.close()
 
 
@@ -196,31 +203,35 @@ class NetFile:
 
 class MaskFile:
     """a class to read and write dnn mask file"""
-        
-    def read(self, fpath):
-        """ 
-        Read pre-designed .dmask.csv file.
-    
+
+    def __init__(self, path):
+        """
         Parameter:
         ---------
-        fpath: path of .dmask.csv file
+        path[str]: pre-designed .dmask.csv file
+        """
+        assert path.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+        self.path = path
+        
+    def read(self):
+        """ 
+        Read DNN mask
     
         Return:
         ------
-        dmask_dict[OrderedDict]: Dictionary of the DNN mask information
+        dmask[OrderedDict]: Dictionary of the DNN mask information
         """
         # -load csv data-
-        assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-        with open(fpath) as rf:
+        with open(self.path) as rf:
             lines = rf.read().splitlines()
 
         # extract layers, channels and columns of interest
-        dmask_dict = OrderedDict()
+        dmask = OrderedDict()
         for l_idx, line in enumerate(lines):
             if '=' in line:
                 # layer
                 layer, axes = line.split('=')
-                dmask_dict[layer] = {'chn': 'all', 'col': 'all'}
+                dmask[layer] = {'chn': 'all', 'col': 'all'}
 
                 # channels and columns
                 axes = axes.split(',')
@@ -231,22 +242,20 @@ class MaskFile:
                 for a_idx, axis in enumerate(axes, 1):
                     assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
                     numbers = [int(num) for num in lines[l_idx + a_idx].split(',')]
-                    dmask_dict[layer][axis] = numbers
+                    dmask[layer][axis] = numbers
 
-        return dmask_dict
+        return dmask
 
-    def write(self, fpath, dmask_dict):
+    def write(self, dmask):
         """
         Generate .dmask.csv
 
         Parameters:
         ----------
-        fpath[str]: output file path, ending with .dmask.csv
-        dmask_dict[dict]: Dictionary of the DNN mask information
+        dmask[dict]: Dictionary of the DNN mask information
         """
-        assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-        with open(fpath, 'w') as wf:
-            for layer, axes_dict in dmask_dict.items():
+        with open(self.path, 'w') as wf:
+            for layer, axes_dict in dmask.items():
                 axes = []
                 num_lines = []
                 assert len(axes_dict) <= 2, \

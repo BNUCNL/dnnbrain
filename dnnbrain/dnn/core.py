@@ -2,8 +2,6 @@ import numpy as np
 
 from copy import deepcopy
 from dnnbrain.io import file as iofile
-from dnnbrain.dnn import io as dio
-from dnnbrain.dnn.models import dnn_truncate
 from dnnbrain.utils.util import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
@@ -11,6 +9,155 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
+
+
+class Stimulus:
+    """
+    Store and handle stimulus-related information
+    """
+    def __init__(self, path=None):
+        """
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        self.meta = dict()
+        self._data = dict()
+        if path is not None:
+            self.load(path)
+
+    def load(self, path):
+        """
+        Load stimulus-related information
+
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        stim_file = iofile.StimulusFile(path)
+        stimuli = stim_file.read()
+        self._data = stimuli.pop('data')
+        self.meta = stimuli
+
+    def save(self, path):
+        """
+        Save stimulus-related information
+
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .stim.csv
+        """
+        stim_file = iofile.StimulusFile(path)
+        meta = self.meta.copy()
+        stim_file.write(meta.pop('type'), meta.pop('path'),
+                        self._data, **meta)
+
+    def get(self, item):
+        """
+        Get a column of data according to the item
+
+        Parameter:
+        ---------
+        item[str]: item name of each column
+
+        Return:
+        ------
+        col[array]: a column of data
+        """
+        return self._data[item]
+
+    def set(self, item, value):
+        """
+        Set a column of data according to the item
+
+        Parameters:
+        ----------
+        item[str]: item name of the column
+        value[array_like]: an array_like data with shape as (n_stim,)
+        """
+        self._data[item] = np.asarray(value)
+
+    def delete(self, item):
+        """
+        Delete a column of data according to item
+
+        Parameter:
+        ---------
+        item[str]: item name of each column
+        """
+        self._data.pop(item)
+
+    @property
+    def items(self):
+        return list(self._data.keys())
+
+    def __getitem__(self, indices):
+        """
+        Get part of the Stimulus object by imitating 2D array's subscript index
+
+        Parameter:
+        ---------
+        indices[int|tuple|slice]: subscript indices
+
+        Return:
+        ------
+        stim[Stimulus]: a part of the self.
+        """
+        # parse subscript indices
+        if isinstance(indices, (int, slice, list)):
+            # regard it all as row indices
+            # get all columns
+            rows = indices
+            cols = self.items
+        elif isinstance(indices, tuple):
+            if len(indices) == 0:
+                # get all rows and columns
+                rows = slice(None, None, None)
+                cols = self.items
+            elif len(indices) == 1:
+                # regard the only element as row indices
+                # get all columns
+                rows = indices[0]
+                cols = self.items
+            elif len(indices) == 2:
+                # regard the first element as row indices
+                # regard the second element as column indices
+                rows, cols = indices
+                if isinstance(cols, int):
+                    # get a column according to an integer
+                    cols = [self.items[cols]]
+                elif isinstance(cols, str):
+                    # get a column according to an string
+                    cols = [cols]
+                elif isinstance(cols, list):
+                    if np.all([isinstance(i, int) for i in cols]):
+                        # get columns according to a list of integers
+                        cols = [self.items[i] for i in cols]
+                    elif np.all([isinstance(i, str) for i in cols]):
+                        # get columns according to a list of strings
+                        pass
+                    else:
+                        raise IndexError("only integer [list], string [list] and slices (`:`) "
+                                         "are valid column indices")
+                elif isinstance(cols, slice):
+                    # get columns according to a slice
+                    cols = self.items[cols]
+                else:
+                    raise IndexError("only integer [list], string [list] and slices (`:`) "
+                                     "are valid column indices")
+            else:
+                raise IndexError("This is a 2D data, "
+                                 "and can't support more than 3 subscript indices!")
+        else:
+            raise IndexError("only integer, slices (`:`), list and tuple are valid indices")
+
+        # get part of self
+        stim = Stimulus()
+        stim.meta = self.meta.copy()
+        for item in cols:
+            stim.set(item, self.get(item)[rows])
+
+        return stim
 
 
 class DNN:
@@ -62,74 +209,97 @@ class DNN:
 class Activation:
     """DNN activation"""
 
-    def __init__(self, fpath=None, dmask=None):
+    def __init__(self, path=None, dmask=None):
         """
         Parameters:
         ----------
-        fpath[str]: DNN activation file
+        path[str]: DNN activation file
         dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
-        self.act = dict()
-        if fpath is not None:
-            self.load(fpath, dmask)
+        self._act = dict()
+        if path is not None:
+            self.load(path, dmask)
 
-    def load(self, fpath, dmask=None):
+    def load(self, path, dmask=None):
         """
         Load DNN activation
 
         Parameters:
         ----------
-        fpath[str]: DNN activation file
+        path[str]: DNN activation file
         dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
-        self.act = iofile.ActivationFile().read(fpath, dmask.mask)
+        self._act = iofile.ActivationFile(path).read(dmask._mask)
 
-    def save(self, fpath):
+    def save(self, path):
         """
         Save DNN activation
 
         Parameter:
         ---------
-        fpath[str]: output file of DNN activation
+        path[str]: output file of DNN activation
         """
-        iofile.ActivationFile().write(fpath, self.act)
+        iofile.ActivationFile(path).write(self._act)
 
-    def set(self, layer, data=None, **kwargs):
+    def get(self, layer, raw_shape=False):
         """
-        Set DNN activation or its attribution
-        If the layer doesn't exist, initiate it with the data.
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        data[array]: 3D DNN activation array with shape (n_stim, n_chn, n_col)
-        kwargs[dict]: the layer's attributions
-        """
-        if layer not in self.act:
-            if data is None:
-                raise ValueError("The data can't be None when initiating a new layer!")
-            self.act[layer] = {'data': data, 'attrs': kwargs}
-        else:
-            if data is not None:
-                self.act[layer]['data'] = data
-            self.act[layer]['attrs'].update(kwargs)
-
-    def delete(self, layer, *args):
-        """
-        Delete DNN activation or its attribution
+        Get DNN activation or its raw_shape (if exist)
 
         Parameters:
         ----------
         layer[str]: layer name
-        args[tuple]: attribution names
-            If is empty, delete the whole layer.
-            else, only delete these attributions.
+        raw_shape[bool]:
+            If true, get raw_shape of the layer's activation.
+            If false, get the layer's activation.
+
+        Return:
+        ------
+        data[tuple|array]: raw shape or (n_stim, n_chn, n_col) array
         """
-        if args:
-            for attr in args:
-                self.act[layer]['attrs'].pop(attr)
+        if raw_shape:
+            data = self._act[layer]['raw_shape']
         else:
-            self.act.pop(layer)
+            data = self._act[layer]['data']
+
+        return data
+
+    def set(self, layer, value=None, raw_shape=None):
+        """
+        Set DNN activation or its raw shape
+        If the layer doesn't exist, initiate it with the value.
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        value[array]: 3D DNN activation array with shape (n_stim, n_chn, n_col)
+        raw_shape[tuple]: raw_shape of the layer's activation
+        """
+        if layer not in self._act:
+            if value is None:
+                raise ValueError("The value can't be None when initiating a new layer!")
+            self._act[layer] = {'data': value}
+        else:
+            if value is not None:
+                self._act[layer]['data'] = value
+
+        if raw_shape is not None:
+            self._act[layer]['raw_shape'] = raw_shape
+
+    def delete(self, layer, raw_shape=False):
+        """
+        Delete DNN activation or its raw_shape attribution
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        raw_shape[bool]:
+            If true, delete raw_shape of the layer's activation.
+            If false, delete the layer's activation and raw_shape.
+        """
+        if raw_shape:
+            self._act[layer].pop('raw_shape')
+        else:
+            self._act.pop(layer)
 
     def mask(self, dmask):
         """
@@ -144,15 +314,15 @@ class Activation:
         act[Activation]: DNN activation
         """
         act = Activation()
-        for layer, d in dmask.items():
-            data = self.act[layer]['data']
+        for layer, d in dmask._mask.items():
+            data = self._act[layer]['data']
             if d['chn'] != 'all':
                 channels = [chn-1 for chn in d['chn']]
                 data = data[:, channels, :]
             if d['col'] != 'all':
                 columns = [col-1 for col in d['col']]
                 data = data[:, :, columns]
-            act.set(layer, data, **self.act[layer]['attrs'])
+            act.set(layer, data)
 
         return act
 
@@ -160,35 +330,54 @@ class Activation:
 class Mask:
     """DNN mask"""
 
-    def __init__(self, fpath=None):
+    def __init__(self, path=None):
         """
         Parameter:
         ---------
-        fpath[str]: DNN mask file
+        path[str]: DNN mask file
         """
         self._mask = dict()
-        if fpath is not None:
-            self.load(fpath)
+        if path is not None:
+            self.load(path)
 
-    def load(self, fpath):
+    def load(self, path):
         """
         Load DNN mask, the whole mask will be overrode.
 
         Parameter:
         ---------
-        fpath[str]: DNN mask file
+        path[str]: DNN mask file
         """
-        self._mask = iofile.MaskFile().read(fpath)
+        self._mask = iofile.MaskFile(path).read()
 
-    def update(self, dmask_dict):
+    def save(self, path):
         """
-        Update DNN mask, the existed layer with the same name will be overrode.
+        Save DNN mask
 
         Parameter:
         ---------
-        dmask_dict[dict]: Dictionary of the DNN mask information
+        path[str]: output file path of DNN mask
         """
-        self._mask.update(dmask_dict)
+        iofile.MaskFile(path).write(self._mask)
+
+    def get(self, layer, axis=None):
+        """
+        Get mask of a layer
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        axis[str]: chn or col
+
+        Return:
+        ------
+        dmask[dict|list]: layer mask
+        """
+        dmask = self._mask[layer]
+        if axis is not None:
+            dmask = dmask[axis]
+
+        return dmask
 
     def set(self, layer, channels=None, columns=None):
         """
@@ -223,7 +412,7 @@ class Mask:
 
         return dmask
 
-    def pop(self, layer):
+    def delete(self, layer):
         """
         Delete a layer
 
@@ -231,31 +420,17 @@ class Mask:
         ---------
         layer[str]: layer name
         """
-        return self.mask.pop(layer)
+        self._mask.pop(layer)
 
     def clear(self):
         """
         Empty the DNN mask
         """
-        self.mask.clear()
-
-    def save(self, fpath):
-        """
-        Save DNN mask
-
-        Parameter:
-        ---------
-        fpath[str]: output file path of DNN mask
-        """
-        iofile.MaskFile().write(fpath, self.mask)
+        self._mask.clear()
 
     @property
-    def mask(self):
-        """Get mask"""
-        if not self._mask:
-            raise AttributeError("The mask in this instance is empty. "
-                                 "Please set it through load(), update(), or set().")
-        return self._mask
+    def layers(self):
+        return list(self._mask.keys())
 
 
 def save_activation(activation, outpath):
@@ -599,69 +774,6 @@ def save_dmask_csv(fpath, dmask_dict):
             wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
             for num_line in num_lines:
                 wf.write(num_line+'\n')
-
-
-
-def dnn_activation_deprecated(input, netname, layer, channel=None, column=None,
-                              fe_axis=None, fe_meth=None):
-    """
-    Extract DNN activation
-
-    Parameters:
-    ------------
-    input[dataloader]: input image dataloader	
-    netname[str]: DNN network
-    layer[str]: layer name of a DNN network
-    channel[list]: specify channel in layer of DNN network, channel was counted from 1 (not 0)
-    column[list]: column of interest
-    fe_axis{str}: axis for feature extraction
-    fe_meth[str]: feature extraction method, max, mean, median
-
-    Returns:
-    ---------
-    dnnact[numpy.array]: DNN activation, A 3D array with its shape as (n_picture, n_channel, n_column)
-    """
-    assert (fe_axis is None) == (fe_meth is None), 'Please specify fe_axis and fe_meth at the same time.'
-
-    # get dnn activation
-    loader = dio.NetLoader(netname)
-    actmodel = dnn_truncate(loader, layer)
-    actmodel.eval()
-    dnnact = []
-    count = 0  # count the progress
-    for picdata, _ in input:
-        dnnact_part = actmodel(picdata)
-        dnnact.extend(dnnact_part.detach().numpy())
-        count += dnnact_part.shape[0]
-        print('Extracted acts:', count)
-    dnnact = np.array(dnnact)
-    dnnact = dnnact.reshape((dnnact.shape[0], dnnact.shape[1], -1))
-
-    # mask the data
-    if channel is not None:
-        dnnact = dnnact[:, channel, :]
-    if column is not None: 
-        dnnact = dnnact[:, :, column]
-        
-    # feature extraction
-    if fe_axis is not None:
-        fe_meths = {
-            'max': np.max,
-            'mean': np.mean,
-            'median': np.median
-        }
-
-        if fe_axis == 'layer':
-            dnnact = dnnact.reshape((dnnact.shape[0], -1))
-            dnnact = fe_meths[fe_meth](dnnact, -1)[:, np.newaxis, np.newaxis]
-        elif fe_axis == 'channel':
-            dnnact = fe_meths[fe_meth](dnnact, 1)[:, np.newaxis, :]
-        elif fe_axis == 'column':
-            dnnact = fe_meths[fe_meth](dnnact, 2)[:, :, np.newaxis]
-        else:
-            raise ValueError('fe_axis should be layer, channel or column')
-    
-    return dnnact
 
 
 def dnn_activation(data, model, layer_loc, channels=None):
