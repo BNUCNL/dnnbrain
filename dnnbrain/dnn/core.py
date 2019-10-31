@@ -309,35 +309,54 @@ class Activation:
 class Mask:
     """DNN mask"""
 
-    def __init__(self, fpath=None):
+    def __init__(self, path=None):
         """
         Parameter:
         ---------
-        fpath[str]: DNN mask file
+        path[str]: DNN mask file
         """
         self._mask = dict()
-        if fpath is not None:
-            self.load(fpath)
+        if path is not None:
+            self.load(path)
 
-    def load(self, fpath):
+    def load(self, path):
         """
         Load DNN mask, the whole mask will be overrode.
 
         Parameter:
         ---------
-        fpath[str]: DNN mask file
+        path[str]: DNN mask file
         """
-        self._mask = iofile.MaskFile().read(fpath)
+        self._mask = iofile.MaskFile(path).read()
 
-    def update(self, dmask_dict):
+    def save(self, path):
         """
-        Update DNN mask, the existed layer with the same name will be overrode.
+        Save DNN mask
 
         Parameter:
         ---------
-        dmask_dict[dict]: Dictionary of the DNN mask information
+        path[str]: output file path of DNN mask
         """
-        self._mask.update(dmask_dict)
+        iofile.MaskFile(path).write(self._mask)
+
+    def get(self, layer, axis=None):
+        """
+        Get mask of a layer
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        axis[str]: chn or col
+
+        Return:
+        ------
+        dmask[dict|list]: layer mask
+        """
+        dmask = self._mask[layer]
+        if axis is not None:
+            dmask = dmask[axis]
+
+        return dmask
 
     def set(self, layer, channels=None, columns=None):
         """
@@ -372,7 +391,7 @@ class Mask:
 
         return dmask
 
-    def pop(self, layer):
+    def delete(self, layer):
         """
         Delete a layer
 
@@ -380,31 +399,13 @@ class Mask:
         ---------
         layer[str]: layer name
         """
-        return self.mask.pop(layer)
+        self._mask.pop(layer)
 
     def clear(self):
         """
         Empty the DNN mask
         """
-        self.mask.clear()
-
-    def save(self, fpath):
-        """
-        Save DNN mask
-
-        Parameter:
-        ---------
-        fpath[str]: output file path of DNN mask
-        """
-        iofile.MaskFile().write(fpath, self.mask)
-
-    @property
-    def mask(self):
-        """Get mask"""
-        if not self._mask:
-            raise AttributeError("The mask in this instance is empty. "
-                                 "Please set it through load(), update(), or set().")
-        return self._mask
+        self._mask.clear()
 
 
 def save_activation(activation, outpath):

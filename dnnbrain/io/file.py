@@ -196,31 +196,35 @@ class NetFile:
 
 class MaskFile:
     """a class to read and write dnn mask file"""
-        
-    def read(self, fpath):
-        """ 
-        Read pre-designed .dmask.csv file.
-    
+
+    def __init__(self, path):
+        """
         Parameter:
         ---------
-        fpath: path of .dmask.csv file
+        path[str]: pre-designed .dmask.csv file
+        """
+        assert path.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+        self.path = path
+        
+    def read(self):
+        """ 
+        Read DNN mask
     
         Return:
         ------
-        dmask_dict[OrderedDict]: Dictionary of the DNN mask information
+        dmask[OrderedDict]: Dictionary of the DNN mask information
         """
         # -load csv data-
-        assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-        with open(fpath) as rf:
+        with open(self.path) as rf:
             lines = rf.read().splitlines()
 
         # extract layers, channels and columns of interest
-        dmask_dict = OrderedDict()
+        dmask = OrderedDict()
         for l_idx, line in enumerate(lines):
             if '=' in line:
                 # layer
                 layer, axes = line.split('=')
-                dmask_dict[layer] = {'chn': 'all', 'col': 'all'}
+                dmask[layer] = {'chn': 'all', 'col': 'all'}
 
                 # channels and columns
                 axes = axes.split(',')
@@ -231,22 +235,20 @@ class MaskFile:
                 for a_idx, axis in enumerate(axes, 1):
                     assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
                     numbers = [int(num) for num in lines[l_idx + a_idx].split(',')]
-                    dmask_dict[layer][axis] = numbers
+                    dmask[layer][axis] = numbers
 
-        return dmask_dict
+        return dmask
 
-    def write(self, fpath, dmask_dict):
+    def write(self, dmask):
         """
         Generate .dmask.csv
 
         Parameters:
         ----------
-        fpath[str]: output file path, ending with .dmask.csv
-        dmask_dict[dict]: Dictionary of the DNN mask information
+        dmask[dict]: Dictionary of the DNN mask information
         """
-        assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-        with open(fpath, 'w') as wf:
-            for layer, axes_dict in dmask_dict.items():
+        with open(self.path, 'w') as wf:
+            for layer, axes_dict in dmask.items():
                 axes = []
                 num_lines = []
                 assert len(axes_dict) <= 2, \
