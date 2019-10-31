@@ -7,22 +7,113 @@ from collections import OrderedDict
 
 class StimulusFile:
     """A class to read and write stimullus file """
-    def __init__(self, file_path):
-        assert file_path.endswith('.stim.h5'), "The file's suffix must be .stim.h5"
-        self.path = file_path
-    
-    def set(self, file_path):
-        """file_path: path for target file"""
-        self.path = file_path
+
+    def __init__(self, path):
+        """
+        Parameter:
+        ---------
+        path[str]: pre-designed .stim.csv file.
+        Format of .stim.csv of image stimuli is
+        --------------------------
+        type=image
+        path=parent_dir_to_images
+        [Several optional keys] (eg., title=image stimuli)
+        data=stimID,[onset],[duration],[label],[condition],acc,RT
+        pic1_path,0,1,0,cat,0.4,0.5
+        pic2_path,1,1,1,dog,0.6,0.4
+        pic3_path,2,1,0,cat,0.7,0.5
+        ...,...,...,...,...,...
+
+        Format of .stim.csv of video stimuli is
+        --------------------------
+        type=video
+        path=path_to_video_file
+        [Several optional keys] (eg., title=video stimuli)
+        data=stimID,[onset],[duration],[label],[condition],acc,RT
+        1,0,1,0,cat,0.4,0.5
+        2,1,1,1,dog,0.6,0.4
+        3,2,1,0,cat,0.7,0.5
+        ...,...,...,...,...,...
+        """
+        assert path.endswith('.stim.csv'), "File suffix must be .stim.csv"
+        self.path = path
         
     def read(self):
-        pass
+        """
+        Return:
+        -------
+        stimuli[OrderedDict]: Dictionary of the stimuli information
+        """
+        # -load csv data-
+        with open(self.path) as rf:
+            lines = rf.read().splitlines()
+        # remove null line
+        while '' in lines:
+            lines.remove('')
+        data_idx = [line.startswith('data=') for line in lines].index(True)
+        meta_lines = lines[:data_idx]
+        var_lines = lines[data_idx+1:]
+
+        # -handle csv data-
+        # --operate meta_lines--
+        stimuli = {}
+        for line in meta_lines:
+            k, v = line.split('=')
+            stimuli[k] = v
+        assert 'type' in stimuli.keys(), "'type' needs to be included in meta data."
+        assert 'path' in stimuli.keys(), "'path' needs to be included in meta data."
+        assert stimuli['type'] in ('image', 'video'), 'not supported type: {}'.format(stimuli['type'])
+
+        # --operate var_lines--
+        # prepare keys
+        data_keys = lines[data_idx].split('=')[1].split(',')
+        assert 'stimID' in data_keys, "'stimID' must be included in 'data=' line."
+
+        # prepare variable data
+        var_data = [line.split(',') for line in var_lines]
+        var_data = list(zip(*var_data))
+
+        # fill variable data
+        data = OrderedDict()
+        for idx, key in enumerate(data_keys):
+            if key == 'stimID':
+                dtype = np.str if stimuli['type'] == 'image' else np.int
+            elif key == 'label':
+                dtype = np.int
+            elif key == 'condition':
+                dtype = np.str
+            else:
+                dtype = np.float
+            data[key] = np.array(var_data[idx], dtype=dtype)
+        stimuli['data'] = data
+
+        return stimuli
     
-    def write(self, stimulus):
+    def write(self, type, stim_path, data, **opt_meta):
         """
-        stimulus: a stimulus object
+        Parameters:
+        ----------
+        type[str]: stimulus type in ('image', 'video')
+        stim_path[str]: path_to_stimuli
+            If type is 'image', the path is the parent directory of the images.
+            If type is 'video', the path is the file path of the video.
+        data[dict]: stimulus variable data
+        opt_meta[dict]: some other optional meta data
         """
-        pass
+        with open(self.path, 'w') as wf:
+            # write the type and path
+            wf.write('type={}\n'.format(type))
+            wf.write('path={}\n'.format(stim_path))
+
+            # write optional meta data
+            for k, v in opt_meta.items():
+                wf.write('{0}={1}\n'.format(k, v))
+
+            # write variable data
+            wf.write('data={}\n'.format(','.join(data.keys())))
+            var_data = np.array(list(data.values()), dtype=np.str).T
+            var_data = [','.join(row) for row in var_data]
+            wf.write('\n'.join(var_data))
 
 
 class ActivationFile:
