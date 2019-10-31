@@ -119,56 +119,63 @@ class StimulusFile:
 class ActivationFile:
     """a class to read and write activation file """
 
-    def read(self, fpath, dmask_dict=None):
+    def __init__(self, path):
         """
-        Read DNN activation and its attribution
+        Parameter:
+        ---------
+        path[str]: file path with suffix as .act.h5
+        """
+        assert path.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self.path = path
 
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        dmask_dict[dict]: Dictionary of the DNN mask information
+    def read(self, dmask=None):
+        """
+        Read DNN activation and its raw_shape (if exist)
 
-        Returns:
-        -------
-        act_dict[dict]: DNN activation with its attribution
+        Parameter:
+        ---------
+        dmask[dict]: Dictionary of the DNN mask information
+
+        Return:
+        ------
+        act[dict]: DNN activation with its attribution
         """
         # open file
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        rf = h5py.File(fpath, 'r')
+        rf = h5py.File(self.path, 'r')
 
         # read activation and attribution
-        act_dict = dict()
-        layers = rf.keys() if dmask_dict is None else dmask_dict.keys()
+        act = dict()
+        layers = rf.keys() if dmask is None else dmask.keys()
         for layer in layers:
+            act[layer] = dict()
             ds = rf[layer]
-            if dmask_dict['chn'] != 'all':
-                channels = [chn-1 for chn in dmask_dict['chn']]
+            if dmask['chn'] != 'all':
+                channels = [chn-1 for chn in dmask['chn']]
                 ds = ds[:, channels, :]
-            if dmask_dict['col'] != 'all':
-                columns = [col-1 for col in dmask_dict['col']]
+            if dmask['col'] != 'all':
+                columns = [col-1 for col in dmask['col']]
                 ds = ds[:, :, columns]
 
-            act_dict[layer]['data'] = np.asarray(ds)
-            act_dict[layer]['attrs'] = dict(rf[layer].attrs)
+            act[layer]['data'] = np.asarray(ds)
+            if 'raw_shape' in rf[layer].attrs:
+                act[layer]['raw_shape'] = tuple(rf[layer].attrs['raw_shape'])
 
         rf.close()
-        return act_dict
+        return act
     
-    def write(self, fpath, act_dict):
+    def write(self, act):
         """
         Write DNN activation to a hdf5 file
 
-        Parameters:
-        ----------
-        fpath[str]: output file of the DNN activation
-        act_dict[dict]: DNN activation with its attribution
+        Parameter:
+        ---------
+        act[dict]: DNN activation with its attribution
         """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        wf = h5py.File(fpath, 'w')
-        for k, v in act_dict.items():
-            ds = wf.create_dataset(k, data=v['data'])
-            if 'attrs' in v:
-                ds.attrs.update(v['attrs'])
+        wf = h5py.File(self.path, 'w')
+        for layer, value in act.items():
+            ds = wf.create_dataset(layer, data=value['data'])
+            if 'raw_shape' in value:
+                ds.attrs['raw_shape'] = value['raw_shape']
         wf.close()
 
 
