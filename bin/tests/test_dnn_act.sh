@@ -8,3 +8,6 @@ dnn_act -net alexnet -layer conv5 fc3 -stim $DNNBRAIN_DATA/test/image/sub-CSI1_s
 
 # extract DNN activation from video
 dnn_act -net alexnet -layer conv5 fc3 -stim $DNNBRAIN_DATA/test/video/sub-CSI1_ses-01_imagenet.stim.csv -out $TMP_DIR/dnn_act_video.act.h5
+
+# extract DNN activation by dmask
+dnn_act -net alexnet -dmask $DNNBRAIN_DATA/test/alexnet.dmask.csv -stim $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.stim.csv -out $TMP_DIR/dnn_act_dmask.act.h5

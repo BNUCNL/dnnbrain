@@ -46,6 +46,7 @@ class ImageSet:
         data[tensor]: image data with shape as (n_stim, n_chn, height, weight)
         labels[list]: image labels
         """
+        # check availability and do preparation
         if isinstance(indices, int):
             tmp_ids = [self.img_ids[indices]]
             labels = [self.labels[indices]]
@@ -58,12 +59,16 @@ class ImageSet:
         else:
             raise IndexError("only integer, slices (`:`) and list are valid indices")
 
+        # load data
         data = torch.zeros(0)
         for img_id in tmp_ids:
             image = Image.open(pjoin(self.img_dir, img_id))  # load image
             image = self.transform(image)  # transform image
             image = torch.unsqueeze(image, 0)
             data = torch.cat((data, image))
+
+        if data.shape[0] == 1:
+            data = data[0]
 
         return data, labels
 
@@ -99,6 +104,7 @@ class VideoSet:
         data[tensor]: frame data with shape as (n_stim, n_chn, height, weight)
         labels[list]: frame labels
         """
+        # check availability and do preparation
         if isinstance(indices, int):
             tmp_nums = [self.frame_nums[indices]]
             labels = [self.labels[indices]]
@@ -111,6 +117,7 @@ class VideoSet:
         else:
             raise IndexError("only integer, slices (`:`) and list are valid indices")
 
+        # load data
         data = torch.zeros(0)
         for frame_num in tmp_nums:
             # get frame
@@ -121,6 +128,9 @@ class VideoSet:
             frame = self.transform(frame)  # transform frame
             frame = torch.unsqueeze(frame, 0)
             data = torch.cat((data, frame))
+
+        if data.shape[0] == 1:
+            data = data[0]
 
         return data, labels
 
