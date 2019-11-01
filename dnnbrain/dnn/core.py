@@ -391,6 +391,40 @@ class Activation:
         else:
             self._act.pop(layer)
 
+    def concatenate(self, acts):
+        """
+        Concatenate activations from different batches of stimuli
+
+        Parameter:
+        ---------
+        acts[list]: a list of Activation objects
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        # check availability
+        for i, v in enumerate(acts, 1):
+            if not isinstance(v, Activation):
+                raise TypeError('All elements in acts must be instances of Activation!')
+            if sorted(self.layers) != sorted(v.layers):
+                raise ValueError("The element{}'s layers mismatch with self!".format(i))
+
+        # concatenate
+        act = Activation()
+        for layer in self.layers:
+            # concatenate activation
+            data = [v.get(layer) for v in acts]
+            data.insert(0, self.get(layer))
+            data = np.concatenate(data)
+
+            # update raw shape
+            n_stim = data.shape[0]
+            raw_shape = (n_stim,) + self.get(layer, True)[1:]
+            act.set(layer, data, raw_shape)
+
+        return act
+
     @property
     def layers(self):
         return list(self._act.keys())
@@ -493,7 +527,7 @@ class Activation:
             raise TypeError("unsupported operand type(s): "
                             "'{0}' and '{1}'".format(type(self), type(other)))
         assert sorted(self.layers) == sorted(other.layers), \
-            "The two object's layers are mismatch!"
+            "The two object's layers mismatch!"
         for layer in self.layers:
             assert self.get(layer).shape == other.get(layer).shape, \
                 "{}'s activation shape mismatch!".format(layer)
