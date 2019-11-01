@@ -273,6 +273,28 @@ class DNN:
 
         return kernel.detach().numpy()
 
+    def ablate(self, layer, channels=None):
+        """
+        Ablate DNN kernels' weights
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channels[list]: sequence numbers of channels of interest
+            If None, ablate the whole layer.
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # ablate kernels' weights
+        if channels is None:
+            module.weight.data[:] = 0
+        else:
+            channels = [chn - 1 for chn in channels]
+            module.weight.data[channels] = 0
+
 
 class Activation:
     """DNN activation"""
