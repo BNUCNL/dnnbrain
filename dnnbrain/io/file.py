@@ -142,21 +142,25 @@ class ActivationFile:
         # open file
         rf = h5py.File(self.path, 'r')
 
+        if dmask is None:
+            dmask = dict()
+            for layer in rf.keys():
+                dmask[layer] = {'chn': 'all', 'col': 'all'}
+
         # read activation and attribution
         act = dict()
-        layers = rf.keys() if dmask is None else dmask.keys()
-        for layer in layers:
-            act[layer] = dict()
-            ds = rf[layer]
-            if dmask['chn'] != 'all':
-                channels = [chn-1 for chn in dmask['chn']]
+        for k, v in dmask.items():
+            act[k] = dict()
+            ds = rf[k]
+            if v['chn'] != 'all':
+                channels = [chn-1 for chn in v['chn']]
                 ds = ds[:, channels, :]
-            if dmask['col'] != 'all':
-                columns = [col-1 for col in dmask['col']]
+            if v['col'] != 'all':
+                columns = [col-1 for col in v['col']]
                 ds = ds[:, :, columns]
 
-            act[layer]['data'] = np.asarray(ds)
-            act[layer]['raw_shape'] = tuple(rf[layer].attrs['raw_shape'])
+            act[k]['data'] = np.asarray(ds)
+            act[k]['raw_shape'] = tuple(rf[k].attrs['raw_shape'])
 
         rf.close()
         return act

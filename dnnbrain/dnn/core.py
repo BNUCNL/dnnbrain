@@ -319,7 +319,9 @@ class Activation:
         path[str]: DNN activation file
         dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
-        self._act = iofile.ActivationFile(path).read(dmask._mask)
+        if dmask is not None:
+            dmask = dmask._mask
+        self._act = iofile.ActivationFile(path).read(dmask)
 
     def save(self, path):
         """
