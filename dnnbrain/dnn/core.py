@@ -367,7 +367,7 @@ class Activation:
         if layer not in self._act:
             if value is None:
                 raise ValueError("The value can't be None when initiating a new layer!")
-            self._act[layer] = {'data': value}
+            self._act[layer] = {'data': value, 'raw_shape': ()}
         else:
             if value is not None:
                 self._act[layer]['data'] = value
@@ -408,9 +408,11 @@ class Activation:
         act[Activation]: DNN activation
         """
         act = Activation()
-        for layer, d in dmask._mask.items():
-            data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
-            act.set(layer, data)
+        for layer in dmask.layers:
+            channels = dmask.get(layer, 'chn')
+            columns = dmask.get(layer, 'col')
+            data = dnn_mask(self.get(layer), channels, columns)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -431,12 +433,14 @@ class Activation:
         if dmask is None:
             for layer, d in self._act.items():
                 data = dnn_pooling(d['data'], method)
-                act.set(layer, data)
+                act.set(layer, data, d['raw_shape'])
         else:
-            for layer, d in dmask._mask.items():
-                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+            for layer in dmask.layers:
+                channels = dmask.get(layer, 'chn')
+                columns = dmask.get(layer, 'col')
+                data = dnn_mask(self.get(layer), channels, columns)
                 data = dnn_pooling(data, method)
-                act.set(layer, data)
+                act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -466,12 +470,14 @@ class Activation:
         if dmask is None:
             for layer, d in self._act.items():
                 data = dnn_fe(d['data'], method, n_feature, axis)
-                act.set(layer, data)
+                act.set(layer, data, d['raw_shape'])
         else:
-            for layer, d in dmask._mask.items():
-                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+            for layer in dmask.layers:
+                channels = dmask.get(layer, 'chn')
+                columns = dmask.get(layer, 'col')
+                data = dnn_mask(self.get(layer), channels, columns)
                 data = dnn_fe(data, method, n_feature, axis)
-                act.set(layer, data)
+                act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -491,6 +497,8 @@ class Activation:
         for layer in self.layers:
             assert self.get(layer).shape == other.get(layer).shape, \
                 "{}'s activation shape mismatch!".format(layer)
+            assert self.get(layer, True) == other.get(layer, True), \
+                "{}'s raw shape mismatch!".format(layer)
 
     def __add__(self, other):
         """
@@ -509,7 +517,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) + other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -530,7 +538,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) - other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -551,7 +559,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) * other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -572,7 +580,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) / other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
