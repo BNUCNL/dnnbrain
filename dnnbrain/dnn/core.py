@@ -273,6 +273,28 @@ class DNN:
 
         return kernel.detach().numpy()
 
+    def ablate(self, layer, channels=None):
+        """
+        Ablate DNN kernels' weights
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channels[list]: sequence numbers of channels of interest
+            If None, ablate the whole layer.
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # ablate kernels' weights
+        if channels is None:
+            module.weight.data[:] = 0
+        else:
+            channels = [chn - 1 for chn in channels]
+            module.weight.data[channels] = 0
+
 
 class Activation:
     """DNN activation"""
@@ -345,7 +367,7 @@ class Activation:
         if layer not in self._act:
             if value is None:
                 raise ValueError("The value can't be None when initiating a new layer!")
-            self._act[layer] = {'data': value}
+            self._act[layer] = {'data': value, 'raw_shape': ()}
         else:
             if value is not None:
                 self._act[layer]['data'] = value
@@ -369,6 +391,40 @@ class Activation:
         else:
             self._act.pop(layer)
 
+    def concatenate(self, acts):
+        """
+        Concatenate activations from different batches of stimuli
+
+        Parameter:
+        ---------
+        acts[list]: a list of Activation objects
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        # check availability
+        for i, v in enumerate(acts, 1):
+            if not isinstance(v, Activation):
+                raise TypeError('All elements in acts must be instances of Activation!')
+            if sorted(self.layers) != sorted(v.layers):
+                raise ValueError("The element{}'s layers mismatch with self!".format(i))
+
+        # concatenate
+        act = Activation()
+        for layer in self.layers:
+            # concatenate activation
+            data = [v.get(layer) for v in acts]
+            data.insert(0, self.get(layer))
+            data = np.concatenate(data)
+
+            # update raw shape
+            n_stim = data.shape[0]
+            raw_shape = (n_stim,) + self.get(layer, True)[1:]
+            act.set(layer, data, raw_shape)
+
+        return act
+
     @property
     def layers(self):
         return list(self._act.keys())
@@ -386,9 +442,11 @@ class Activation:
         act[Activation]: DNN activation
         """
         act = Activation()
-        for layer, d in dmask._mask.items():
-            data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
-            act.set(layer, data)
+        for layer in dmask.layers:
+            channels = dmask.get(layer, 'chn')
+            columns = dmask.get(layer, 'col')
+            data = dnn_mask(self.get(layer), channels, columns)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -409,12 +467,14 @@ class Activation:
         if dmask is None:
             for layer, d in self._act.items():
                 data = dnn_pooling(d['data'], method)
-                act.set(layer, data)
+                act.set(layer, data, d['raw_shape'])
         else:
-            for layer, d in dmask._mask.items():
-                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+            for layer in dmask.layers:
+                channels = dmask.get(layer, 'chn')
+                columns = dmask.get(layer, 'col')
+                data = dnn_mask(self.get(layer), channels, columns)
                 data = dnn_pooling(data, method)
-                act.set(layer, data)
+                act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -444,12 +504,14 @@ class Activation:
         if dmask is None:
             for layer, d in self._act.items():
                 data = dnn_fe(d['data'], method, n_feature, axis)
-                act.set(layer, data)
+                act.set(layer, data, d['raw_shape'])
         else:
-            for layer, d in dmask._mask.items():
-                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+            for layer in dmask.layers:
+                channels = dmask.get(layer, 'chn')
+                columns = dmask.get(layer, 'col')
+                data = dnn_mask(self.get(layer), channels, columns)
                 data = dnn_fe(data, method, n_feature, axis)
-                act.set(layer, data)
+                act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -465,10 +527,12 @@ class Activation:
             raise TypeError("unsupported operand type(s): "
                             "'{0}' and '{1}'".format(type(self), type(other)))
         assert sorted(self.layers) == sorted(other.layers), \
-            "The two object's layers are mismatch!"
+            "The two object's layers mismatch!"
         for layer in self.layers:
             assert self.get(layer).shape == other.get(layer).shape, \
                 "{}'s activation shape mismatch!".format(layer)
+            assert self.get(layer, True) == other.get(layer, True), \
+                "{}'s raw shape mismatch!".format(layer)
 
     def __add__(self, other):
         """
@@ -487,7 +551,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) + other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -508,7 +572,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) - other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -529,7 +593,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) * other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 
@@ -550,7 +614,7 @@ class Activation:
         act = Activation()
         for layer in self.layers:
             data = self.get(layer) / other.get(layer)
-            act.set(layer, data)
+            act.set(layer, data, self.get(layer, True))
 
         return act
 

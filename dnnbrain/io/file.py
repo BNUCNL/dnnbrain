@@ -156,8 +156,7 @@ class ActivationFile:
                 ds = ds[:, :, columns]
 
             act[layer]['data'] = np.asarray(ds)
-            if 'raw_shape' in rf[layer].attrs:
-                act[layer]['raw_shape'] = tuple(rf[layer].attrs['raw_shape'])
+            act[layer]['raw_shape'] = tuple(rf[layer].attrs['raw_shape'])
 
         rf.close()
         return act
@@ -173,8 +172,8 @@ class ActivationFile:
         wf = h5py.File(self.path, 'w')
         for layer, value in act.items():
             ds = wf.create_dataset(layer, data=value['data'])
-            if 'raw_shape' in value:
-                ds.attrs['raw_shape'] = value['raw_shape']
+            ds.attrs['raw_shape'] = value['raw_shape']
+
         wf.close()
 
 
