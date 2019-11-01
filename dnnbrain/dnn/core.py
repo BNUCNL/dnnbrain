@@ -1,7 +1,9 @@
+import torch
 import numpy as np
 
 from copy import deepcopy
 from dnnbrain.io import file as iofile
+from dnnbrain.io.io import DNNLoader
 from dnnbrain.utils.util import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
@@ -162,48 +164,114 @@ class Stimulus:
 
 class DNN:
     """DNN neural network"""
+
     def __init__(self, net=None):
         """
         Parameter:
         ---------
         net[str]: deep neural network name
         """
+        self.model = None
+        self.layer2loc = None
+        self.img_size = None
         if net is not None:
             self.load(net)
 
     def load(self, net):
         """
-        load DNN and its information
+        Load DNN and its information
 
         Parameter:
         ---------
         net[str]: deep neural network name
         """
-        pass
+        loader = DNNLoader(net)
+        self.model = loader.model
+        self.layer2loc = loader.layer2loc
+        self.img_size = loader.img_size
 
-    def save(self, fpath):
+    def save(self, path):
         """
-        Save DNN
+        Save DNN parameters
 
         Parameter:
         ---------
-        fpath[str]: file path
+        path[str]: output file path with suffix as .pth
         """
+        assert path.endswith('.pth'), 'File suffix must be .pth'
+        torch.save(self.model.state_dict(), path)
 
-    def get_act(self, data_loader, dmask):
+    def compute_activation(self, data, dmask):
         """
         Extract DNN activation
 
         Parameters:
         ----------
-        data_loader[DataLoader]: Pytorch DataLoader
+        data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, height, width)
         dmask[Mask]: The mask includes layers/channels/columns of interest.
 
         Return:
         ------
         act[Activation]: DNN activation
         """
-        pass
+        # change to eval mode
+        self.model.eval()
+
+        act = Activation()
+        for layer in dmask.layers:
+            # prepare dnn activation hook
+            acts_holder = []
+
+            def hook_act(module, input, output):
+                # copy dnn activation and record raw shape
+                acts = output.detach().numpy().copy()
+                raw_shape = acts.shape
+
+                # reshape dnn activation and mask it
+                acts = acts.reshape((raw_shape[0], raw_shape[1], -1))
+                acts = dnn_mask(acts, dmask.get(layer, 'chn'),
+                                dmask.get(layer, 'col'))
+
+                # hold the information
+                acts_holder.append(acts)
+                acts_holder.append(raw_shape)
+
+            module = self.model
+            for k in self.layer2loc[layer]:
+                module = module._modules[k]
+            hook_handle = module.register_forward_hook(hook_act)
+
+            # extract dnn activation
+            self.model(data)
+            act.set(layer, *acts_holder)
+            hook_handle.remove()
+
+        return act
+
+    def get_kernel(self, layer, kernel_num=None):
+        """
+        Get kernel's weights of the layer
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        kernel_num[int]: the sequence number of the kernel
+
+        Return:
+        ------
+        kernel[array]: kernel weights
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # get the weights
+        kernel = module.weight
+        if kernel_num is not None:
+            kernel = kernel[kernel_num]
+
+        return kernel.detach().numpy()
 
 
 class Activation:
@@ -301,6 +369,10 @@ class Activation:
         else:
             self._act.pop(layer)
 
+    @property
+    def layers(self):
+        return list(self._act.keys())
+
     def mask(self, dmask):
         """
         Mask DNN activation
@@ -315,13 +387,169 @@ class Activation:
         """
         act = Activation()
         for layer, d in dmask._mask.items():
-            data = self._act[layer]['data']
-            if d['chn'] != 'all':
-                channels = [chn-1 for chn in d['chn']]
-                data = data[:, channels, :]
-            if d['col'] != 'all':
-                columns = [col-1 for col in d['col']]
-                data = data[:, :, columns]
+            data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+            act.set(layer, data)
+
+        return act
+
+    def pool(self, method, dmask=None):
+        """
+        Pooling DNN activation for each channel
+
+        Parameters:
+        ----------
+        method[str]: pooling method, choices=(max, mean, median)
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        act = Activation()
+        if dmask is None:
+            for layer, d in self._act.items():
+                data = dnn_pooling(d['data'], method)
+                act.set(layer, data)
+        else:
+            for layer, d in dmask._mask.items():
+                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+                data = dnn_pooling(data, method)
+                act.set(layer, data)
+
+        return act
+
+    def fe(self, method, n_feature, axis=None, dmask=None):
+        """
+        Extract features of DNN activation
+
+        Parameters:
+        ----------
+        method[str]: feature extraction method, choices=(pca, hist, psd)
+            pca: use n_feature principal components as features
+            hist: use histogram of activation as features
+                Note: n_feature equal-width bins in the given range will be used!
+                psd: use power spectral density as features
+        n_feature[int]: The number of features to extract
+        axis{str}: axis for feature extraction, choices=(chn, col)
+            If it's None, extract features from the whole layer. Note:
+            The result of this will be an array with shape (n_stim, n_feat, 1), but
+            We also regard it as (n_stim, n_chn, n_col)
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Returns:
+        -------
+        act[Activation]: DNN activation
+        """
+        act = Activation()
+        if dmask is None:
+            for layer, d in self._act.items():
+                data = dnn_fe(d['data'], method, n_feature, axis)
+                act.set(layer, data)
+        else:
+            for layer, d in dmask._mask.items():
+                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+                data = dnn_fe(data, method, n_feature, axis)
+                act.set(layer, data)
+
+        return act
+
+    def _check_arithmetic(self, other):
+        """
+        Check availability of the arithmetic operation for self
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+        """
+        if not isinstance(other, Activation):
+            raise TypeError("unsupported operand type(s): "
+                            "'{0}' and '{1}'".format(type(self), type(other)))
+        assert sorted(self.layers) == sorted(other.layers), \
+            "The two object's layers are mismatch!"
+        for layer in self.layers:
+            assert self.get(layer).shape == other.get(layer).shape, \
+                "{}'s activation shape mismatch!".format(layer)
+
+    def __add__(self, other):
+        """
+        Define addition operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) + other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __sub__(self, other):
+        """
+        Define subtraction operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) - other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __mul__(self, other):
+        """
+        Define multiplication operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) * other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __truediv__(self, other):
+        """
+        Define true division operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) / other.get(layer)
             act.set(layer, data)
 
         return act
@@ -433,349 +661,6 @@ class Mask:
         return list(self._mask.keys())
 
 
-def save_activation(activation, outpath):
-    """
-    Save activaiton data as a csv file or mat format file to outpath
-         csv format save a 2D.
-            The first column is stimulus indexs
-            The second column is channel indexs
-            Each row is the activation of a filter for a image
-         mat format save a 2D or 4D array depend on the activation from
-             convolution layer or fully connected layer.
-            4D array Dimension:sitmulus x channel x pixel x pixel
-            2D array Dimension:stimulus x activation
-    Parameters:
-    ------------
-    activation[4darray]: sitmulus x channel x pixel x pixel
-    outpath[str]:outpath and outfilename
-    """
-    imgname = os.path.basename(outpath)
-    imgsuffix = imgname.split('.')[-1]
-
-    if imgsuffix == 'csv':
-        if len(activation.shape) == 4:
-            activation2d = np.reshape(
-                    activation, (np.prod(activation.shape[0:2]), -1,),
-                    order='C')
-            channelline = np.array(
-                    [channel + 1 for channel
-                     in range(activation.shape[1])] * activation.shape[0])
-            stimline = []
-            for i in range(activation.shape[0]):
-                a = [i + 1 for j in range(activation.shape[1])]
-                stimline = stimline + a
-            stimline = np.array(stimline)
-            channelline = np.reshape(channelline, (channelline.shape[0], 1))
-            stimline = np.reshape(stimline, (stimline.shape[0], 1))
-            activation2d = np.concatenate(
-                    (stimline, channelline, activation2d), axis=1)
-        elif len(activation.shape) == 2:
-            stim_indexs = np.arange(1, activation.shape[0] + 1)
-            stim_indexs = np.reshape(stim_indexs, (-1, stim_indexs[0]))
-            activation2d = np.concatenate((stim_indexs, activation), axis=1)
-        np.savetxt(outpath, activation2d, delimiter=',')
-    elif imgsuffix == 'mat':
-        scipy.io.savemat(outpath, mdict={'activation': activation})
-    else:
-        np.save(outpath, activation)
-
-
-class NetLoader:
-    def __init__(self, net=None):
-        """
-        Load neural network model
-
-        Parameters:
-        -----------
-        net[str]: a neural network's name
-        """
-        netlist = ['alexnet', 'vgg11', 'vggface']
-        if net in netlist:
-            if net == 'alexnet':
-                self.model = torchvision.models.alexnet()
-                self.model.load_state_dict(torch.load(
-                        os.path.join(DNNBRAIN_MODEL_DIR, 'alexnet_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv1_relu': (0, 1), 'conv1_maxpool': (0, 2), 'conv2': (0, 3),
-                                      'conv2_relu': (0, 4), 'conv2_maxpool': (0, 5), 'conv3': (0, 6), 'conv3_relu': (0, 7),
-                                      'conv4': (0, 8), 'conv4_relu': (0, 9),'conv5': (0, 10), 'conv5_relu': (0, 11),
-                                      'conv5_maxpool': (0, 12), 'fc1': (2, 1), 'fc1_relu': (2, 2),
-                                      'fc2': (2, 4), 'fc2_relu': (2, 5), 'fc3': (2, 6), 'prefc': (2,)}
-                self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                                  'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                                  'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                                  'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                                  'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                                  'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
-                                  'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
-                                  'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
-                                  'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
-                self.img_size = (224, 224)
-            elif net == 'vgg11':
-                self.model = torchvision.models.vgg11()
-                self.model.load_state_dict(torch.load(
-                        os.path.join(DNNBRAIN_MODEL_DIR, 'vgg11_param.pth')))
-                self.layer2indices = {'conv1': (0, 0), 'conv2': (0, 3),
-                                      'conv3': (0, 6), 'conv4': (0, 8),
-                                      'conv5': (0, 11), 'conv6': (0, 13),
-                                      'conv7': (0, 16), 'conv8': (0, 18),
-                                      'fc1': (2, 0), 'fc2': (2, 3),
-                                      'fc3': (2, 6), 'prefc':(2,)}
-                self.img_size = (224, 224)
-            elif net == 'vggface':
-                self.model = Vgg_face()
-                self.model.load_state_dict(torch.load(
-                        os.path.join(DNNBRAIN_MODEL_DIR, 'vgg_face_dag.pth')))
-                self.layer2indices = {'conv1': (0,), 'conv2': (2,),
-                                      'conv3': (5,), 'conv4': (7,),
-                                      'conv5': (10,), 'conv6': (12,),
-                                      'conv7': (14,), 'conv8': (17,),
-                                      'conv9': (19,), 'conv10': (21,),
-                                      'conv11': (24,), 'conv12': (26,),
-                                      'conv13': (28,), 'fc1': (31,),
-                                      'fc2': (34,), 'fc3': (37,), 'prefc':(31,)}
-                self.img_size = (224, 224)
-        else:
-            print('Not internal supported, please call netloader function'
-                  'to assign model, layer2indices and image size.')
-            self.model = None
-            self.layer2indices = None
-            self.img_size = None
-
-    def load_model(self, dnn_model, model_param=None,
-                   layer2indices=None, input_imgsize=None):
-        """
-        Load DNN model
-
-        Parameters:
-        -----------
-        dnn_model[nn.Modules]: DNN model
-        model_param[string/state_dict]: Parameters of DNN model
-        layer2indices[dict]: Comparison table between layer name and
-            DNN frame layer.
-            Please make dictionary as following format:
-                {'conv1': (0, 0), 'conv2': (0, 3), 'fc1': (2, 0)}
-        input_imgsize[tuple]: the input image size
-        """
-        self.model = dnn_model
-        if model_param is not None:
-            if isinstance(model_param, str):
-                self.model.load_state_dict(torch.load(model_param))
-            else:
-                self.model.load_state_dict(model_param)
-        self.layer2indices = layer2indices
-        self.img_size = input_imgsize
-        print('You had assigned a model into netloader.')
-
-
-class ActReader:
-    def __init__(self, fpath):
-        """
-        Get DNN activation from .act.h5 file
-
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        self._file = h5py.File(fpath, 'r')
-
-    def close(self):
-        self._file.close()
-
-    def get_act(self, layer, to_numpy=True):
-        """
-        Get a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        to_numpy[bool]:
-            If False, return HDF5 dataset directly.
-            If True, transform to numpy array.
-
-        Return:
-        ------
-        act: DNN activation
-        """
-        act = self._file[layer]
-        if to_numpy:
-            act = np.array(act)
-
-        return act
-
-    def get_attr(self, layer, attr):
-        """
-        Get an attribution of a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        attr[str]: attribution name
-
-        Return:
-        ------
-            attribution
-        """
-        return self._file[layer].attrs[attr]
-
-    @property
-    def title(self):
-        """
-        Get the title of the file
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['title']
-
-    @property
-    def cmd(self):
-        """
-        Get the command used to generate the file
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['cmd']
-
-    @property
-    def date(self):
-        """
-        Get the date when the file was generated
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['date']
-
-    @property
-    def layers(self):
-        """
-        Get all layer names in the file
-
-        Return:
-        ------
-            a list
-        """
-        return list(self._file.keys())
-
-
-class ActWriter:
-    def __init__(self, fpath, title):
-        """
-        Save DNN activation into .act.h5 file
-
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        title[str]: a simple description for the file
-        """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        self._file = h5py.File(fpath, 'w')
-        self._file.attrs['title'] = title
-
-    def close(self):
-        """
-        Write some information and close the file
-        """
-        self._file.attrs['cmd'] = ' '.join(sys.argv)
-        self._file.attrs['date'] = time.asctime()
-        self._file.close()
-
-    def set_act(self, layer, act):
-        """
-        Set a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        act[array]: DNN activation
-        """
-        self._file.create_dataset(layer, data=act)
-
-    def set_attr(self, layer, attr, value):
-        """
-        Set an attribution of a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        attr[str]: attribution name
-        value: the value of the attribution
-        """
-        self._file[layer].attrs[attr] = value
-
-
-def read_dmask_csv(fpath):
-    """
-    Read pre-designed .dmask.csv file.
-
-    Parameters:
-    ----------
-    fpath: path of .dmask.csv file
-
-    Return:
-    ------
-    dmask_dict[OrderedDict]: Dictionary of the DNN mask information
-    """
-    # -load csv data-
-    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-    with open(fpath) as rf:
-        lines = rf.read().splitlines()
-
-    # extract layers, channels and columns of interest
-    dmask_dict = OrderedDict()
-    for l_idx, line in enumerate(lines):
-        if '=' in line:
-            # layer
-            layer, axes = line.split('=')
-            dmask_dict[layer] = {'chn': None, 'col': None}
-
-            # channels and columns
-            axes = axes.split(',')
-            while '' in axes:
-                axes.remove('')
-            assert len(axes) <= 2, \
-                "The number of a layer's axes must be less than or equal to 2."
-            for a_idx, axis in enumerate(axes, 1):
-                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
-                numbers = [int(num) for num in lines[l_idx+a_idx].split(',')]
-                dmask_dict[layer][axis] = numbers
-
-    return dmask_dict
-
-
-def save_dmask_csv(fpath, dmask_dict):
-    """
-    Generate .dmask.csv
-
-    Parameters
-    ---------
-    fpath[str]: output file path, ending with .dmask.csv
-    dmask_dict[dict]: Dictionary of the DNN mask information
-    """
-    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-    with open(fpath, 'w') as wf:
-        for layer, axes_dict in dmask_dict.items():
-            axes = []
-            num_lines = []
-            assert len(axes_dict) <= 2, \
-                "The number of a layer's axes must be less than or equal to 2."
-            for axis, numbers in axes_dict.items():
-                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
-                if numbers is not None:
-                    axes.append(axis)
-                    num_line = ','.join(map(str, numbers))
-                    num_lines.append(num_line)
-
-            wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
-            for num_line in num_lines:
-                wf.write(num_line+'\n')
-
-
 def dnn_activation(data, model, layer_loc, channels=None):
     """
     Extract DNN activation from the specified layer
@@ -819,25 +704,31 @@ def dnn_activation(data, model, layer_loc, channels=None):
     return dnn_acts
 
 
-def dnn_mask(dnn_acts, chn=None, col=None):
+def dnn_mask(dnn_acts, channels='all', columns='all'):
     """
     Extract DNN activation
 
     Parameters:
-    ------------
+    ----------
     dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    chn[list]: channel indices of interest
-    col[list]: column indices of interest
+    channels[list|str]:
+            If is list, it contains sequence numbers of channels of interest.
+            If is str, it must be 'all' that means all channels in the layer.
+    columns[list|str]:
+            If is list, it contains sequence numbers of columns of interest.
+            If is str, it must be 'all' that means all columns in the layer.
 
-    Returns:
-    ---------
+    Return:
+    ------
     dnn_acts[array]: DNN activation after mask
         a 3D array with its shape as (n_stim, n_chn, n_col)
     """
-    if chn is not None:
-        dnn_acts = dnn_acts[:, chn, :]
-    if col is not None:
-        dnn_acts = dnn_acts[:, :, col]
+    if channels != 'all':
+        channels = [chn-1 for chn in channels]
+        dnn_acts = dnn_acts[:, channels, :]
+    if columns != 'all':
+        columns = [col-1 for col in columns]
+        dnn_acts = dnn_acts[:, :, columns]
 
     return dnn_acts
 

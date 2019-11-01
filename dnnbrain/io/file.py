@@ -1,6 +1,5 @@
-import numpy as np
-import torch
 import h5py
+import numpy as np
 
 from collections import OrderedDict
 
@@ -179,28 +178,6 @@ class ActivationFile:
         wf.close()
 
 
-class NetFile:
-    """a class to read and write net file"""
-    def __init__(self, file_path):
-        assert file_path.endswith('.pth'), "the file's suffix must be pth"
-        self.path = file_path
-        
-    def set(self, file_path):
-        """file_path: path for target file"""
-        self.path = file_path
-        
-    def read(self):
-        model = torch.load(self.path)
-        return model
-    
-    def write(self, net):
-        """
-        Write a net object to a pth file
-        net: a pth object
-        """
-        pass 
-
-
 class MaskFile:
     """a class to read and write dnn mask file"""
 
@@ -329,4 +306,3 @@ class VideoFile():
         video: a video object
         """
         h5py.File(self.path, video, 'w')
-      
