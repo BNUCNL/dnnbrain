@@ -315,14 +315,69 @@ class Activation:
         """
         act = Activation()
         for layer, d in dmask._mask.items():
-            data = self._act[layer]['data']
-            if d['chn'] != 'all':
-                channels = [chn-1 for chn in d['chn']]
-                data = data[:, channels, :]
-            if d['col'] != 'all':
-                columns = [col-1 for col in d['col']]
-                data = data[:, :, columns]
+            data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
             act.set(layer, data)
+
+        return act
+
+    def pool(self, method, dmask=None):
+        """
+        Pooling DNN activation for each channel
+
+        Parameters:
+        ----------
+        method[str]: pooling method, choices=(max, mean, median)
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        act = Activation()
+        if dmask is None:
+            for layer, d in self._act.items():
+                data = dnn_pooling(d['data'], method)
+                act.set(layer, data)
+        else:
+            for layer, d in dmask._mask.items():
+                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+                data = dnn_pooling(data, method)
+                act.set(layer, data)
+
+        return act
+
+    def fe(self, method, n_feature, axis=None, dmask=None):
+        """
+        Extract features of DNN activation
+
+        Parameters:
+        ----------
+        method[str]: feature extraction method, choices=(pca, hist, psd)
+            pca: use n_feature principal components as features
+            hist: use histogram of activation as features
+                Note: n_feature equal-width bins in the given range will be used!
+                psd: use power spectral density as features
+        n_feature[int]: The number of features to extract
+        axis{str}: axis for feature extraction, choices=(chn, col)
+            If it's None, extract features from the whole layer. Note:
+            The result of this will be an array with shape (n_stim, n_feat, 1), but
+            We also regard it as (n_stim, n_chn, n_col)
+        dmask[Mask]: The mask includes layers/channels/columns of interest.
+
+        Returns:
+        -------
+        act[Activation]: DNN activation
+        """
+        act = Activation()
+        if dmask is None:
+            for layer, d in self._act.items():
+                data = dnn_fe(d['data'], method, n_feature, axis)
+                act.set(layer, data)
+        else:
+            for layer, d in dmask._mask.items():
+                data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
+                data = dnn_fe(data, method, n_feature, axis)
+                act.set(layer, data)
 
         return act
 
@@ -433,53 +488,6 @@ class Mask:
         return list(self._mask.keys())
 
 
-def save_activation(activation, outpath):
-    """
-    Save activaiton data as a csv file or mat format file to outpath
-         csv format save a 2D.
-            The first column is stimulus indexs
-            The second column is channel indexs
-            Each row is the activation of a filter for a image
-         mat format save a 2D or 4D array depend on the activation from
-             convolution layer or fully connected layer.
-            4D array Dimension:sitmulus x channel x pixel x pixel
-            2D array Dimension:stimulus x activation
-    Parameters:
-    ------------
-    activation[4darray]: sitmulus x channel x pixel x pixel
-    outpath[str]:outpath and outfilename
-    """
-    imgname = os.path.basename(outpath)
-    imgsuffix = imgname.split('.')[-1]
-
-    if imgsuffix == 'csv':
-        if len(activation.shape) == 4:
-            activation2d = np.reshape(
-                    activation, (np.prod(activation.shape[0:2]), -1,),
-                    order='C')
-            channelline = np.array(
-                    [channel + 1 for channel
-                     in range(activation.shape[1])] * activation.shape[0])
-            stimline = []
-            for i in range(activation.shape[0]):
-                a = [i + 1 for j in range(activation.shape[1])]
-                stimline = stimline + a
-            stimline = np.array(stimline)
-            channelline = np.reshape(channelline, (channelline.shape[0], 1))
-            stimline = np.reshape(stimline, (stimline.shape[0], 1))
-            activation2d = np.concatenate(
-                    (stimline, channelline, activation2d), axis=1)
-        elif len(activation.shape) == 2:
-            stim_indexs = np.arange(1, activation.shape[0] + 1)
-            stim_indexs = np.reshape(stim_indexs, (-1, stim_indexs[0]))
-            activation2d = np.concatenate((stim_indexs, activation), axis=1)
-        np.savetxt(outpath, activation2d, delimiter=',')
-    elif imgsuffix == 'mat':
-        scipy.io.savemat(outpath, mdict={'activation': activation})
-    else:
-        np.save(outpath, activation)
-
-
 class NetLoader:
     def __init__(self, net=None):
         """
@@ -567,215 +575,6 @@ class NetLoader:
         print('You had assigned a model into netloader.')
 
 
-class ActReader:
-    def __init__(self, fpath):
-        """
-        Get DNN activation from .act.h5 file
-
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        self._file = h5py.File(fpath, 'r')
-
-    def close(self):
-        self._file.close()
-
-    def get_act(self, layer, to_numpy=True):
-        """
-        Get a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        to_numpy[bool]:
-            If False, return HDF5 dataset directly.
-            If True, transform to numpy array.
-
-        Return:
-        ------
-        act: DNN activation
-        """
-        act = self._file[layer]
-        if to_numpy:
-            act = np.array(act)
-
-        return act
-
-    def get_attr(self, layer, attr):
-        """
-        Get an attribution of a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        attr[str]: attribution name
-
-        Return:
-        ------
-            attribution
-        """
-        return self._file[layer].attrs[attr]
-
-    @property
-    def title(self):
-        """
-        Get the title of the file
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['title']
-
-    @property
-    def cmd(self):
-        """
-        Get the command used to generate the file
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['cmd']
-
-    @property
-    def date(self):
-        """
-        Get the date when the file was generated
-
-        Return:
-        ------
-            a string
-        """
-        return self._file.attrs['date']
-
-    @property
-    def layers(self):
-        """
-        Get all layer names in the file
-
-        Return:
-        ------
-            a list
-        """
-        return list(self._file.keys())
-
-
-class ActWriter:
-    def __init__(self, fpath, title):
-        """
-        Save DNN activation into .act.h5 file
-
-        Parameters:
-        ----------
-        fpath[str]: DNN activation file
-        title[str]: a simple description for the file
-        """
-        assert fpath.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        self._file = h5py.File(fpath, 'w')
-        self._file.attrs['title'] = title
-
-    def close(self):
-        """
-        Write some information and close the file
-        """
-        self._file.attrs['cmd'] = ' '.join(sys.argv)
-        self._file.attrs['date'] = time.asctime()
-        self._file.close()
-
-    def set_act(self, layer, act):
-        """
-        Set a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        act[array]: DNN activation
-        """
-        self._file.create_dataset(layer, data=act)
-
-    def set_attr(self, layer, attr, value):
-        """
-        Set an attribution of a layer's activation
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        attr[str]: attribution name
-        value: the value of the attribution
-        """
-        self._file[layer].attrs[attr] = value
-
-
-def read_dmask_csv(fpath):
-    """
-    Read pre-designed .dmask.csv file.
-
-    Parameters:
-    ----------
-    fpath: path of .dmask.csv file
-
-    Return:
-    ------
-    dmask_dict[OrderedDict]: Dictionary of the DNN mask information
-    """
-    # -load csv data-
-    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-    with open(fpath) as rf:
-        lines = rf.read().splitlines()
-
-    # extract layers, channels and columns of interest
-    dmask_dict = OrderedDict()
-    for l_idx, line in enumerate(lines):
-        if '=' in line:
-            # layer
-            layer, axes = line.split('=')
-            dmask_dict[layer] = {'chn': None, 'col': None}
-
-            # channels and columns
-            axes = axes.split(',')
-            while '' in axes:
-                axes.remove('')
-            assert len(axes) <= 2, \
-                "The number of a layer's axes must be less than or equal to 2."
-            for a_idx, axis in enumerate(axes, 1):
-                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
-                numbers = [int(num) for num in lines[l_idx+a_idx].split(',')]
-                dmask_dict[layer][axis] = numbers
-
-    return dmask_dict
-
-
-def save_dmask_csv(fpath, dmask_dict):
-    """
-    Generate .dmask.csv
-
-    Parameters
-    ---------
-    fpath[str]: output file path, ending with .dmask.csv
-    dmask_dict[dict]: Dictionary of the DNN mask information
-    """
-    assert fpath.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-    with open(fpath, 'w') as wf:
-        for layer, axes_dict in dmask_dict.items():
-            axes = []
-            num_lines = []
-            assert len(axes_dict) <= 2, \
-                "The number of a layer's axes must be less than or equal to 2."
-            for axis, numbers in axes_dict.items():
-                assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
-                if numbers is not None:
-                    axes.append(axis)
-                    num_line = ','.join(map(str, numbers))
-                    num_lines.append(num_line)
-
-            wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
-            for num_line in num_lines:
-                wf.write(num_line+'\n')
-
-
 def dnn_activation(data, model, layer_loc, channels=None):
     """
     Extract DNN activation from the specified layer
@@ -819,25 +618,31 @@ def dnn_activation(data, model, layer_loc, channels=None):
     return dnn_acts
 
 
-def dnn_mask(dnn_acts, chn=None, col=None):
+def dnn_mask(dnn_acts, channels='all', columns='all'):
     """
     Extract DNN activation
 
     Parameters:
-    ------------
+    ----------
     dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    chn[list]: channel indices of interest
-    col[list]: column indices of interest
+    channels[list|str]:
+            If is list, it contains sequence numbers of channels of interest.
+            If is str, it must be 'all' that means all channels in the layer.
+    columns[list|str]:
+            If is list, it contains sequence numbers of columns of interest.
+            If is str, it must be 'all' that means all columns in the layer.
 
-    Returns:
-    ---------
+    Return:
+    ------
     dnn_acts[array]: DNN activation after mask
         a 3D array with its shape as (n_stim, n_chn, n_col)
     """
-    if chn is not None:
-        dnn_acts = dnn_acts[:, chn, :]
-    if col is not None:
-        dnn_acts = dnn_acts[:, :, col]
+    if channels != 'all':
+        channels = [chn-1 for chn in channels]
+        dnn_acts = dnn_acts[:, channels, :]
+    if columns != 'all':
+        columns = [col-1 for col in columns]
+        dnn_acts = dnn_acts[:, :, columns]
 
     return dnn_acts
 
