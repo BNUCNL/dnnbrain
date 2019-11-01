@@ -301,6 +301,10 @@ class Activation:
         else:
             self._act.pop(layer)
 
+    @property
+    def layers(self):
+        return list(self._act.keys())
+
     def mask(self, dmask):
         """
         Mask DNN activation
@@ -378,6 +382,107 @@ class Activation:
                 data = dnn_mask(self._act[layer]['data'], d['chn'], d['col'])
                 data = dnn_fe(data, method, n_feature, axis)
                 act.set(layer, data)
+
+        return act
+
+    def _check_arithmetic(self, other):
+        """
+        Check availability of the arithmetic operation for self
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+        """
+        if not isinstance(other, Activation):
+            raise TypeError("unsupported operand type(s): "
+                            "'{0}' and '{1}'".format(type(self), type(other)))
+        assert sorted(self.layers) == sorted(other.layers), \
+            "The two object's layers are mismatch!"
+        for layer in self.layers:
+            assert self.get(layer).shape == other.get(layer).shape, \
+                "{}'s activation shape mismatch!".format(layer)
+
+    def __add__(self, other):
+        """
+        Define addition operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) + other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __sub__(self, other):
+        """
+        Define subtraction operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) - other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __mul__(self, other):
+        """
+        Define multiplication operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) * other.get(layer)
+            act.set(layer, data)
+
+        return act
+
+    def __truediv__(self, other):
+        """
+        Define true division operation
+
+        Parameter:
+        ---------
+        other[Activation]: DNN activation
+
+        Return:
+        ------
+        act[Activation]: DNN activation
+        """
+        self._check_arithmetic(other)
+
+        act = Activation()
+        for layer in self.layers:
+            data = self.get(layer) / other.get(layer)
+            act.set(layer, data)
 
         return act
 
