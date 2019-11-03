@@ -5,11 +5,6 @@ import h5py
 
 from dnnbrain.io.file import ActivationFile
 from os.path import join as pjoin
-from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, Resize, ToTensor
-from dnnbrain.dnn.core import DNN, Stimulus, Mask
-from dnnbrain.dnn.base import ImageSet
-
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -42,8 +37,7 @@ class TestActivationFile(unittest.TestCase):
         
         # write
         ActivationFile(fpath).write(act)
-        
-        
+                
         # compare
         rf = h5py.File(fpath,'r')
         for i in range(10):
@@ -58,6 +52,7 @@ class TestMaskFile(unittest.TestCase):
 
     def test_write(self):
         pass
+
 
 if __name__=='__main__':
     unittest.main()
