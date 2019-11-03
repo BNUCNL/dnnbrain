@@ -9,6 +9,10 @@ import numpy as np
 from PIL import Image
 import torch
 
+import cv2
+from dnn.base import VideoSet
+
+
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
 if not os.path.isdir(TMP_DIR):
@@ -101,12 +105,60 @@ class TestImageSet(unittest.TestCase):
         self.assertEqual(labels_get,labels[indices])               
         
 class TestVideoSet(unittest.TestCase):
-
     def test_init(self):
-        pass
+        vid_file = pjoin(DNNBRAIN_TEST, 'video', \
+                         'sub-CSI1_ses-01_imagenet.mp4')
+        frame_nums = list(np.random.randint(0,148,20))
+        dataset = VideoSet(vid_file, frame_nums)
+        self.assertEqual(dataset.frame_nums,frame_nums)
 
+    # test video in each frames
     def test_getitem(self):
-        pass
+
+        # test slice
+        vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
+        transform = transforms.Compose([transforms.ToTensor()])
+        frame_list = [4,6,2,8,54,23,127]
+        dataset = VideoSet(vid_file, frame_list)
+        indices = slice(0,5)
+        tmpvi,_ = dataset[indices]
+        for ii,i in enumerate(frame_list[indices]):
+            cap = cv2.VideoCapture(vid_file)
+            for j in range(i):
+                _, tmp = cap.read()
+            frame = Image.fromarray(cv2.cvtColor(tmp, cv2.COLOR_BGR2RGB))
+            tmp = transform(frame)
+            self.assertTrue(torch.equal(tmp,tmpvi[ii]))
+            
+        # test int
+        vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
+        frame_nums = list(np.random.randint(0, 148, 20))
+        dataset = VideoSet(vid_file, frame_nums)
+        transform = transforms.Compose([transforms.ToTensor()])
+        for i in range(len(frame_nums)):
+            tmp_video, _ = dataset[i]
+            cap = cv2.VideoCapture(vid_file)
+            for j in range(frame_nums[i]):
+                _, tmp_video3 = cap.read()
+            frame = Image.fromarray(cv2.cvtColor(tmp_video3, cv2.COLOR_BGR2RGB))
+            tmp_video3 = transform(frame)
+            self.assertTrue(torch.equal(tmp_video, tmp_video3))
+            
+        # test list
+        vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
+        transform = transforms.Compose([transforms.ToTensor()])
+        frame_list = [2,8,54,127,128,129,130]
+        dataset = VideoSet(vid_file, frame_list)
+        indices = [1,2,4,5]
+        tmpvi,_ = dataset[indices]
+        for ii,i in enumerate([frame_list[i] for i in indices]):
+            cap = cv2.VideoCapture(vid_file)
+            for j in range(0,i):
+                _, tmp = cap.read()
+            frame = Image.fromarray(cv2.cvtColor(tmp, cv2.COLOR_BGR2RGB))
+            tmp = transform(frame)
+            self.assertTrue(torch.equal(tmp,tmpvi[ii]))
+
 
 
 if __name__ == '__main__':
