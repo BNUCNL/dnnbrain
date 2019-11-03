@@ -19,7 +19,7 @@ class TestImageSet(unittest.TestCase):
 
     def test_init(self):
 
-    #test when labels and transform are None
+        #test when labels and transform are None
         img_dir = pjoin(DNNBRAIN_TEST, 'image', 'images')
         img_ids = ['n01443537_2819.JPEG', 'n01531178_2651.JPEG']
 
@@ -37,7 +37,7 @@ class TestImageSet(unittest.TestCase):
             image_new = transforms.Compose([transforms.ToTensor()])(image)
             self.assertTrue(torch.equal(image_org,image_new))   #compare original image and new image
         
-    #test when labels and transform are given
+        #test when labels and transform are given
         labels = [1, 11]
         transform = transforms.Compose([transforms.Resize((224, 224)),
                                 transforms.ToTensor()])
