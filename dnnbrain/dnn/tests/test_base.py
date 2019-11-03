@@ -49,7 +49,7 @@ class TestImageSet(unittest.TestCase):
         for img_id in dataset.img_ids:
             image = Image.open(pjoin(dataset.img_dir, img_id))  # load image
             image_org = dataset.transform(image)
-            image_new = transforms.Compose([transforms.Resize((224, 224)),transforms.ToTensor()])(image)
+            image_new = transform(image)
             self.assertTrue(torch.equal(image_org,image_new))
     
     def test_getitem(self):
