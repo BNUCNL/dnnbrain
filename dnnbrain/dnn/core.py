@@ -3,7 +3,7 @@ import numpy as np
 
 from copy import deepcopy
 from dnnbrain.io import file as iofile
-from dnnbrain.io.io import DNNLoader
+from dnnbrain.dnn.base import DNNLoader
 from dnnbrain.utils.util import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
