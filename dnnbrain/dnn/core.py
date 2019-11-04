@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from copy import deepcopy
-from dnnbrain.io import file as iofile
+import dnnbrain.io.fileio as iofile
 from dnnbrain.dnn.base import DNNLoader
 from dnnbrain.dnn.base import array_statistic
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
