@@ -205,22 +205,23 @@ class MaskFile:
         with open(self.fname) as rf:
             lines = rf.read().splitlines()
 
-        # extract layers, channels and columns of interest
+        # extract layers, channels, rows, and columns of interest
         dmask = OrderedDict()
         for l_idx, line in enumerate(lines):
             if '=' in line:
                 # layer
                 layer, axes = line.split('=')
-                dmask[layer] = {'chn': 'all', 'col': 'all'}
+                dmask[layer] = dict()
 
-                # channels and columns
+                # channels, rows, and columns
                 axes = axes.split(',')
                 while '' in axes:
                     axes.remove('')
-                assert len(axes) <= 2, \
-                    "The number of a layer's axes must be less than or equal to 2."
+                assert len(axes) <= 3, \
+                    "The number of a layer's axes must be less than or equal to 3."
                 for a_idx, axis in enumerate(axes, 1):
-                    assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
+                    assert axis in ('chn', 'row', 'col'), \
+                        'Axis must be from (chn, row, col).'
                     numbers = [int(num) for num in lines[l_idx + a_idx].split(',')]
                     dmask[layer][axis] = numbers
 
@@ -238,14 +239,14 @@ class MaskFile:
             for layer, axes_dict in dmask.items():
                 axes = []
                 num_lines = []
-                assert len(axes_dict) <= 2, \
-                    "The number of a layer's axes must be less than or equal to 2."
+                assert len(axes_dict) <= 3, \
+                    "The number of a layer's axes must be less than or equal to 3."
                 for axis, numbers in axes_dict.items():
-                    assert axis in ('chn', 'col'), 'Axis must be from (chn, col).'
-                    if numbers != 'all':
-                        axes.append(axis)
-                        num_line = ','.join(map(str, numbers))
-                        num_lines.append(num_line)
+                    assert axis in ('chn', 'row', 'col'), \
+                        'Axis must be from (chn, row, col).'
+                    axes.append(axis)
+                    num_line = ','.join(map(str, numbers))
+                    num_lines.append(num_line)
 
                 wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
                 for num_line in num_lines:
