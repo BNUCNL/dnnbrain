@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 from copy import deepcopy
-from dnnbrain.io import file as iofile
+import dnnbrain.io.fileio as iofile
 from dnnbrain.dnn.base import DNNLoader
 from dnnbrain.dnn.base import array_statistic
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
@@ -51,7 +51,7 @@ class Stimulus:
         """
         stim_file = iofile.StimulusFile(path)
         meta = self.meta.copy()
-        stim_file.write(meta.pop('type'), meta.pop('path'),
+        stim_file.write(meta.pop('type'), meta.pop('fname'),
                         self._data, **meta)
 
     def get(self, item):
