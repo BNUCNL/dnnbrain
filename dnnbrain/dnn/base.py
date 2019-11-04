@@ -11,9 +11,9 @@ from torchvision import models as torch_models
 from dnnbrain.dnn import models as db_models
 
 
-def array_fe(arr, method, axis=None, keepdims=False):
+def array_statistic(arr, method, axis=None, keepdims=False):
     """
-    extract features of an array
+    extract statistic of an array
 
     Parameters:
     ----------

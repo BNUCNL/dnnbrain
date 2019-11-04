@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from dnnbrain.io import file as iofile
 from dnnbrain.dnn.base import DNNLoader
-from dnnbrain.dnn.base import array_fe
+from dnnbrain.dnn.base import array_statistic
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
 from sklearn.decomposition import PCA
@@ -813,7 +813,7 @@ def dnn_pooling(dnn_acts, method):
     dnn_acts[array]: DNN activation after pooling
         a 3D array with its shape as (n_stim, n_chn, 1)
     """
-    return array_fe(dnn_acts, method, 2, True)
+    return array_statistic(dnn_acts, method, 2, True)
 
 
 def dnn_fe(dnn_acts, meth, n_feat, axis=None):
