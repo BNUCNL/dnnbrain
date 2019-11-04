@@ -11,6 +11,37 @@ from torchvision import models as torch_models
 from dnnbrain.dnn import models as db_models
 
 
+def array_fe(arr, method, axis=None, keepdims=False):
+    """
+    extract features of an array
+
+    Parameters:
+    ----------
+    arr[array]: a numpy array
+    method[str]: feature extraction method
+    axis[int]: axis for feature extraction
+        If it's None, extract features from the whole array.
+    keepdims[bool]: keep the axis which is reduced
+
+    Return:
+    ------
+    arr[array]: extracted features
+    """
+    if method == 'max':
+        arr = np.max(arr, axis, keepdims=keepdims)
+    elif method == 'mean':
+        arr = np.mean(arr, axis, keepdims=keepdims)
+    elif method == 'median':
+        arr = np.median(arr, axis, keepdims=keepdims)
+    elif method == 'L1':
+        arr = np.linalg.norm(arr, 1, axis, keepdims=keepdims)
+    elif method == 'L2':
+        arr = np.linalg.norm(arr, 2, axis, keepdims=keepdims)
+    else:
+        raise ValueError('Not supported method:', method)
+
+    return arr
+
 
 class ImageSet:
     """

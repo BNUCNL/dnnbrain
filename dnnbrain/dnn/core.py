@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 from dnnbrain.io import file as iofile
 from dnnbrain.dnn.base import DNNLoader
-from dnnbrain.utils.util import array_fe
+from dnnbrain.dnn.base import array_fe
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve, periodogram
 from sklearn.decomposition import PCA
@@ -163,7 +163,7 @@ class Stimulus:
 
 
 class DNN:
-    """DNN neural network"""
+    """Deep neural network"""
 
     def __init__(self, net=None):
         """
@@ -179,7 +179,7 @@ class DNN:
 
     def load(self, net):
         """
-        Load DNN and its information
+        Load DNN and associated information
 
         Parameter:
         ---------
