@@ -1,8 +1,8 @@
 import torch
 import numpy as np
+import dnnbrain.io.fileio as fio
 
 from copy import deepcopy
-import dnnbrain.io.fileio as iofile
 from dnnbrain.dnn.base import DNNLoader
 from dnnbrain.dnn.base import array_statistic
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
@@ -17,39 +17,39 @@ class Stimulus:
     """
     Store and handle stimulus-related information
     """
-    def __init__(self, path=None):
+    def __init__(self, fname=None):
         """
         Parameter:
         ---------
-        path[str]: file path with suffix as .stim.csv
+        fname[str]: file name with suffix as .stim.csv
         """
         self.meta = dict()
         self._data = dict()
-        if path is not None:
-            self.load(path)
+        if fname is not None:
+            self.load(fname)
 
-    def load(self, path):
+    def load(self, fname):
         """
         Load stimulus-related information
 
         Parameter:
         ---------
-        path[str]: file path with suffix as .stim.csv
+        fname[str]: file name with suffix as .stim.csv
         """
-        stim_file = iofile.StimulusFile(path)
+        stim_file = fio.StimulusFile(fname)
         stimuli = stim_file.read()
         self._data = stimuli.pop('data')
         self.meta = stimuli
 
-    def save(self, path):
+    def save(self, fname):
         """
         Save stimulus-related information
 
         Parameter:
         ---------
-        path[str]: file path with suffix as .stim.csv
+        fname[str]: file name with suffix as .stim.csv
         """
-        stim_file = iofile.StimulusFile(path)
+        stim_file = fio.StimulusFile(fname)
         meta = self.meta.copy()
         stim_file.write(meta.pop('type'), meta.pop('path'),
                         self._data, **meta)
@@ -190,16 +190,16 @@ class DNN:
         self.layer2loc = loader.layer2loc
         self.img_size = loader.img_size
 
-    def save(self, path):
+    def save(self, fname):
         """
         Save DNN parameters
 
         Parameter:
         ---------
-        path[str]: output file path with suffix as .pth
+        fname[str]: output file name with suffix as .pth
         """
-        assert path.endswith('.pth'), 'File suffix must be .pth'
-        torch.save(self.model.state_dict(), path)
+        assert fname.endswith('.pth'), 'File suffix must be .pth'
+        torch.save(self.model.state_dict(), fname)
 
     def compute_activation(self, data, dmask):
         """
@@ -299,39 +299,39 @@ class DNN:
 class Activation:
     """DNN activation"""
 
-    def __init__(self, path=None, dmask=None):
+    def __init__(self, fname=None, dmask=None):
         """
         Parameters:
         ----------
-        path[str]: DNN activation file
+        fname[str]: DNN activation file
         dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
         self._act = dict()
-        if path is not None:
-            self.load(path, dmask)
+        if fname is not None:
+            self.load(fname, dmask)
 
-    def load(self, path, dmask=None):
+    def load(self, fname, dmask=None):
         """
         Load DNN activation
 
         Parameters:
         ----------
-        path[str]: DNN activation file
+        fname[str]: DNN activation file
         dmask[Mask]: The mask includes layers/channels/columns of interest.
         """
         if dmask is not None:
-            dmask = dmask._mask
-        self._act = iofile.ActivationFile(path).read(dmask)
+            dmask = dmask._dmask
+        self._act = fio.ActivationFile(fname).read(dmask)
 
-    def save(self, path):
+    def save(self, fname):
         """
         Save DNN activation
 
         Parameter:
         ---------
-        path[str]: output file of DNN activation
+        fname[str]: output file of DNN activation
         """
-        iofile.ActivationFile(path).write(self._act)
+        fio.ActivationFile(fname).write(self._act)
 
     def get(self, layer, raw_shape=False):
         """
@@ -624,35 +624,35 @@ class Activation:
 class Mask:
     """DNN mask"""
 
-    def __init__(self, path=None):
+    def __init__(self, fname=None):
         """
         Parameter:
         ---------
-        path[str]: DNN mask file
+        fname[str]: DNN mask file
         """
-        self._mask = dict()
-        if path is not None:
-            self.load(path)
+        self._dmask = dict()
+        if fname is not None:
+            self.load(fname)
 
-    def load(self, path):
+    def load(self, fname):
         """
         Load DNN mask, the whole mask will be overrode.
 
         Parameter:
         ---------
-        path[str]: DNN mask file
+        fname[str]: DNN mask file
         """
-        self._mask = iofile.MaskFile(path).read()
+        self._dmask = fio.MaskFile(fname).read()
 
-    def save(self, path):
+    def save(self, fname):
         """
         Save DNN mask
 
         Parameter:
         ---------
-        path[str]: output file path of DNN mask
+        fname[str]: output file name of DNN mask
         """
-        iofile.MaskFile(path).write(self._mask)
+        fio.MaskFile(fname).write(self._dmask)
 
     def get(self, layer, axis=None):
         """
@@ -661,48 +661,48 @@ class Mask:
         Parameters:
         ----------
         layer[str]: layer name
-        axis[str]: chn or col
+        axis[str]: chn, row, or col
 
         Return:
         ------
         dmask[dict|list]: layer mask
         """
-        dmask = self._mask[layer]
+        dmask = self._dmask[layer]
         if axis is not None:
             dmask = dmask[axis]
 
         return dmask
 
-    def set(self, layer, channels=None, columns=None):
+    def set(self, layer, channels=None, rows=None, columns=None):
         """
         Set DNN mask.
-        If the layer doesn't exist, initiate it with all channels and columns.
 
         Parameters:
         ----------
         layer[str]: layer name
-        channels[list|str]:
-            If is list, it contains sequence numbers of channels of interest.
-            If is str, it must be 'all' that means all channels in the layer.
-            If is None, do nothing.
-        columns[list|str]:
-            If is list, it contains sequence numbers of columns of interest.
-            If is str, it must be 'all' that means all columns in the layer.
-            If is None, do nothing.
+        channels[list]: sequence numbers of channels of interest.
+        rows[list]: sequence numbers of rows of interest.
+        columns[list]: sequence numbers of columns of interest.
         """
-        if layer not in self._mask:
-            self._mask[layer] = {'chn': 'all', 'col': 'all'}
+        if layer not in self._dmask:
+            self._dmask[layer] = dict()
         if channels is not None:
-            self._mask[layer]['chn'] = channels
+            self._dmask[layer]['chn'] = channels
+        if rows is not None:
+            self._dmask[layer]['row'] = rows
         if columns is not None:
-            self._mask[layer]['col'] = columns
+            self._dmask[layer]['col'] = columns
 
     def copy(self):
         """
         Make a copy of the DNN mask
+
+        Return:
+        ------
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
         """
         dmask = Mask()
-        dmask._mask = deepcopy(self._mask)
+        dmask._dmask = deepcopy(self._dmask)
 
         return dmask
 
@@ -714,17 +714,17 @@ class Mask:
         ---------
         layer[str]: layer name
         """
-        self._mask.pop(layer)
+        self._dmask.pop(layer)
 
     def clear(self):
         """
         Empty the DNN mask
         """
-        self._mask.clear()
+        self._dmask.clear()
 
     @property
     def layers(self):
-        return list(self._mask.keys())
+        return list(self._dmask.keys())
 
 
 def dnn_activation(data, model, layer_loc, channels=None):
