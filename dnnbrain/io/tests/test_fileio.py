@@ -2,9 +2,9 @@ import os
 import unittest
 import h5py
 import numpy as np
-from dnnbrain.io.file import ActivationFile
+from dnnbrain.io.fileio import ActivationFile
 from os.path import join as pjoin
-from dnnbrain.io.file import StimulusFile
+from dnnbrain.io.fileio import StimulusFile
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
