@@ -7,26 +7,26 @@ from collections import OrderedDict
 class StimulusFile:
     """A class to read and write stimullus file """
 
-    def __init__(self, path):
+    def __init__(self, fname):
         """
         Parameter:
         ---------
-        path[str]: pre-designed .stim.csv file.
+        fname[str]: pre-designed .stim.csv file.
         Format of .stim.csv of image stimuli is
         --------------------------
         type=image
-        path=parent_dir_to_images
+        fname=parent_dir_to_images
         [Several optional keys] (eg., title=image stimuli)
         data=stimID,[onset],[duration],[label],[condition],acc,RT
-        pic1_path,0,1,0,cat,0.4,0.5
-        pic2_path,1,1,1,dog,0.6,0.4
-        pic3_path,2,1,0,cat,0.7,0.5
+        pic1_fname,0,1,0,cat,0.4,0.5
+        pic2_fname,1,1,1,dog,0.6,0.4
+        pic3_fname,2,1,0,cat,0.7,0.5
         ...,...,...,...,...,...
 
         Format of .stim.csv of video stimuli is
         --------------------------
         type=video
-        path=path_to_video_file
+        fname=fname_to_video_file
         [Several optional keys] (eg., title=video stimuli)
         data=stimID,[onset],[duration],[label],[condition],acc,RT
         1,0,1,0,cat,0.4,0.5
@@ -34,8 +34,8 @@ class StimulusFile:
         3,2,1,0,cat,0.7,0.5
         ...,...,...,...,...,...
         """
-        assert path.endswith('.stim.csv'), "File suffix must be .stim.csv"
-        self.path = path
+        assert fname.endswith('.stim.csv'), "File suffix must be .stim.csv"
+        self.fname = fname
         
     def read(self):
         """
@@ -44,7 +44,7 @@ class StimulusFile:
         stimuli[OrderedDict]: Dictionary of the stimuli information
         """
         # -load csv data-
-        with open(self.path) as rf:
+        with open(self.fname) as rf:
             lines = rf.read().splitlines()
         # remove null line
         while '' in lines:
@@ -60,7 +60,7 @@ class StimulusFile:
             k, v = line.split('=')
             stimuli[k] = v
         assert 'type' in stimuli.keys(), "'type' needs to be included in meta data."
-        assert 'path' in stimuli.keys(), "'path' needs to be included in meta data."
+        assert 'fname' in stimuli.keys(), "'fname' needs to be included in meta data."
         assert stimuli['type'] in ('image', 'video'), 'not supported type: {}'.format(stimuli['type'])
 
         # --operate var_lines--
@@ -88,21 +88,21 @@ class StimulusFile:
 
         return stimuli
     
-    def write(self, type, stim_path, data, **opt_meta):
+    def write(self, type, stim_fname, data, **opt_meta):
         """
         Parameters:
         ----------
         type[str]: stimulus type in ('image', 'video')
-        stim_path[str]: path_to_stimuli
-            If type is 'image', the path is the parent directory of the images.
-            If type is 'video', the path is the file path of the video.
+        stim_fname[str]: fname_to_stimuli
+            If type is 'image', the fname is the parent directory of the images.
+            If type is 'video', the fname is the file fname of the video.
         data[dict]: stimulus variable data
         opt_meta[dict]: some other optional meta data
         """
-        with open(self.path, 'w') as wf:
-            # write the type and path
+        with open(self.fname, 'w') as wf:
+            # write the type and fname
             wf.write('type={}\n'.format(type))
-            wf.write('path={}\n'.format(stim_path))
+            wf.write('fname={}\n'.format(stim_fname))
 
             # write optional meta data
             for k, v in opt_meta.items():
@@ -118,14 +118,14 @@ class StimulusFile:
 class ActivationFile:
     """a class to read and write activation file """
 
-    def __init__(self, path):
+    def __init__(self, fname):
         """
         Parameter:
         ---------
-        path[str]: file path with suffix as .act.h5
+        fname[str]: file fname with suffix as .act.h5
         """
-        assert path.endswith('.act.h5'), "the file's suffix must be .act.h5"
-        self.path = path
+        assert fname.endswith('.act.h5'), "the file's suffix must be .act.h5"
+        self.fname = fname
 
     def read(self, dmask=None):
         """
@@ -140,7 +140,7 @@ class ActivationFile:
         act[dict]: DNN activation with its attribution
         """
         # open file
-        rf = h5py.File(self.path, 'r')
+        rf = h5py.File(self.fname, 'r')
 
         if dmask is None:
             dmask = dict()
@@ -173,7 +173,7 @@ class ActivationFile:
         ---------
         act[dict]: DNN activation with its attribution
         """
-        wf = h5py.File(self.path, 'w')
+        wf = h5py.File(self.fname, 'w')
         for layer, value in act.items():
             ds = wf.create_dataset(layer, data=value['data'])
             ds.attrs['raw_shape'] = value['raw_shape']
@@ -184,14 +184,14 @@ class ActivationFile:
 class MaskFile:
     """a class to read and write dnn mask file"""
 
-    def __init__(self, path):
+    def __init__(self, fname):
         """
         Parameter:
         ---------
-        path[str]: pre-designed .dmask.csv file
+        fname[str]: pre-designed .dmask.csv file
         """
-        assert path.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
-        self.path = path
+        assert fname.endswith('.dmask.csv'), 'File suffix must be .dmask.csv'
+        self.fname = fname
         
     def read(self):
         """ 
@@ -202,7 +202,7 @@ class MaskFile:
         dmask[OrderedDict]: Dictionary of the DNN mask information
         """
         # -load csv data-
-        with open(self.path) as rf:
+        with open(self.fname) as rf:
             lines = rf.read().splitlines()
 
         # extract layers, channels and columns of interest
@@ -234,7 +234,7 @@ class MaskFile:
         ----------
         dmask[dict]: Dictionary of the DNN mask information
         """
-        with open(self.path, 'w') as wf:
+        with open(self.fname, 'w') as wf:
             for layer, axes_dict in dmask.items():
                 axes = []
                 num_lines = []
@@ -254,58 +254,58 @@ class MaskFile:
 
 class RoiFile():
         """a class to read and write roi file """
-        def __init__(self, file_path):        
-            assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
-            self.path = file_path
+        def __init__(self, file_fname):        
+            assert file_fname.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+            self.fname = file_fname
             
-        def set(self, file_path):
-            """file_path: path for target file"""
-            self.path = file_path
+        def set(self, file_fname):
+            """file_fname: fname for target file"""
+            self.fname = file_fname
             
         def read(self):
-            return h5py.File(self.path, 'r')
+            return h5py.File(self.fname, 'r')
             
         def write(self, roi):
             """
             Write an activation object to a hdf5 file
             roi: a roi object
             """
-            h5py.File(self.path, roi, 'w')
+            h5py.File(self.fname, roi, 'w')
             
 class ImageFile():
     """a class to read and write image file """
-    def __init__(self, file_path):        
-        assert file_path.endswith('.png'), "the file's suffix must be .png"
-        self.path = file_path
+    def __init__(self, file_fname):        
+        assert file_fname.endswith('.png'), "the file's suffix must be .png"
+        self.fname = file_fname
         
-    def set(self, file_path):
-        self.path = file_path;
+    def set(self, file_fname):
+        self.fname = file_fname;
         
     def read(self):
-        return h5py.File(self.path, 'r')
+        return h5py.File(self.fname, 'r')
         
     def write(self, image):
         """
         Write an image object to disk file
         image: a image object
         """
-        h5py.File(self.path, image, 'w')
+        h5py.File(self.fname, image, 'w')
     
 class VideoFile():
     """a class to read and write video file """
-    def __init__(self, file_path):        
-        assert file_path.endswith('.mp4'), "the file's suffix must be .mp4"
-        self.path = file_path
+    def __init__(self, file_fname):        
+        assert file_fname.endswith('.mp4'), "the file's suffix must be .mp4"
+        self.fname = file_fname
         
-    def set(self, file_path):
-        self.path = file_path;
+    def set(self, file_fname):
+        self.fname = file_fname;
         
     def read(self):
-        return h5py.File(self.path, 'r')
+        return h5py.File(self.fname, 'r')
         
     def write(self, video):
         """
         Write an video object to the disk
         video: a video object
         """
-        h5py.File(self.path, video, 'w')
+        h5py.File(self.fname, video, 'w')
