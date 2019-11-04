@@ -1,87 +1,100 @@
 import os
-import unittest
 import h5py
+import pytest
 import numpy as np
-from dnnbrain.io.fileio import ActivationFile
+
 from os.path import join as pjoin
-from dnnbrain.io.fileio import StimulusFile
+from dnnbrain.io.fileio import StimulusFile, ActivationFile
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
-stim_file=pjoin(DNNBRAIN_TEST,'image','sub-CSI1_ses-01_imagenet.stim.csv')
-
 if not os.path.isdir(TMP_DIR):
     os.makedirs(TMP_DIR)
 
 
-class TestStimulusFile(unittest.TestCase):
-
-	def test_read(self):
-        
-		stim=StimulusFile(stim_file).read()
-		stim_type='image'
-		stim_pyth='/nfs/s2/dnnbrain_data/test/image/images'
-		stim_title='ImageNet images in all 5000scenes runs of sub-CSI1_ses-01'
-		stim_id=['n01930112_19568.JPEG','n03733281_29214.JPEG']
-		stim_rt=[3.6309,4.2031]
-		self.assertEqual(stim['type'],stim_type)
-		self.assertEqual(stim['title'],stim_title)
-		self.assertEqual(stim['path'],stim_pyth)
-		self.assertEqual(stim['data']['stimID'][0:1],stim_id[0:1])
-		self.assertEqual(stim['data']['RT'][0:1],stim_rt[0:1])
-
-	def test_write(self):
-	        pass
-
-
-class TestActivationFile(unittest.TestCase):
+class TestStimulusFile:
 
     def test_read(self):
-        #read file
-        fpath = pjoin(DNNBRAIN_TEST,"image","sub-CSI1_ses-01_imagenet.act.h5")
+
+        # ground truth
+        stim_type = 'image'
+        stim_title = 'ImageNet images in all 5000scenes runs of sub-CSI1_ses-01'
+        stim_id = ['n01930112_19568.JPEG', 'n03733281_29214.JPEG']
+        stim_rt = [3.6309, 4.2031]
+
+        # load by StimulusFile.read()
+        stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
+        stim = StimulusFile(stim_file).read()
+
+        # compare
+        assert stim['type'] == stim_type
+        assert stim['title'] == stim_title
+        assert stim['data']['stimID'][:2].tolist() == stim_id
+        assert stim['data']['RT'][:2].tolist() == stim_rt
+
+    def test_write(self):
+
+        # ground truth
+        type = 'video'
+        path = 'video_file'
+        title = 'video stimuli'
+        data = {'stimID': [1, 3, 5]}
+
+        # save by StimulusFile.write()
+        fname = pjoin(TMP_DIR, 'test.stim.csv')
+        StimulusFile(fname).write(type, path, data, title=title)
+
+        # compare
+        stim_dict = StimulusFile(fname).read()
+        assert stim_dict['type'] == type
+        assert stim_dict['path'] == path
+        assert stim_dict['title'] == title
+        assert stim_dict['data']['stimID'].tolist() == data['stimID']
+
+
+class TestActivationFile:
+
+    def test_read(self):
+
+        # read file
+        fpath = pjoin(DNNBRAIN_TEST, "image", "sub-CSI1_ses-01_imagenet.act.h5")
         test_read = ActivationFile(fpath).read()
-        rf = h5py.File(fpath,'r')
-        print(rf['conv5'])
-        # print(np.array(rf['conv5'].attrs['data']))
-        #assert
-        self.assertTrue(np.all(test_read['conv5']['raw_shape'] ==
-                               rf['conv5'].attrs['raw_shape']))
-        self.assertTrue(np.all(test_read['conv5']['data'] ==
-                               np.array(rf['conv5'])))
-        self.assertTrue(np.all(test_read['fc3']['raw_shape'] ==
-                               rf['fc3'].attrs['raw_shape']))
-        self.assertTrue(np.all(test_read['fc3']['data'] ==
-                               np.array(rf['fc3'])))
+        rf = h5py.File(fpath, 'r')
+
+        # assert
+        assert np.all(test_read['conv5']['raw_shape'] == rf['conv5'].attrs['raw_shape'])
+        assert np.all(test_read['conv5']['data'] == np.array(rf['conv5']))
+        assert np.all(test_read['fc3']['raw_shape'] == rf['fc3'].attrs['raw_shape'])
+        assert np.all(test_read['fc3']['data'] == np.array(rf['fc3']))
         rf.close()
 
     def test_write(self):
-        # prepare dictionary
-        fpath = pjoin(TMP_DIR,'test.act.h5')
-        act = np.random.randn(2,3)
-        raw_shape = act.shape
-        layers = ['conv4','fc2']
-        act_dict = {layers[0]:{'data': act, 'raw_shape':raw_shape},
-                    layers[1]:{'data': act, 'raw_shape':raw_shape}}
 
-        #write
+        # prepare dictionary
+        fpath = pjoin(TMP_DIR, 'test.act.h5')
+        act = np.random.randn(2, 3)
+        raw_shape = act.shape
+        layers = ['conv4', 'fc2']
+        act_dict = {layers[0]: {'data': act, 'raw_shape': raw_shape},
+                    layers[1]: {'data': act, 'raw_shape': raw_shape}}
+
+        # write
         ActivationFile(fpath).write(act_dict)
 
-        #compare
-        rf =  ActivationFile(fpath).read()
-        self.assertTrue(np.all(rf[layers[0]]['data'] ==
-                               np.array(act)))
-        self.assertTrue(np.all(rf[layers[0]]['raw_shape'] ==
-                               np.array(raw_shape)))
+        # compare
+        rf = ActivationFile(fpath).read()
+        assert np.all(rf[layers[0]]['data'] == np.array(act))
+        assert np.all(rf[layers[0]]['raw_shape'] == np.array(raw_shape))
 
 
-class TestMaskFile(unittest.TestCase):
+class TestMaskFile:
 
-	def test_read(self):
-		pass
+    def test_read(self):
+        pass
 
-	def test_write(self):
-	        pass
+    def test_write(self):
+        pass
 
 
-if __name__ =='__main__':
-   unittest.main()
+if __name__ == '__main__':
+    pytest.main()
