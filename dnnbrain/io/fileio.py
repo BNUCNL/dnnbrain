@@ -26,7 +26,7 @@ class StimulusFile:
         Format of .stim.csv of video stimuli is
         --------------------------
         type=video
-        fname=fname_to_video_file
+        fname=fname_of_video_file
         [Several optional keys] (eg., title=video stimuli)
         data=stimID,[onset],[duration],[label],[condition],acc,RT
         1,0,1,0,cat,0.4,0.5
