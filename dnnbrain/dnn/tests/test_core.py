@@ -1,5 +1,5 @@
 import os
-import unittest
+import pytest
 
 from os.path import join as pjoin
 
@@ -9,7 +9,7 @@ if not os.path.isdir(TMP_DIR):
     os.makedirs(TMP_DIR)
 
 
-class TestStimulus(unittest.TestCase):
+class TestStimulus:
 
     def test_load(self):
         pass
@@ -30,7 +30,7 @@ class TestStimulus(unittest.TestCase):
         pass
 
 
-class TestDNN(unittest.TestCase):
+class TestDNN:
 
     def test_load(self):
         pass
@@ -48,7 +48,7 @@ class TestDNN(unittest.TestCase):
         pass
 
 
-class TestActivation(unittest.TestCase):
+class TestActivation:
 
     def test_load(self):
         pass
@@ -81,7 +81,7 @@ class TestActivation(unittest.TestCase):
         pass
 
 
-class TestMask(unittest.TestCase):
+class TestMask:
 
     def test_load(self):
         pass
@@ -97,3 +97,7 @@ class TestMask(unittest.TestCase):
 
     def test_delete(self):
         pass
+
+
+if __name__ == '__main__':
+    pytest.main()

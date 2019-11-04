@@ -1,6 +1,6 @@
 import os
 import h5py
-import unittest
+import pytest
 import numpy as np
 
 from os.path import join as pjoin
@@ -12,7 +12,7 @@ if not os.path.isdir(TMP_DIR):
     os.makedirs(TMP_DIR)
 
 
-class TestStimulusFile(unittest.TestCase):
+class TestStimulusFile:
 
     def test_read(self):
 
@@ -27,10 +27,10 @@ class TestStimulusFile(unittest.TestCase):
         stim = StimulusFile(stim_file).read()
 
         # compare
-        self.assertEqual(stim['type'], stim_type)
-        self.assertEqual(stim['title'], stim_title)
-        self.assertEqual(stim['data']['stimID'][:2].tolist(), stim_id)
-        self.assertEqual(stim['data']['RT'][:2].tolist(), stim_rt)
+        assert stim['type'] == stim_type
+        assert stim['title'] == stim_title
+        assert stim['data']['stimID'][:2].tolist() == stim_id
+        assert stim['data']['RT'][:2].tolist() == stim_rt
 
     def test_write(self):
 
@@ -46,13 +46,13 @@ class TestStimulusFile(unittest.TestCase):
 
         # compare
         stim_dict = StimulusFile(fname).read()
-        self.assertEqual(stim_dict['type'], type)
-        self.assertEqual(stim_dict['path'], path)
-        self.assertEqual(stim_dict['title'], title)
-        self.assertEqual(stim_dict['data']['stimID'].tolist(), data['stimID'])
+        assert stim_dict['type'] == type
+        assert stim_dict['path'] == path
+        assert stim_dict['title'] == title
+        assert stim_dict['data']['stimID'].tolist() == data['stimID']
 
 
-class TestActivationFile(unittest.TestCase):
+class TestActivationFile:
 
     def test_read(self):
 
@@ -62,14 +62,10 @@ class TestActivationFile(unittest.TestCase):
         rf = h5py.File(fpath, 'r')
 
         # assert
-        self.assertTrue(np.all(test_read['conv5']['raw_shape'] ==
-                               rf['conv5'].attrs['raw_shape']))
-        self.assertTrue(np.all(test_read['conv5']['data'] ==
-                               np.array(rf['conv5'])))
-        self.assertTrue(np.all(test_read['fc3']['raw_shape'] ==
-                               rf['fc3'].attrs['raw_shape']))
-        self.assertTrue(np.all(test_read['fc3']['data'] ==
-                               np.array(rf['fc3'])))
+        assert np.all(test_read['conv5']['raw_shape'] == rf['conv5'].attrs['raw_shape'])
+        assert np.all(test_read['conv5']['data'] == np.array(rf['conv5']))
+        assert np.all(test_read['fc3']['raw_shape'] == rf['fc3'].attrs['raw_shape'])
+        assert np.all(test_read['fc3']['data'] == np.array(rf['fc3']))
         rf.close()
 
     def test_write(self):
@@ -87,13 +83,11 @@ class TestActivationFile(unittest.TestCase):
 
         # compare
         rf = ActivationFile(fpath).read()
-        self.assertTrue(np.all(rf[layers[0]]['data'] ==
-                               np.array(act)))
-        self.assertTrue(np.all(rf[layers[0]]['raw_shape'] ==
-                               np.array(raw_shape)))
+        assert np.all(rf[layers[0]]['data'] == np.array(act))
+        assert np.all(rf[layers[0]]['raw_shape'] == np.array(raw_shape))
 
 
-class TestMaskFile(unittest.TestCase):
+class TestMaskFile:
 
     def test_read(self):
         pass
@@ -103,4 +97,4 @@ class TestMaskFile(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    pytest.main()
