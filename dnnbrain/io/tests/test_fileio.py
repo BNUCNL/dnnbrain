@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from os.path import join as pjoin
-from dnnbrain.io.fileio import StimulusFile, ActivationFile
+from dnnbrain.io.fileio import StimulusFile, ActivationFile, MaskFile
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -90,10 +90,45 @@ class TestActivationFile:
 class TestMaskFile:
 
     def test_read(self):
-        pass
+
+        # ground truth
+        conv5_chn = [1, 2, 3]
+        conv5_row = [4, 5]
+        conv5_col = [6, 7, 8]
+        fc3_chn = [1, 2, 3]
+        fc3_keys = ['chn']
+
+        # load by MaskFile.read()
+        fname = pjoin(DNNBRAIN_TEST, 'alexnet.dmask.csv')
+        dmask = MaskFile(fname).read()
+
+        # assert
+        assert dmask['conv5']['chn'] == conv5_chn
+        assert dmask['conv5']['row'] == conv5_row
+        assert dmask['conv5']['col'] == conv5_col
+        assert dmask['fc3']['chn'] == fc3_chn
+        assert list(dmask['fc3'].keys()) == fc3_keys
 
     def test_write(self):
-        pass
+
+        # ground truth
+        dmask1 = {
+            'conv1': {'col': [1, 2, 3]},
+            'conv2': {'row': [2, 5, 6]},
+            'fc1': {'chn': [2, 4, 6]}
+        }
+
+        # save by MaskFile.write()
+        fname = pjoin(TMP_DIR, 'test.dmask.csv')
+        MaskFile(fname).write(dmask1)
+
+        # assert
+        dmask2 = MaskFile(fname).read()
+        assert dmask1.keys() == dmask2.keys()
+        assert dmask1['conv1']['col'] == dmask2['conv1']['col']
+        assert dmask1['conv2']['row'] == dmask2['conv2']['row']
+        assert dmask1['fc1']['chn'] == dmask2['fc1']['chn']
+        assert dmask1['fc1'].keys() == dmask2['fc1'].keys()
 
 
 if __name__ == '__main__':
