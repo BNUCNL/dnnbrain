@@ -51,7 +51,7 @@ class Stimulus:
         """
         stim_file = iofile.StimulusFile(path)
         meta = self.meta.copy()
-        stim_file.write(meta.pop('type'), meta.pop('fname'),
+        stim_file.write(meta.pop('type'), meta.pop('path'),
                         self._data, **meta)
 
     def get(self, item):
