@@ -1,14 +1,17 @@
-import cv2
-import numpy as np
-from PIL import Image
-
 import os
-from os.path import join as pjoin
-
+import cv2
 import torch
+import numpy as np
+
+from PIL import Image
+from os.path import join as pjoin
+from sklearn.decomposition import PCA
+from scipy.signal import periodogram
 from torchvision import transforms
 from torchvision import models as torch_models
 from dnnbrain.dnn import models as db_models
+
+DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
 def array_statistic(arr, method, axis=None, keepdims=False):
@@ -19,13 +22,14 @@ def array_statistic(arr, method, axis=None, keepdims=False):
     ----------
     arr[array]: a numpy array
     method[str]: feature extraction method
-    axis[int]: axis for feature extraction
-        If it's None, extract features from the whole array.
+    axis[int|tuple]: None or int or tuple of ints
+        Axis or axes along which to operate.
+        If it's None, operate on the whole array.
     keepdims[bool]: keep the axis which is reduced
 
     Return:
     ------
-    arr[array]: extracted features
+    arr[array]: extracted statistic
     """
     if method == 'max':
         arr = np.max(arr, axis, keepdims=keepdims)
@@ -175,30 +179,14 @@ class VideoSet:
         Return the number of frames
         """
         return len(self.frame_nums)
-    
 
 
-DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 class DNNLoader:
     """
     Load DNN model and initiate some information
     """
 
-    def __init__(self, net=None):
-        """
-        Load neural network model
-
-        Parameter:
-        ---------
-        net[str]: a neural network's name
-        """
-        self.model = None
-        self.layer2loc = None
-        self.img_size = None
-        if net is not None:
-            self.load(net)
-
-    def load(self, net):
+    def __init__(self, net):
         """
         Load neural network model by net name
 
@@ -233,24 +221,109 @@ class DNNLoader:
             self.layer2loc = None
             self.img_size = (224, 224)
         else:
-            raise ValueError("Not supported net name: {}, you can load model, "
-                             "parameters, layer2loc, img_size manually by load_model".format(net))
+            raise ValueError("Not supported net name:", net)
 
-    def load_model(self, model, parameters=None,
-                   layer2loc=None, img_size=None):
-        """
-        Load DNN model, parameters, layer2loc and img_size manually
 
-        Parameters:
-        ----------
-        model[nn.Modules]: DNN model
-        parameters[state_dict]: Parameters of DNN model
-        layer2loc[dict]: map layer name to its location in the DNN model
-        img_size[tuple]: the input image size
-        """
-        self.model = model
-        if parameters is not None:
-            self.model.load_state_dict(parameters)
-        self.layer2loc = layer2loc
-        self.img_size = img_size
+def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
+    """
+    Extract DNN activation
 
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    channels[list]: sequence numbers of channels of interest.
+    rows[list]: sequence numbers of rows of interest.
+    columns[list]: sequence numbers of columns of interest.
+
+    Return:
+    ------
+    dnn_acts[array]: DNN activation after mask
+        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    """
+    if channels is not None:
+        channels = [chn-1 for chn in channels]
+        dnn_acts = dnn_acts[:, channels, :, :]
+    if rows is not None:
+        rows = [row-1 for row in rows]
+        dnn_acts = dnn_acts[:, :, rows, :]
+    if columns is not None:
+        columns = [col-1 for col in columns]
+        dnn_acts = dnn_acts[:, :, :, columns]
+
+    return dnn_acts
+
+
+def dnn_fe(dnn_acts, method, n_feat, axis=None):
+    """
+    Extract features of DNN activation
+
+    Parameters:
+    ----------
+    dnn_acts[array]: DNN activation
+        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    method[str]: feature extraction method, choices=(pca, hist, psd)
+        pca: use n_feat principal components as features
+        hist: use histogram of activation as features
+            Note: n_feat equal-width bins in the given range will be used!
+        psd: use power spectral density as features
+    n_feat[int]: The number of features to extract
+    axis{str}: axis for feature extraction, choices=(chn, row_col)
+        If is chn, extract feature along channel axis.
+            The result will be an array with shape
+            as (n_stim, n_feat, n_row, n_col)
+        If is row_col, extract feature alone row and column axis.
+            The result will be an array with shape
+            as (n_stim, n_chn, n_feat, 1)
+        If is None, extract features from the whole layer.
+            The result will be an array with shape
+            as (n_stim, n_feat, 1, 1)
+        We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
+
+    Return:
+    ------
+    dnn_acts_new[array]: DNN activation
+        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    """
+    # adjust iterative axis
+    n_stim, n_chn, n_row, n_col = dnn_acts.shape
+    dnn_acts = dnn_acts.reshape((n_stim, n_chn, n_row*n_col))
+    if axis is None:
+        dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+    elif axis == 'chn':
+        dnn_acts = dnn_acts.transpose((0, 2, 1))
+    elif axis == 'row_col':
+        pass
+    else:
+        raise ValueError('not supported axis:', axis)
+    _, n_iter, _ = dnn_acts.shape
+
+    # extract features
+    dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
+    if method == 'pca':
+        pca = PCA(n_components=n_feat)
+        for i in range(n_iter):
+            dnn_acts_new[:, i, :] = pca.fit_transform(dnn_acts[:, i, :])
+    elif method == 'hist':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                dnn_acts_new[j, i, :] = np.histogram(dnn_acts[j, i, :], n_feat)[0]
+    elif method == 'psd':
+        for i in range(n_iter):
+            for j in range(n_stim):
+                f, p = periodogram(dnn_acts[j, i, :])
+                dnn_acts_new[j, i, :] = p[:n_feat]
+    else:
+        raise ValueError('not supported method:', method)
+
+    # adjust iterative axis
+    if axis is None:
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+        dnn_acts_new = dnn_acts_new[:, :, :, None]
+    elif axis == 'chn':
+        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
+        dnn_acts_new = dnn_acts_new.reshape((n_stim, n_feat, n_row, n_col))
+    else:
+        dnn_acts_new = dnn_acts_new[:, :, :, None]
+
+    return dnn_acts_new
