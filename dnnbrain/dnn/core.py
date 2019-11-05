@@ -3,11 +3,10 @@ import numpy as np
 import dnnbrain.io.fileio as fio
 
 from copy import deepcopy
-from dnnbrain.dnn.base import DNNLoader
+from dnnbrain.dnn.base import DNNLoader, dnn_mask, dnn_fe
 from dnnbrain.dnn.base import array_statistic
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
-from scipy.signal import convolve, periodogram
-from sklearn.decomposition import PCA
+from scipy.signal import convolve
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVC
@@ -304,9 +303,9 @@ class Activation:
         Parameters:
         ----------
         fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
         """
-        self._act = dict()
+        self._activation = dict()
         if fname is not None:
             self.load(fname, dmask)
 
@@ -317,11 +316,16 @@ class Activation:
         Parameters:
         ----------
         fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
         """
         if dmask is not None:
-            dmask = dmask._dmask
-        self._act = fio.ActivationFile(fname).read(dmask)
+            dmask_dict = dict()
+            for layer in dmask.layers:
+                dmask_dict[layer] = dmask.get(layer)
+        else:
+            dmask_dict = None
+
+        self._activation = fio.ActivationFile(fname).read(dmask_dict)
 
     def save(self, fname):
         """
@@ -331,105 +335,76 @@ class Activation:
         ---------
         fname[str]: output file of DNN activation
         """
-        fio.ActivationFile(fname).write(self._act)
+        fio.ActivationFile(fname).write(self._activation)
 
-    def get(self, layer, raw_shape=False):
+    def get(self, layer):
         """
-        Get DNN activation or its raw_shape (if exist)
+        Get DNN activation
 
-        Parameters:
-        ----------
+        Parameter:
+        ---------
         layer[str]: layer name
-        raw_shape[bool]:
-            If true, get raw_shape of the layer's activation.
-            If false, get the layer's activation.
 
         Return:
         ------
-        data[tuple|array]: raw shape or (n_stim, n_chn, n_col) array
+            [array]: (n_stim, n_chn, n_row, n_col) array
         """
-        if raw_shape:
-            data = self._act[layer]['raw_shape']
-        else:
-            data = self._act[layer]['data']
+        return self._activation[layer]
 
-        return data
-
-    def set(self, layer, value=None, raw_shape=None):
+    def set(self, layer, data):
         """
-        Set DNN activation or its raw shape
-        If the layer doesn't exist, initiate it with the value.
+        Set DNN activation
 
         Parameters:
         ----------
         layer[str]: layer name
-        value[array]: 3D DNN activation array with shape (n_stim, n_chn, n_col)
-        raw_shape[tuple]: raw_shape of the layer's activation
+        data[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
         """
-        if layer not in self._act:
-            if value is None:
-                raise ValueError("The value can't be None when initiating a new layer!")
-            self._act[layer] = {'data': value, 'raw_shape': ()}
-        else:
-            if value is not None:
-                self._act[layer]['data'] = value
+        self._activation[layer] = data
 
-        if raw_shape is not None:
-            self._act[layer]['raw_shape'] = raw_shape
-
-    def delete(self, layer, raw_shape=False):
+    def delete(self, layer):
         """
-        Delete DNN activation or its raw_shape attribution
+        Delete DNN activation
 
-        Parameters:
-        ----------
+        Parameter:
+        ---------
         layer[str]: layer name
-        raw_shape[bool]:
-            If true, delete raw_shape of the layer's activation.
-            If false, delete the layer's activation and raw_shape.
         """
-        if raw_shape:
-            self._act[layer].pop('raw_shape')
-        else:
-            self._act.pop(layer)
+        self._activation.pop(layer)
 
-    def concatenate(self, acts):
+    def concatenate(self, activations):
         """
         Concatenate activations from different batches of stimuli
 
         Parameter:
         ---------
-        acts[list]: a list of Activation objects
+        activations[list]: a list of Activation objects
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
         # check availability
-        for i, v in enumerate(acts, 1):
+        for i, v in enumerate(activations, 1):
             if not isinstance(v, Activation):
-                raise TypeError('All elements in acts must be instances of Activation!')
+                raise TypeError('All elements in activations must be instances of Activation!')
             if sorted(self.layers) != sorted(v.layers):
                 raise ValueError("The element{}'s layers mismatch with self!".format(i))
 
         # concatenate
-        act = Activation()
+        activation = Activation()
         for layer in self.layers:
             # concatenate activation
-            data = [v.get(layer) for v in acts]
+            data = [v.get(layer) for v in activations]
             data.insert(0, self.get(layer))
             data = np.concatenate(data)
+            activation.set(layer, data)
 
-            # update raw shape
-            n_stim = data.shape[0]
-            raw_shape = (n_stim,) + self.get(layer, True)[1:]
-            act.set(layer, data, raw_shape)
-
-        return act
+        return activation
 
     @property
     def layers(self):
-        return list(self._act.keys())
+        return list(self._activation.keys())
 
     def mask(self, dmask):
         """
@@ -437,20 +412,20 @@ class Activation:
 
         Parameter:
         ---------
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
-        act = Activation()
+        activation = Activation()
         for layer in dmask.layers:
-            channels = dmask.get(layer, 'chn')
-            columns = dmask.get(layer, 'col')
-            data = dnn_mask(self.get(layer), channels, columns)
-            act.set(layer, data, self.get(layer, True))
+            mask = dmask.get(layer)
+            data = dnn_mask(self.get(layer), mask.get('chn'),
+                            mask.get('row'), mask.get('col'))
+            activation.set(layer, data)
 
-        return act
+        return activation
 
     def pool(self, method, dmask=None):
         """
@@ -459,63 +434,60 @@ class Activation:
         Parameters:
         ----------
         method[str]: pooling method, choices=(max, mean, median)
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
-        act = Activation()
+        activation = Activation()
         if dmask is None:
-            for layer, d in self._act.items():
-                data = dnn_pooling(d['data'], method)
-                act.set(layer, data, d['raw_shape'])
+            for layer, data in self._activation.items():
+                data = array_statistic(data, method, (2, 3), True)
+                activation.set(layer, data)
         else:
             for layer in dmask.layers:
-                channels = dmask.get(layer, 'chn')
-                columns = dmask.get(layer, 'col')
-                data = dnn_mask(self.get(layer), channels, columns)
-                data = dnn_pooling(data, method)
-                act.set(layer, data, self.get(layer, True))
+                mask = dmask.get(layer)
+                data = dnn_mask(self.get(layer), mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
+                data = array_statistic(data, method, (2, 3), True)
+                activation.set(layer, data)
 
-        return act
+        return activation
 
-    def fe(self, method, n_feature, axis=None, dmask=None):
+    def fe(self, method, n_feat, axis=None, dmask=None):
         """
         Extract features of DNN activation
 
         Parameters:
         ----------
         method[str]: feature extraction method, choices=(pca, hist, psd)
-            pca: use n_feature principal components as features
+            pca: use n_feat principal components as features
             hist: use histogram of activation as features
-                Note: n_feature equal-width bins in the given range will be used!
+                Note: n_feat equal-width bins in the given range will be used!
                 psd: use power spectral density as features
-        n_feature[int]: The number of features to extract
-        axis{str}: axis for feature extraction, choices=(chn, col)
-            If it's None, extract features from the whole layer. Note:
-            The result of this will be an array with shape (n_stim, n_feat, 1), but
-            We also regard it as (n_stim, n_chn, n_col)
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        n_feat[int]: The number of features to extract
+        axis{str}: axis for feature extraction, choices=(chn, row_col)
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
-        Returns:
-        -------
-        act[Activation]: DNN activation
+        Return:
+        ------
+        activation[Activation]: DNN activation
         """
-        act = Activation()
+        activation = Activation()
         if dmask is None:
-            for layer, d in self._act.items():
-                data = dnn_fe(d['data'], method, n_feature, axis)
-                act.set(layer, data, d['raw_shape'])
+            for layer, data in self._activation.items():
+                data = dnn_fe(data, method, n_feat, axis)
+                activation.set(layer, data)
         else:
             for layer in dmask.layers:
-                channels = dmask.get(layer, 'chn')
-                columns = dmask.get(layer, 'col')
-                data = dnn_mask(self.get(layer), channels, columns)
-                data = dnn_fe(data, method, n_feature, axis)
-                act.set(layer, data, self.get(layer, True))
+                mask = dmask.get(layer)
+                data = dnn_mask(self.get(layer), mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
+                data = dnn_fe(data, method, n_feat, axis)
+                activation.set(layer, data)
 
-        return act
+        return activation
 
     def _check_arithmetic(self, other):
         """
@@ -533,8 +505,6 @@ class Activation:
         for layer in self.layers:
             assert self.get(layer).shape == other.get(layer).shape, \
                 "{}'s activation shape mismatch!".format(layer)
-            assert self.get(layer, True) == other.get(layer, True), \
-                "{}'s raw shape mismatch!".format(layer)
 
     def __add__(self, other):
         """
@@ -546,16 +516,16 @@ class Activation:
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
         self._check_arithmetic(other)
 
-        act = Activation()
+        activation = Activation()
         for layer in self.layers:
             data = self.get(layer) + other.get(layer)
-            act.set(layer, data, self.get(layer, True))
+            activation.set(layer, data)
 
-        return act
+        return activation
 
     def __sub__(self, other):
         """
@@ -567,16 +537,16 @@ class Activation:
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
         self._check_arithmetic(other)
 
-        act = Activation()
+        activation = Activation()
         for layer in self.layers:
             data = self.get(layer) - other.get(layer)
-            act.set(layer, data, self.get(layer, True))
+            activation.set(layer, data)
 
-        return act
+        return activation
 
     def __mul__(self, other):
         """
@@ -588,16 +558,16 @@ class Activation:
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
         self._check_arithmetic(other)
 
-        act = Activation()
+        activation = Activation()
         for layer in self.layers:
             data = self.get(layer) * other.get(layer)
-            act.set(layer, data, self.get(layer, True))
+            activation.set(layer, data)
 
-        return act
+        return activation
 
     def __truediv__(self, other):
         """
@@ -609,16 +579,16 @@ class Activation:
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
         self._check_arithmetic(other)
 
-        act = Activation()
+        activation = Activation()
         for layer in self.layers:
             data = self.get(layer) / other.get(layer)
-            act.set(layer, data, self.get(layer, True))
+            activation.set(layer, data)
 
-        return act
+        return activation
 
 
 class Mask:
@@ -654,24 +624,19 @@ class Mask:
         """
         fio.MaskFile(fname).write(self._dmask)
 
-    def get(self, layer, axis=None):
+    def get(self, layer):
         """
         Get mask of a layer
 
-        Parameters:
-        ----------
+        Parameter:
+        ---------
         layer[str]: layer name
-        axis[str]: chn, row, or col
 
         Return:
         ------
-        dmask[dict|list]: layer mask
+            [dict]: layer mask
         """
-        dmask = self._dmask[layer]
-        if axis is not None:
-            dmask = dmask[axis]
-
-        return dmask
+        return self._dmask[layer]
 
     def set(self, layer, channels=None, rows=None, columns=None):
         """
@@ -768,115 +733,6 @@ def dnn_activation(data, model, layer_loc, channels=None):
 
     hook_handle.remove()
     return dnn_acts
-
-
-def dnn_mask(dnn_acts, channels='all', columns='all'):
-    """
-    Extract DNN activation
-
-    Parameters:
-    ----------
-    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    channels[list|str]:
-            If is list, it contains sequence numbers of channels of interest.
-            If is str, it must be 'all' that means all channels in the layer.
-    columns[list|str]:
-            If is list, it contains sequence numbers of columns of interest.
-            If is str, it must be 'all' that means all columns in the layer.
-
-    Return:
-    ------
-    dnn_acts[array]: DNN activation after mask
-        a 3D array with its shape as (n_stim, n_chn, n_col)
-    """
-    if channels != 'all':
-        channels = [chn-1 for chn in channels]
-        dnn_acts = dnn_acts[:, channels, :]
-    if columns != 'all':
-        columns = [col-1 for col in columns]
-        dnn_acts = dnn_acts[:, :, columns]
-
-    return dnn_acts
-
-
-def dnn_pooling(dnn_acts, method):
-    """
-    Pooling DNN activation for each channel
-
-    Parameters:
-    ------------
-    dnn_acts[array]: DNN activation, A 3D array with its shape as (n_stim, n_chn, n_col)
-    method[str]: pooling method, choices=(max, mean, median)
-
-    Returns:
-    ---------
-    dnn_acts[array]: DNN activation after pooling
-        a 3D array with its shape as (n_stim, n_chn, 1)
-    """
-    return array_statistic(dnn_acts, method, 2, True)
-
-
-def dnn_fe(dnn_acts, meth, n_feat, axis=None):
-    """
-    Extract features of DNN activation
-
-    Parameters:
-    ----------
-    dnn_acts[array]: DNN activation
-        a 3D array with its shape as (n_stim, n_chn, n_col)
-    meth[str]: feature extraction method, choices=(pca, hist, psd)
-        pca: use n_feat principal components as features
-        hist: use histogram of activation as features
-            Note: n_feat equal-width bins in the given range will be used!
-        psd: use power spectral density as features
-    n_feat[int]: The number of features to extract
-    axis{str}: axis for feature extraction, choices=(chn, col)
-        If it's None, extract features from the whole layer. Note:
-        The result of this will be an array with shape (n_stim, n_feat, 1), but
-        We also regard it as (n_stim, n_chn, n_col)
-
-    Returns:
-    -------
-    dnn_acts_new[array]: DNN activation
-        a 3D array with its shape as (n_stim, n_chn, n_col)
-    """
-    # adjust iterative axis
-    n_stim, n_chn, n_col = dnn_acts.shape
-    if axis is None:
-        dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
-    elif axis == 'chn':
-        dnn_acts = dnn_acts.transpose((0, 2, 1))
-    elif axis == 'col':
-        pass
-    else:
-        raise ValueError('not supported axis:', axis)
-    _, n_iter, _ = dnn_acts.shape
-
-    # extract features
-    dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
-    if meth == 'pca':
-        pca = PCA(n_components=n_feat)
-        for i in range(n_iter):
-            dnn_acts_new[:, i, :] = pca.fit_transform(dnn_acts[:, i, :])
-    elif meth == 'hist':
-        for i in range(n_iter):
-            for j in range(n_stim):
-                dnn_acts_new[j, i, :] = np.histogram(dnn_acts[j, i, :], n_feat)[0]
-    elif meth == 'psd':
-        for i in range(n_iter):
-            for j in range(n_stim):
-                f, p = periodogram(dnn_acts[j, i, :])
-                dnn_acts_new[j, i, :] = p[:n_feat]
-    else:
-        raise ValueError('not supported method:', meth)
-
-    # adjust iterative axis
-    if axis is None:
-        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
-    elif axis == 'chn':
-        dnn_acts_new = dnn_acts_new.transpose((0, 2, 1))
-
-    return dnn_acts_new
 
 
 def db_uva(dnn_acts, resp, model, iter_axis=None, cvfold=3):
