@@ -129,7 +129,7 @@ class ActivationFile:
 
     def read(self, dmask=None):
         """
-        Read DNN activation and its raw_shape (if exist)
+        Read DNN activation
 
         Parameter:
         ---------
@@ -137,46 +137,47 @@ class ActivationFile:
 
         Return:
         ------
-        act[dict]: DNN activation with its attribution
+        activation[dict]: DNN activation
         """
-        # open file
+        # prepare
         rf = h5py.File(self.fname, 'r')
 
         if dmask is None:
             dmask = dict()
             for layer in rf.keys():
-                dmask[layer] = {'chn': 'all', 'col': 'all'}
+                dmask[layer] = dict()
 
-        # read activation and attribution
-        act = dict()
+        # read activation
+        activation = dict()
         for k, v in dmask.items():
-            act[k] = dict()
+            activation[k] = dict()
             ds = rf[k]
-            if v['chn'] != 'all':
+            if v.get('chn') is not None:
                 channels = [chn-1 for chn in v['chn']]
-                ds = ds[:, channels, :]
-            if v['col'] != 'all':
+                ds = ds[:, channels, :, :]
+            if v.get('row') is not None:
+                rows = [row-1 for row in v['row']]
+                ds = ds[:, :, rows, :]
+            if v.get('col') is not None:
                 columns = [col-1 for col in v['col']]
-                ds = ds[:, :, columns]
+                ds = ds[:, :, :, columns]
 
-            act[k]['data'] = np.asarray(ds)
-            act[k]['raw_shape'] = tuple(rf[k].attrs['raw_shape'])
+            activation[k] = np.asarray(ds)
 
         rf.close()
-        return act
+        return activation
     
-    def write(self, act):
+    def write(self, activation):
         """
         Write DNN activation to a hdf5 file
 
         Parameter:
         ---------
-        act[dict]: DNN activation with its attribution
+        activation[dict]: DNN activation
         """
         wf = h5py.File(self.fname, 'w')
-        for layer, value in act.items():
-            ds = wf.create_dataset(layer, data=value['data'])
-            ds.attrs['raw_shape'] = value['raw_shape']
+        for layer, data in activation.items():
+            wf.create_dataset(layer, data=data)
 
         wf.close()
 

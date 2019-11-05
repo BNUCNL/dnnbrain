@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 
 from os.path import join as pjoin
-from dnnbrain.io.fileio import StimulusFile, ActivationFile, MaskFile
+from dnnbrain.io import fileio as fio
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -24,7 +24,7 @@ class TestStimulusFile:
 
         # load by StimulusFile.read()
         stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
-        stim = StimulusFile(stim_file).read()
+        stim = fio.StimulusFile(stim_file).read()
 
         # compare
         assert stim['type'] == stim_type
@@ -42,10 +42,10 @@ class TestStimulusFile:
 
         # save by StimulusFile.write()
         fname = pjoin(TMP_DIR, 'test.stim.csv')
-        StimulusFile(fname).write(type, path, data, title=title)
+        fio.StimulusFile(fname).write(type, path, data, title=title)
 
         # compare
-        stim_dict = StimulusFile(fname).read()
+        stim_dict = fio.StimulusFile(fname).read()
         assert stim_dict['type'] == type
         assert stim_dict['path'] == path
         assert stim_dict['title'] == title
@@ -56,35 +56,38 @@ class TestActivationFile:
 
     def test_read(self):
 
-        # read file
-        fpath = pjoin(DNNBRAIN_TEST, "image", "sub-CSI1_ses-01_imagenet.act.h5")
-        test_read = ActivationFile(fpath).read()
-        rf = h5py.File(fpath, 'r')
+        fname = pjoin(DNNBRAIN_TEST, "image", "sub-CSI1_ses-01_imagenet.act.h5")
+        # ground truth
+        rf = h5py.File(fname, 'r')
+
+        # load by ActivationFile.read()
+        activation = fio.ActivationFile(fname).read()
 
         # assert
-        assert np.all(test_read['conv5']['raw_shape'] == rf['conv5'].attrs['raw_shape'])
-        assert np.all(test_read['conv5']['data'] == np.array(rf['conv5']))
-        assert np.all(test_read['fc3']['raw_shape'] == rf['fc3'].attrs['raw_shape'])
-        assert np.all(test_read['fc3']['data'] == np.array(rf['fc3']))
+        assert np.all(activation['conv5'] == np.array(rf['conv5']))
+        assert np.all(activation['fc3'] == np.array(rf['fc3']))
+
         rf.close()
 
     def test_write(self):
 
-        # prepare dictionary
-        fpath = pjoin(TMP_DIR, 'test.act.h5')
-        act = np.random.randn(2, 3)
-        raw_shape = act.shape
-        layers = ['conv4', 'fc2']
-        act_dict = {layers[0]: {'data': act, 'raw_shape': raw_shape},
-                    layers[1]: {'data': act, 'raw_shape': raw_shape}}
+        fname = pjoin(TMP_DIR, 'test.act.h5')
+        # ground truth
+        activation = {
+            'conv5': np.random.randn(5, 3, 13, 13),
+            'fc3': np.random.randn(5, 10, 1, 1)
+        }
 
-        # write
-        ActivationFile(fpath).write(act_dict)
+        # save by ActivationFile.write()
+        fio.ActivationFile(fname).write(activation)
 
-        # compare
-        rf = ActivationFile(fpath).read()
-        assert np.all(rf[layers[0]]['data'] == np.array(act))
-        assert np.all(rf[layers[0]]['raw_shape'] == np.array(raw_shape))
+        # assert
+        rf = h5py.File(fname, 'r')
+        assert list(activation.keys()) == list(rf.keys())
+        for layer, data in activation.items():
+            assert np.all(data == np.array(rf[layer]))
+
+        rf.close()
 
 
 class TestMaskFile:
@@ -100,7 +103,7 @@ class TestMaskFile:
 
         # load by MaskFile.read()
         fname = pjoin(DNNBRAIN_TEST, 'alexnet.dmask.csv')
-        dmask = MaskFile(fname).read()
+        dmask = fio.MaskFile(fname).read()
 
         # assert
         assert dmask['conv5']['chn'] == conv5_chn
@@ -120,10 +123,10 @@ class TestMaskFile:
 
         # save by MaskFile.write()
         fname = pjoin(TMP_DIR, 'test.dmask.csv')
-        MaskFile(fname).write(dmask1)
+        fio.MaskFile(fname).write(dmask1)
 
         # assert
-        dmask2 = MaskFile(fname).read()
+        dmask2 = fio.MaskFile(fname).read()
         assert dmask1.keys() == dmask2.keys()
         assert dmask1['conv1']['col'] == dmask2['conv1']['col']
         assert dmask1['conv2']['row'] == dmask2['conv2']['row']
