@@ -1,10 +1,12 @@
 import torch
 import numpy as np
-import dnnbrain.io.fileio as fio
 
 from copy import deepcopy
-from dnnbrain.dnn.base import DNNLoader, dnn_mask, dnn_fe
-from dnnbrain.dnn.base import array_statistic
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose, Resize, ToTensor
+from dnnbrain.io import fileio as fio
+from dnnbrain.dnn.base import DNNLoader, dnn_mask, dnn_fe, array_statistic
+from dnnbrain.dnn.base import ImageSet, VideoSet
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
@@ -200,52 +202,79 @@ class DNN:
         assert fname.endswith('.pth'), 'File suffix must be .pth'
         torch.save(self.model.state_dict(), fname)
 
-    def compute_activation(self, data, dmask):
+    def set(self, model, parameters=None, layer2loc=None, img_size=None):
+        """
+        Load DNN model, parameters, layer2loc and img_size manually
+
+        Parameters:
+        ----------
+        model[nn.Modules]: DNN model
+        parameters[state_dict]: Parameters of DNN model
+        layer2loc[dict]: map layer name to its location in the DNN model
+        img_size[tuple]: the input image size
+        """
+        self.model = model
+        if parameters is not None:
+            self.model.load_state_dict(parameters)
+        self.layer2loc = layer2loc
+        self.img_size = img_size
+
+    def compute_activation(self, stimuli, dmask):
         """
         Extract DNN activation
 
         Parameters:
         ----------
-        data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, height, width)
-        dmask[Mask]: The mask includes layers/channels/columns of interest.
+        stimuli[Stimulus]: input stimuli
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
         ------
-        act[Activation]: DNN activation
+        activation[Activation]: DNN activation
         """
+        # prepare stimuli loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if stimuli.meta['type'] == 'image':
+            stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+        elif stimuli.meta['type'] == 'video':
+            stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+        else:
+            raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # -extract activation-
         # change to eval mode
         self.model.eval()
-
-        act = Activation()
+        n_stim = len(stim_set)
+        activation = Activation()
         for layer in dmask.layers:
             # prepare dnn activation hook
             acts_holder = []
 
             def hook_act(module, input, output):
-                # copy dnn activation and record raw shape
+                # copy dnn activation and mask it
                 acts = output.detach().numpy().copy()
-                raw_shape = acts.shape
-
-                # reshape dnn activation and mask it
-                acts = acts.reshape((raw_shape[0], raw_shape[1], -1))
-                acts = dnn_mask(acts, dmask.get(layer, 'chn'),
-                                dmask.get(layer, 'col'))
-
+                mask = dmask.get(layer)
+                acts = dnn_mask(acts, mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
                 # hold the information
-                acts_holder.append(acts)
-                acts_holder.append(raw_shape)
+                acts_holder.extend(acts)
 
             module = self.model
             for k in self.layer2loc[layer]:
                 module = module._modules[k]
             hook_handle = module.register_forward_hook(hook_act)
 
-            # extract dnn activation
-            self.model(data)
-            act.set(layer, *acts_holder)
+            # extract DNN activation
+            for stims, _ in data_loader:
+                self.model(stims)
+                print('Extracted activation of {0}: {1}/{2}'.format(
+                    layer, len(acts_holder), n_stim))
+            activation.set(layer, np.asarray(acts_holder))
+
             hook_handle.remove()
 
-        return act
+        return activation
 
     def get_kernel(self, layer, kernel_num=None):
         """
