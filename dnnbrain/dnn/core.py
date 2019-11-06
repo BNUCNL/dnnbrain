@@ -647,6 +647,32 @@ class Activation:
 
         return activation
 
+    def __getitem__(self, indices):
+        """
+        Get part of Activation along stimulus axis
+
+        Parameter:
+        ---------
+        indices[int|list|slice]: indices of stimulus axis
+
+        Return:
+        ------
+        activation[Activation]: DNN activation
+        """
+        if isinstance(indices, int):
+            indices = [indices]
+        elif isinstance(indices, (list, slice)):
+            pass
+        else:
+            raise IndexError("only integer, slices (`:`), and list are valid indices")
+
+        activation = Activation()
+        for layer in self.layers:
+            data = self.get(layer)[indices]
+            activation.set(layer, data)
+
+        return activation
+
 
 class Mask:
     """DNN mask"""
