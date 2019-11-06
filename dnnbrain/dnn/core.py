@@ -275,6 +275,12 @@ class DNN:
             def hook_act(module, input, output):
                 # copy dnn activation and mask it
                 acts = output.detach().numpy().copy()
+                if acts.ndim == 4:
+                    pass
+                elif acts.ndim == 2:
+                    acts = acts[:, :, None, None]
+                else:
+                    raise ValueError('Unexpected activation shape:', acts.shape)
                 mask = dmask.get(layer)
                 acts = dnn_mask(acts, mask.get('chn'),
                                 mask.get('row'), mask.get('col'))

@@ -7,10 +7,7 @@ Extract activation from DNN
 import argparse
 import numpy as np
 
-from torch.utils.data import DataLoader
-from torchvision import transforms
 from dnnbrain.dnn.core import DNN, Stimulus, Mask
-from dnnbrain.dnn.base import ImageSet, VideoSet
 
 
 def main():
@@ -50,16 +47,7 @@ def main():
     dnn = DNN(args.net)
 
     # -load stimuli-
-    stim = Stimulus(args.stim)
-    transform = transforms.Compose([transforms.Resize(dnn.img_size), transforms.ToTensor()])
-    if stim.meta['type'] == 'image':
-        dataset = ImageSet(stim.meta['path'], stim.get('stimID'), transform=transform)
-    elif stim.meta['type'] == 'video':
-        dataset = VideoSet(stim.meta['path'], stim.get('stimID'), transform=transform)
-    else:
-        raise TypeError('{} is not a supported stimulus type.'.format(stim.meta['type']))
-    batch_size = 8
-    data_loader = DataLoader(dataset, batch_size, shuffle=False)
+    stimuli = Stimulus(args.stim)
 
     # -load mask-
     dmask = Mask()
@@ -70,15 +58,8 @@ def main():
         dmask.load(args.dmask)
 
     # -extract activation-
-    n_stim = len(dataset)
-    act = []
-    for stims, _ in data_loader:
-        act.append(dnn.compute_activation(stims, dmask))
-        count = len(act) * batch_size
-        print('Extracted acts: {0}/{1}'.format(min(count, n_stim), n_stim))
-    act = act[0].concatenate(act[1:])
-
-    act.save(args.out)
+    activation = dnn.compute_activation(stimuli, dmask)
+    activation.save(args.out)
 
 
 if __name__ == '__main__':

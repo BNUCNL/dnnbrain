@@ -190,7 +190,7 @@ class TestDNN:
         # assert
         np.testing.assert_almost_equal(np.asarray(rf['conv5']),
                                        activation.get('conv5'), 4)
-        np.testing.assert_almost_equal(np.asarray(rf['fc3'])[:, :, 0, 0],
+        np.testing.assert_almost_equal(np.asarray(rf['fc3']),
                                        activation.get('fc3'), 4)
 
     def test_get_kernel(self):
