@@ -107,7 +107,12 @@ class Stimulus:
         stim[Stimulus]: a part of the self.
         """
         # parse subscript indices
-        if isinstance(indices, (int, slice, list)):
+        if isinstance(indices, int):
+            # regard it as row index
+            # get all columns
+            rows = [indices]
+            cols = self.items
+        elif isinstance(indices, (slice, list)):
             # regard it all as row indices
             # get all columns
             rows = indices
@@ -120,12 +125,28 @@ class Stimulus:
             elif len(indices) == 1:
                 # regard the only element as row indices
                 # get all columns
-                rows = indices[0]
+                if isinstance(indices[0], int):
+                    # regard it as row index
+                    rows = [indices[0]]
+                elif isinstance(indices[0], (slice, list)):
+                    # regard it all as row indices
+                    rows = indices[0]
+                else:
+                    raise IndexError("only integer, slices (`:`), list are valid row indices")
                 cols = self.items
             elif len(indices) == 2:
                 # regard the first element as row indices
                 # regard the second element as column indices
                 rows, cols = indices
+                if isinstance(rows, int):
+                    # regard it as row index
+                    rows = [rows]
+                elif isinstance(rows, (slice, list)):
+                    # regard it all as row indices
+                    pass
+                else:
+                    raise IndexError("only integer, slices (`:`), list are valid row indices")
+
                 if isinstance(cols, int):
                     # get a column according to an integer
                     cols = [self.items[cols]]
@@ -254,6 +275,12 @@ class DNN:
             def hook_act(module, input, output):
                 # copy dnn activation and mask it
                 acts = output.detach().numpy().copy()
+                if acts.ndim == 4:
+                    pass
+                elif acts.ndim == 2:
+                    acts = acts[:, :, None, None]
+                else:
+                    raise ValueError('Unexpected activation shape:', acts.shape)
                 mask = dmask.get(layer)
                 acts = dnn_mask(acts, mask.get('chn'),
                                 mask.get('row'), mask.get('col'))
