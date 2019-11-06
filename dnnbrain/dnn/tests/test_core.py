@@ -322,6 +322,37 @@ class TestActivation:
     def test_arithmetic(self):
         pass
 
+    def test_getitem(self):
+
+        # prepare
+        act = dcore.Activation()
+        act._activation = self.activation_true
+
+        # -assert int-
+        # assert positive
+        indices = 1
+        act_tmp = act[indices]
+        for layer, data in act_tmp._activation.items():
+            np.testing.assert_equal(data[0], act.get(layer)[indices])
+
+        # assert negative
+        indices = -1
+        act_tmp = act[indices]
+        for layer, data in act_tmp._activation.items():
+            np.testing.assert_equal(data[0], act.get(layer)[indices])
+
+        # -assert list-
+        indices = [1, 3]
+        act_tmp = act[indices]
+        for layer, data in act_tmp._activation.items():
+            np.testing.assert_equal(data, act.get(layer)[indices])
+
+        # -assert slice-
+        indices = slice(1, 3)
+        act_tmp = act[indices]
+        for layer, data in act_tmp._activation.items():
+            np.testing.assert_equal(data, act.get(layer)[indices])
+
 
 class TestMask:
 
