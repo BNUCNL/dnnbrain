@@ -6,6 +6,9 @@ import numpy as np
 from PIL import Image
 from os.path import join as pjoin
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
+from sklearn.svm import SVC
+from sklearn.model_selection import cross_val_score
 from scipy.signal import periodogram
 from torchvision import transforms
 from torchvision import models as torch_models
@@ -222,6 +225,198 @@ class DNNLoader:
             self.img_size = (224, 224)
         else:
             raise ValueError("Not supported net name:", net)
+
+
+class Classifier:
+    """
+    Encapsulate some classifier models of scikit-learn
+    """
+
+    def __init__(self, name=None):
+        """
+        Parameter:
+        ---------
+        name[str]: the name of a classifier model
+        """
+        self.model = None
+        self.score_evl = 'accuracy'
+        if name is not None:
+            self.set(name)
+
+    def set(self, name):
+        """
+        Set model
+
+        Parameter:
+        ---------
+        name[str]: the name of a classifier model
+        """
+        if name == 'lrc':
+            self.model = LogisticRegression()
+        elif name == 'svc':
+            self.model = SVC(kernel='linear', C=0.025)
+        else:
+            raise ValueError('unsupported model:', name)
+
+    def fit(self, X, y):
+        """
+        Fit model
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: target values with shape as (n_samples,)
+
+        Return:
+        ------
+        self[Classifier]: an instance of self
+        """
+        self.model.fit(X, y)
+
+        return self
+
+    def predict(self, X):
+        """
+        Do prediction
+
+        Parameter:
+        ---------
+        X[array]: the data with shape as (n_samples, n_features)
+
+        Return:
+        ------
+            [array]: predicted values with shape as (n_samples,)
+        """
+        return self.model.predict(X)
+
+    def score(self, X, y):
+        """
+        Evaluate the model
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: true values with shape as (n_samples,)
+
+        Return:
+        ------
+            [float]: Mean accuracy of self.predict(X) wrt. y.
+        """
+        return self.model.score(X, y)
+
+    def cross_val_score(self, X, y, cv=3):
+        """
+        Evaluate the model through cross validation.
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: true values with shape as (n_samples,)
+        cv[int]: the number of folds
+
+        Return:
+        ------
+        scores[array]: array of float with shape as (cv,)
+        """
+        scores = cross_val_score(self.model, X, y,
+                                 scoring=self.score_evl, cv=cv)
+        return scores
+
+
+class Regressor:
+    """
+    Encapsulate some regressor models of scikit-learn
+    """
+
+    def __init__(self, name=None):
+        """
+        Parameter:
+        ---------
+        name[str]: the name of a classifier model
+        """
+        self.model = None
+        self.score_evl = 'explained_variance'
+        if name is not None:
+            self.set(name)
+
+    def set(self, name):
+        """
+        Set model
+
+        Parameter:
+        ---------
+        name[str]: the name of a regreesor model
+        """
+        if name == 'glm':
+            self.model = LinearRegression()
+        elif name == 'lasso':
+            self.model = Lasso()
+        else:
+            raise ValueError('unsupported model:', name)
+
+    def fit(self, X, y):
+        """
+        Fit model
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: target values with shape as (n_samples,)
+
+        Return:
+        ------
+        self[Classifier]: an instance of self
+        """
+        self.model.fit(X, y)
+
+        return self
+
+    def predict(self, X):
+        """
+        Do prediction
+
+        Parameter:
+        ---------
+        X[array]: data with shape as (n_samples, n_features)
+
+        Return:
+        ------
+            [array]: predicted values with shape as (n_samples,)
+        """
+        return self.model.predict(X)
+
+    def score(self, X, y):
+        """
+        Evaluate the model
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: true values with shape as (n_samples,)
+
+        Return:
+        ------
+            [float]: R^2 of self.predict(X) wrt. y.
+        """
+        return self.model.score(X, y)
+
+    def cross_val_score(self, X, y, cv=3):
+        """
+        Evaluate the model through cross validation.
+
+        Parameters:
+        ----------
+        X[array]: data with shape as (n_samples, n_features)
+        y[array]: true values with shape as (n_samples,)
+        cv[int]: the number of folds
+
+        Return:
+        ------
+        scores[array]: array of float with shape as (cv,)
+        """
+        scores = cross_val_score(self.model, X, y,
+                                 scoring=self.score_evl, cv=cv)
+        return scores
 
 
 def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
