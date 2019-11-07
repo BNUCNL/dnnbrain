@@ -105,7 +105,7 @@ class ImageSet:
         # load data
         data = torch.zeros(0)
         for img_id in tmp_ids:
-            image = Image.open(pjoin(self.img_dir, img_id))  # load image
+            image = Image.open(pjoin(self.img_dir, img_id)).convert('RGB')  # load image
             image = self.transform(image)  # transform image
             image = torch.unsqueeze(image, 0)
             data = torch.cat((data, image))
