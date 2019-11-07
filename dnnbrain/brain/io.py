@@ -104,7 +104,7 @@ def save_brainimg(imgpath, data, header):
 
 def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     """
-    Extract brain activation from ROI
+    Extract brain activation from ROI.
     
     Parameters:
     ------------
@@ -121,11 +121,11 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
                       the output activation could not stored as numpy array list.
     """
     if method == 'mean':
-        calc_way = partial(np.mean, axis=0)
+        calc_way = partial(np.mean, axis=1)
     elif method == 'std':
-        calc_way = partial(np.std, axis=0)
+        calc_way = partial(np.std, axis=1)
     elif method == 'max':
-        calc_way = partial(np.max, axis=0)
+        calc_way = partial(np.max, axis=1)
     elif method == 'voxel':
         calc_way = np.array
     else:
@@ -134,7 +134,5 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     assert brainimg.shape[1:] == mask.shape, "brainimg and mask are mismatched."
     roisignals = []    
     for i, lbl in enumerate(roilabels):
-        act_idx = np.transpose(np.where(mask==lbl))
-        roisignal_tmp = [brainimg[:, act_idx[j][0], act_idx[j][1], act_idx[j][2]] for j in range(len(act_idx))]
-        roisignals.append(calc_way(roisignal_tmp))
+        roisignals.append(calc_way(brainimg[:, mask==lbl]))
     return roisignals
