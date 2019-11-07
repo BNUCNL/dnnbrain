@@ -4,6 +4,7 @@ import h5py
 import pytest
 import numpy as np
 
+from PIL import Image
 from os.path import join as pjoin
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn import core as dcore
@@ -174,24 +175,43 @@ class TestDNN:
 
     def test_compute_activation(self):
 
-        # ground truth
+        # -prepare-
+        # prepare ground truth
         fname = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.act.h5')
         rf = h5py.File(fname, 'r')
 
-        # computer by DNN
+        # prepare stimuli
         stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
-        stimuli = dcore.Stimulus(stim_file)
+
+        # prepare DNN mask
         dmask = dcore.Mask()
         dmask.set('conv5')
         dmask.set('fc3')
+
+        # -compute activation-
         dnn = dcore.DNN('alexnet')
-        activation = dnn.compute_activation(stimuli, dmask)
+        # compute with Stimulus
+        stimuli1 = dcore.Stimulus(stim_file)
+        activation1 = dnn.compute_activation(stimuli1, dmask)
+
+        # compute with ndarray
+        stimuli2 = []
+        for stim_id in stimuli1.get('stimID'):
+            stim_file = pjoin(stimuli1.meta['path'], stim_id)
+            img = Image.open(stim_file).convert('RGB')
+            stimuli2.append(np.asarray(img).transpose((2, 0, 1)))
+        stimuli2 = np.asarray(stimuli2)
+        activation2 = dnn.compute_activation(stimuli2, dmask)
 
         # assert
         np.testing.assert_almost_equal(np.asarray(rf['conv5']),
-                                       activation.get('conv5'), 4)
+                                       activation1.get('conv5'), 4)
         np.testing.assert_almost_equal(np.asarray(rf['fc3']),
-                                       activation.get('fc3'), 4)
+                                       activation1.get('fc3'), 4)
+        np.testing.assert_equal(activation1.get('conv5'), activation2.get('conv5'))
+        np.testing.assert_equal(activation1.get('fc3'), activation2.get('fc3'))
+
+        rf.close()
 
     def test_get_kernel(self):
         pass
