@@ -95,12 +95,12 @@ def main():
     print('Finish loading response: ', args.resp)
     # -Load response end-
 
-    act_h5 = h5py.File(args.act)
-    layers = act_h5.keys() if args.layer is None else args.layer
+    act_reader = ActReader(args.act)
+    layers = act_reader.layers if args.layer is None else args.layer
     for layer in layers:
         start = time.time()
         # load DNN activation
-        X = np.array(act_h5[layer])
+        X = act_reader.get_act(layer)
         n_stim, n_chn, n_col = X.shape
         assert n_stim == n_samp, 'n_stim != n_samp'
 

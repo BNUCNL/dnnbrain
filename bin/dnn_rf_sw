@@ -68,6 +68,37 @@ def main():
     
     args = parser.parse_args()
     
+        # prepare dmask
+    if args.dmask is not None and args.layer is not None:
+        raise exception('dmask and layer options cannot be used at the same time')
+    if args.dmask is None and args.layer is None:
+        raise exception('Please use dmask or layer and channel pair to  '
+                        'specifiy target layers and channels')
+           
+    dmask = dio.DnnMask('mymask')
+    if args.dmask is not None:
+            dmask.load(args.dmask)
+    else:
+            dmask.set(layer,channel)
+    
+    # load stim
+    stim = dio.Stim(args.stim)
+    transform = dio.Transforms('resize',net.img_size)
+    stim = ImgData(stim, transform)
+    
+    # make ooculded image for each stim
+    stim_oc = stim.occulde(stim,kernel_size,stride)
+
+    # calcualte difference map for each stim, and save it to disk
+    net = analyzer.Net(args.net)
+    for s in stim:
+        act = net.test(stim, dmask) 
+        dm = act(1:end) - act(0)
+        dm = pooling(dm,metric)
+        dm.save('myfile')
+
+
+    
     
 if __name__ == '__main__':
     main()

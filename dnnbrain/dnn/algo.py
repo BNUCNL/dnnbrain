@@ -1,9 +1,3 @@
-"""
-Find the optimal stimuli on one unit or layer
-Author: Yiyuan Zhang @ BNU
-Attention: Running in Python3.7
-"""
-
 #import some packages needed
 import numpy as np
 import math
