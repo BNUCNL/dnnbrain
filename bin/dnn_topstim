@@ -94,7 +94,7 @@ def main():
     '''
     stim = Stimulus(args.stim)
     transform = Compose([Resize(dnn.img_size), ToTensor()])
-    dataset = ImageSet(stim.meta['fname'], stim.get('stimID'), transform=transform)
+    dataset = ImageSet(stim.meta['path'], stim.get('stimID'), transform=transform)
     stims, _ = dataset[:]
 
     # --- Extract activation ---
