@@ -1032,3 +1032,45 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
         print('hrf convolution: sample {0} to {1} finished'.format(bat_idx+1, bat_indices[idx+1]))
 
     return X_hrfed
+
+def dnn_activation(data, model, layer_loc, channels=None):
+    """
+    Extract DNN activation from the specified layer
+
+    Parameters:
+    ----------
+    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, height, width)
+    model[model]: DNN model
+    layer_loc[sequence]: a sequence of keys to find the location of
+        the target layer in the DNN model. For example, the location of the
+        fifth convolution layer in AlexNet is ('features', '10').
+    channels[list]: channel indices of interest
+
+    Return:
+    ------
+    dnn_acts[array]: DNN activation
+        a 4D array with its shape as (n_stim, n_chn, n_r, n_c)
+    """
+    # change to eval mode
+    model.eval()
+
+    # prepare dnn activation hook
+    dnn_acts = []
+
+    def hook_act(module, input, output):
+        act = output.detach().numpy().copy()
+        if channels is not None:
+            act = act[:, channels]
+        dnn_acts.append(act)
+
+    module = model
+    for k in layer_loc:
+        module = module._modules[k]
+    hook_handle = module.register_forward_hook(hook_act)
+
+    # extract dnn activation
+    model(data)
+    dnn_acts = dnn_acts[0]
+
+    hook_handle.remove()
+    return dnn_acts
