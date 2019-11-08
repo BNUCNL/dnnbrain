@@ -807,7 +807,7 @@ class Encoder:
 
     def set(self, name=None, iter_axis=None, cv=None):
         """
-        Set some attribute
+        Set some attributes
 
         Parameters:
         ----------
@@ -846,7 +846,7 @@ class Encoder:
         Parameters:
         ----------
         activation[Activation]: DNN activation
-        response[array]: response of brain or behavior
+        response[array]: responses of brain or behavior
             A 2D array with its shape as (n_sample, n_measurement)
 
         Return:
@@ -944,7 +944,7 @@ class Encoder:
         Parameters:
         ----------
         activation[Activation]: DNN activation
-        response[array]: response of brain or behavior
+        response[array]: responses of brain or behavior
             A 2D array with its shape as (n_sample, n_measurement)
 
         Return:
@@ -993,6 +993,158 @@ class Encoder:
                 print('Finish iteration{0}/{1}'.format(iter_idx + 1, n_iter))
             score_arr = np.array(score_arr)
             model_arr = np.array(model_arr)
+
+            pred_dict[layer] = {
+                'score': score_arr,
+                'model': model_arr
+            }
+        return pred_dict
+
+
+class Decoder:
+    """
+    Decode DNN activation from response of brain or behavior.
+    """
+    def __init__(self, name=None, cv=3):
+        """
+        Parameters:
+        ----------
+        name[str]: the name of a model used to do prediction
+        cv[int]: cross validation fold number
+        """
+        self.model = None
+        self.cv = cv
+        if name is not None:
+            self.set(name)
+
+    def set(self, name=None, cv=None):
+        """
+        Set some attributes
+
+        Parameters:
+        ----------
+        name[str]: the name of a model used to do prediction
+        cv[int]: cross validation fold number
+        """
+        if name is None:
+            pass
+        elif name in ('lrc', 'svc'):
+            self.model = Classifier(name)
+        elif name in ('glm', 'lasso'):
+            self.model = Regressor(name)
+        else:
+            raise ValueError('unsupported model:', name)
+
+        if cv is not None:
+            self.cv = cv
+
+    def uva(self, response, activation):
+        """
+        Use responses of brain or behavior to predict DNN activation
+        by univariate analysis.
+
+        Parameters:
+        ----------
+        response[array]: responses of brain or behavior
+            A 2D array with its shape as (n_sample, n_measurement)
+        activation[Activation]: DNN activation
+
+        Return:
+        ------
+        pred_dict[dict]:
+            layer:
+                score: max scores array
+                measurement: measurement positions of the max scores
+                model: fitted models of the max scores
+        """
+        n_samp, n_meas = response.shape  # n_sample x n_measures
+
+        pred_dict = dict()
+        for layer in activation.layers:
+            # get DNN activation
+            dnn_acts = activation.get(layer)
+            n_stim, n_chn, n_row, n_col = dnn_acts.shape
+            assert n_stim == n_samp, 'n_stim != n_samp'
+
+            # prepare container
+            score_arr = np.zeros((n_chn, n_row, n_col), dtype=np.float)
+            measurement_arr = np.zeros_like(score_arr, dtype=np.int)
+            model_arr = np.zeros_like(score_arr, dtype=np.object)
+
+            # start iteration
+            for chn_idx in range(n_chn):
+                for row_idx in range(n_row):
+                    for col_idx in range(n_col):
+                        y = dnn_acts[:, chn_idx, row_idx, col_idx]
+                        score_tmp = []
+                        for meas_idx in range(n_meas):
+                            X = response[:, meas_idx][:, None]
+                            cv_scores = self.model.cross_val_score(X, y, self.cv)
+                            score_tmp.append(np.mean(cv_scores))
+
+                        # find max score
+                        max_meas_idx = np.argmax(score_tmp)
+                        max_score = score_tmp[max_meas_idx]
+                        score_arr[chn_idx, row_idx, col_idx] = max_score
+                        measurement_arr[chn_idx, row_idx, col_idx] = max_meas_idx + 1
+
+                        # fit the max-score model
+                        X = response[:, max_meas_idx][:, None]
+                        y = dnn_acts[:, chn_idx, row_idx, col_idx]
+                        model_arr[chn_idx, row_idx, col_idx] = self.model.fit(X, y)
+                print(f'Finish-{layer}-{chn_idx+1}/{n_chn}')
+
+            pred_dict[layer] = {
+                'score': score_arr,
+                'measurement': measurement_arr,
+                'model': model_arr
+            }
+        return pred_dict
+
+    def mva(self, response, activation):
+        """
+        Use responses of brain or behavior to predict DNN activation
+        by multivariate analysis.
+
+        Parameters:
+        ----------
+        response[array]: responses of brain or behavior
+            A 2D array with its shape as (n_sample, n_measurement)
+        activation[Activation]: DNN activation
+
+        Return:
+        ------
+        pred_dict[dict]:
+            layer:
+                score: prediction scores array
+                model: fitted models
+        """
+        n_samp, n_meas = response.shape  # n_sample x n_measures
+
+        pred_dict = dict()
+        for layer in activation.layers:
+            # get DNN activation
+            dnn_acts = activation.get(layer)
+            n_stim, n_chn, n_row, n_col = dnn_acts.shape
+            assert n_stim == n_samp, 'n_stim != n_samp'
+
+            # prepare containers
+            score_arr = np.zeros((n_chn, n_row, n_col), dtype=np.float)
+            model_arr = np.zeros_like(score_arr, dtype=np.object)
+
+            # start iteration
+            for chn_idx in range(n_chn):
+                for row_idx in range(n_row):
+                    for col_idx in range(n_col):
+                        # calculate score
+                        X = response
+                        y = dnn_acts[:, chn_idx, row_idx, col_idx]
+                        cv_scores = self.model.cross_val_score(X, y, self.cv)
+
+                        # save to containers
+                        score_arr[chn_idx, row_idx, col_idx] = np.mean(cv_scores)
+                        model_arr[chn_idx, row_idx, col_idx] = self.model.fit(X, y)
+                print(f'Finish-{layer}-{chn_idx + 1}/{n_chn}')
 
             pred_dict[layer] = {
                 'score': score_arr,
