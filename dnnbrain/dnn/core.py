@@ -2,6 +2,7 @@ import torch
 import numpy as np
 
 from copy import deepcopy
+from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 from dnnbrain.io import fileio as fio
@@ -246,7 +247,9 @@ class DNN:
 
         Parameters:
         ----------
-        stimuli[Stimulus]: input stimuli
+        stimuli[Stimulus|ndarray]: input stimuli
+            If is Stimulus, loaded from files on the disk.
+            If is ndarray, its shape is (n_stim, n_chn, height, width)
         dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
@@ -255,12 +258,18 @@ class DNN:
         """
         # prepare stimuli loader
         transform = Compose([Resize(self.img_size), ToTensor()])
-        if stimuli.meta['type'] == 'image':
-            stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
-        elif stimuli.meta['type'] == 'video':
-            stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+        if isinstance(stimuli, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
+            stim_set = [(transform(img), 0) for img in stim_set]
+        elif isinstance(stimuli, Stimulus):
+            if stimuli.meta['type'] == 'image':
+                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            elif stimuli.meta['type'] == 'video':
+                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            else:
+                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
         else:
-            raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
+            raise TypeError('The input stimuli must be an instance of Tensor or Stimulus!')
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # -extract activation-
@@ -1033,44 +1042,3 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
 
     return X_hrfed
 
-def dnn_activation(data, model, layer_loc, channels=None):
-    """
-    Extract DNN activation from the specified layer
-
-    Parameters:
-    ----------
-    data[tensor]: input stimuli of the model with shape as (n_stim, n_chn, height, width)
-    model[model]: DNN model
-    layer_loc[sequence]: a sequence of keys to find the location of
-        the target layer in the DNN model. For example, the location of the
-        fifth convolution layer in AlexNet is ('features', '10').
-    channels[list]: channel indices of interest
-
-    Return:
-    ------
-    dnn_acts[array]: DNN activation
-        a 4D array with its shape as (n_stim, n_chn, n_r, n_c)
-    """
-    # change to eval mode
-    model.eval()
-
-    # prepare dnn activation hook
-    dnn_acts = []
-
-    def hook_act(module, input, output):
-        act = output.detach().numpy().copy()
-        if channels is not None:
-            act = act[:, channels]
-        dnn_acts.append(act)
-
-    module = model
-    for k in layer_loc:
-        module = module._modules[k]
-    hook_handle = module.register_forward_hook(hook_act)
-
-    # extract dnn activation
-    model(data)
-    dnn_acts = dnn_acts[0]
-
-    hook_handle.remove()
-    return dnn_acts
