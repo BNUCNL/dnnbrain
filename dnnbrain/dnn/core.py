@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import DNNLoader, dnn_mask, dnn_fe, array_statistic
-from dnnbrain.dnn.base import ImageSet, VideoSet
+from dnnbrain.dnn.base import ImageSet, VideoSet, Classifier, Regressor
 from nipy.modalities.fmri.hemodynamic_models import spm_hrf
 from scipy.signal import convolve
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
@@ -784,188 +784,226 @@ class Mask:
         return list(self._dmask.keys())
 
 
-def db_uva(dnn_acts, resp, model, iter_axis=None, cvfold=3):
+class Encoder:
     """
-    Use DNN activation to predict responses of brain or behavior
-    by univariate analysis.'
-
-    Parameters:
-    ----------
-    dnn_acts[array]: DNN activation
-        A 3D array with its shape as (n_stim, n_chn, n_col)
-    resp[array]: response of brain or behavior
-        A 2D array with its shape as (n_samp, n_meas)
-    model[str]: the name of model used to do prediction
-    iter_axis[str]: iterate along the specified axis
-        channel: Summarize the maximal prediction score for each channel.
-        column: Summarize the maximal prediction score for each column.
-        default: Summarize the maximal prediction score for the whole layer.
-    cvfold[int]: cross validation fold number
-
-    Return:
-    ------
-    pred_dict[dict]:
-        score_arr: max score array
-        channel_arr: channel position of the max score
-        column_arr: column position of the max score
-        model_arr: fitted model of the max score
+    Encode DNN activation to response of brain or behavior.
     """
-    n_stim, n_chn, n_col = dnn_acts.shape
-    n_samp, n_meas = resp.shape  # n_sample x n_measures
-    assert n_stim == n_samp, 'n_stim != n_samp'
+    def __init__(self, name=None, iter_axis=None, cv=3):
+        """
+        Parameters:
+        ----------
+        name[str]: the name of a model used to do prediction
+        iter_axis[str]: iterate along the specified axis
+            ---for uva---
+            channel: Summarize the maximal prediction score for each channel.
+            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
+            default: Summarize the maximal prediction score for the whole layer.
+            ---for mva---
+            channel: Do mva using all units in each channel.
+            row_col: Do mva using all units in each position (row_idx, col_idx).
+            default: Do mva using all units in the whole layer.
+        cv[int]: cross validation fold number
+        """
+        self.model = None
+        self.iter_axis = iter_axis
+        self.cv = cv
+        if name is not None:
+            self.set(name)
 
-    # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
-    if iter_axis is None:
-        dnn_acts = dnn_acts.reshape((n_stim, 1, n_chn * n_col))
-    elif iter_axis == 'column':
-        dnn_acts = dnn_acts.transpose((0, 2, 1))
-    elif iter_axis == 'channel':
-        pass
-    else:
-        raise ValueError("Unspported iter_axis:", iter_axis)
-    n_stim, n_iter, n_elem = dnn_acts.shape
+    def set(self, name=None, iter_axis=None, cv=None):
+        """
+        Set some attribute
 
-    # prepare model
-    if model in ('lrc', 'svc'):
-        score_evl = 'accuracy'
-    elif model in ('glm', 'lasso'):
-        score_evl = 'explained_variance'
-    else:
-        raise ValueError('unsupported model:', model)
+        Parameters:
+        ----------
+        name[str]: the name of a model used to do prediction
+        iter_axis[str]: iterate along the specified axis
+            ---for uva---
+            channel: Summarize the maximal prediction score for each channel.
+            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
+            default: Summarize the maximal prediction score for the whole layer.
+            ---for mva---
+            channel: Do mva using all units in each channel.
+            row_col: Do mva using all units in each position (row_idx, col_idx).
+            default: Do mva using all units in the whole layer.
+        cv[int]: cross validation fold number
+        """
+        if name is None:
+            pass
+        elif name in ('lrc', 'svc'):
+            self.model = Classifier(name)
+        elif name in ('glm', 'lasso'):
+            self.model = Regressor(name)
+        else:
+            raise ValueError('unsupported model:', name)
 
-    if model == 'lrc':
-        model = LogisticRegression()
-    elif model == 'svc':
-        model = SVC(kernel='linear', C=0.025)
-    elif model == 'lasso':
-        model = Lasso()
-    else:
-        model = LinearRegression()
+        if iter_axis is not None:
+            self.iter_axis = iter_axis
 
-    # prepare container
-    score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
-    channel_arr = np.zeros_like(score_arr, dtype=np.int)
-    column_arr = np.zeros_like(score_arr, dtype=np.int)
-    model_arr = np.zeros_like(score_arr, dtype=np.object)
+        if cv is not None:
+            self.cv = cv
 
-    # start iteration
-    for meas_idx in range(n_meas):
-        for iter_idx in range(n_iter):
-            score_tmp = []
-            for elem_idx in range(n_elem):
-                cv_scores = cross_val_score(model, dnn_acts[:, iter_idx, elem_idx][:, None],
-                                            resp[:, meas_idx], scoring=score_evl, cv=cvfold)
-                score_tmp.append(np.mean(cv_scores))
+    def uva(self, activation, response):
+        """
+        Use DNN activation to predict responses of brain or behavior
+        by univariate analysis.
 
-            # find max score
-            max_elem_idx = np.argmax(score_tmp)
-            max_score = score_tmp[max_elem_idx]
-            score_arr[iter_idx, meas_idx] = max_score
+        Parameters:
+        ----------
+        activation[Activation]: DNN activation
+        response[array]: response of brain or behavior
+            A 2D array with its shape as (n_sample, n_measurement)
 
-            # find position for the max score
-            if iter_axis is None:
-                chn_idx = max_elem_idx // n_col
-                col_idx = max_elem_idx % n_col
-            elif iter_axis == 'channel':
-                chn_idx, col_idx = iter_idx, max_elem_idx
+        Return:
+        ------
+        pred_dict[dict]:
+            layer:
+                score: max scores array
+                channel: channel positions of the max scores
+                row: row positions of the max scores
+                column: column positions of the max scores
+                model: fitted models of the max scores
+        """
+        n_samp, n_meas = response.shape  # n_sample x n_measures
+
+        pred_dict = dict()
+        for layer in activation.layers:
+            # get DNN activation and reshape it to 3D
+            dnn_acts = activation.get(layer)
+            n_stim, n_chn, n_row, n_col = dnn_acts.shape
+            assert n_stim == n_samp, 'n_stim != n_samp'
+            n_row_col = n_row * n_col
+            dnn_acts = dnn_acts.reshape((n_stim, n_chn, n_row_col))
+
+            # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
+            if self.iter_axis is None:
+                dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+            elif self.iter_axis == 'row_col':
+                dnn_acts = dnn_acts.transpose((0, 2, 1))
+            elif self.iter_axis == 'channel':
+                pass
             else:
-                chn_idx, col_idx = max_elem_idx, iter_idx
+                raise ValueError("Unspported iter_axis:", self.iter_axis)
+            n_stim, n_iter, n_elem = dnn_acts.shape
 
-            channel_arr[iter_idx, meas_idx] = chn_idx + 1
-            column_arr[iter_idx, meas_idx] = col_idx + 1
+            # prepare container
+            score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
+            channel_arr = np.zeros_like(score_arr, dtype=np.int)
+            row_arr = np.zeros_like(score_arr, dtype=np.int)
+            column_arr = np.zeros_like(score_arr, dtype=np.int)
+            model_arr = np.zeros_like(score_arr, dtype=np.object)
 
-            # fit the max-score model
-            model_arr[iter_idx, meas_idx] = model.fit(dnn_acts[:, iter_idx, max_elem_idx][:, None],
-                                                      resp[:, meas_idx])
-            print('Meas: {0}/{1}; iter:{2}/{3}'.format(meas_idx + 1, n_meas,
-                                                       iter_idx + 1, n_iter,))
-    pred_dict = {
-        'score': score_arr,
-        'chn_pos': channel_arr,
-        'col_pos': column_arr,
-        'model': model_arr
-    }
-    return pred_dict
+            # start iteration
+            for meas_idx in range(n_meas):
+                for iter_idx in range(n_iter):
+                    score_tmp = []
+                    for elem_idx in range(n_elem):
+                        X = dnn_acts[:, iter_idx, elem_idx][:, None]
+                        y = response[:, meas_idx]
+                        cv_scores = self.model.cross_val_score(X, y, self.cv)
+                        score_tmp.append(np.mean(cv_scores))
 
+                    # find max score
+                    max_elem_idx = np.argmax(score_tmp)
+                    max_score = score_tmp[max_elem_idx]
+                    score_arr[iter_idx, meas_idx] = max_score
 
-def db_mva(dnn_acts, resp, model, iter_axis=None, cvfold=3):
-    """
-    Use DNN activation to predict responses of brain or behavior
-    by multivariate analysis.'
+                    # find position for the max score
+                    if self.iter_axis is None:
+                        chn_idx = max_elem_idx // n_row_col
+                        row_idx = max_elem_idx % n_row_col // n_col
+                        col_idx = max_elem_idx % n_row_col % n_col
+                    elif self.iter_axis == 'channel':
+                        chn_idx = iter_idx
+                        row_idx = max_elem_idx // n_col
+                        col_idx = max_elem_idx % n_col
+                    else:
+                        chn_idx = max_elem_idx
+                        row_idx = iter_idx // n_col
+                        col_idx = iter_idx % n_col
 
-    Parameters:
-    ----------
-    dnn_acts[array]: DNN activation
-        A 3D array with its shape as (n_stim, n_chn, n_col)
-    resp[array]: response of brain or behavior
-        A 2D array with its shape as (n_samp, n_meas)
-    model[str]: the name of model used to do prediction
-    iter_axis[str]: iterate along the specified axis
-        channel: Do mva using all units in each channel.
-        column: Do mva using all units in each column.
-        default: Do mva using all units in the whole layer.
-    cvfold[int]: cross validation fold number
+                    channel_arr[iter_idx, meas_idx] = chn_idx + 1
+                    row_arr[iter_idx, meas_idx] = row_idx + 1
+                    column_arr[iter_idx, meas_idx] = col_idx + 1
 
-    Return:
-    ------
-    pred_dict[dict]:
-        score_arr: prediction score array
-        model_arr: fitted model
-    """
-    n_stim, n_chn, n_col = dnn_acts.shape
-    n_samp, n_meas = resp.shape  # n_sample x n_measures
-    assert n_stim == n_samp, 'n_stim != n_samp'
+                    # fit the max-score model
+                    X = dnn_acts[:, iter_idx, max_elem_idx][:, None]
+                    y = response[:, meas_idx]
+                    model_arr[iter_idx, meas_idx] = self.model.fit(X, y)
+                    print('Meas: {0}/{1}; iter:{2}/{3}'.format(meas_idx + 1, n_meas,
+                                                               iter_idx + 1, n_iter))
+            pred_dict[layer] = {
+                'score': score_arr,
+                'channel': channel_arr,
+                'row': row_arr,
+                'column': column_arr,
+                'model': model_arr
+            }
+        return pred_dict
 
-    # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
-    if iter_axis is None:
-        dnn_acts = dnn_acts.reshape((n_stim, 1, n_chn * n_col))
-    elif iter_axis == 'column':
-        dnn_acts = dnn_acts.transpose((0, 2, 1))
-    elif iter_axis == 'channel':
-        pass
-    else:
-        raise ValueError("Unspported iter_axis:", iter_axis)
-    n_stim, n_iter, n_elem = dnn_acts.shape
+    def mva(self, activation, response):
+        """
+        Use DNN activation to predict responses of brain or behavior
+        by multivariate analysis.'
 
-    # prepare model
-    if model in ('lrc', 'svc'):
-        score_evl = 'accuracy'
-    elif model in ('glm', 'lasso'):
-        score_evl = 'explained_variance'
-    else:
-        raise ValueError('unsupported model:', model)
+        Parameters:
+        ----------
+        activation[Activation]: DNN activation
+        response[array]: response of brain or behavior
+            A 2D array with its shape as (n_sample, n_measurement)
 
-    if model == 'lrc':
-        model = LogisticRegression()
-    elif model == 'svc':
-        model = SVC(kernel='linear', C=0.025)
-    elif model == 'lasso':
-        model = Lasso()
-    else:
-        model = LinearRegression()
+        Return:
+        ------
+        pred_dict[dict]:
+            layer:
+                score: prediction scores array
+                model: fitted models
+        """
+        n_samp, n_meas = response.shape  # n_sample x n_measures
 
-    score_arr = []
-    model_arr = []
-    # start iteration
-    for iter_idx in range(n_iter):
-        # cross validation
-        score_tmp = [cross_val_score(model, dnn_acts[:, iter_idx, :], resp[:, i],
-                                     scoring=score_evl, cv=cvfold) for i in range(n_meas)]
-        score_arr.append(np.array(score_tmp).mean(-1))
+        pred_dict = dict()
+        for layer in activation.layers:
+            # get DNN activation and reshape it to 3D
+            dnn_acts = activation.get(layer)
+            n_stim, n_chn, n_row, n_col = dnn_acts.shape
+            assert n_stim == n_samp, 'n_stim != n_samp'
+            n_row_col = n_row * n_col
+            dnn_acts = dnn_acts.reshape((n_stim, n_chn, n_row_col))
 
-        # fit model
-        model.fit(dnn_acts[:, iter_idx, :], resp)
-        model_arr.append(model)
+            # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
+            if self.iter_axis is None:
+                dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+            elif self.iter_axis == 'row_col':
+                dnn_acts = dnn_acts.transpose((0, 2, 1))
+            elif self.iter_axis == 'channel':
+                pass
+            else:
+                raise ValueError("Unspported iter_axis:", self.iter_axis)
+            n_stim, n_iter, n_elem = dnn_acts.shape
 
-        print('Finish iteration{0}/{1}'.format(iter_idx + 1, n_iter))
-    score_arr = np.array(score_arr)
-    model_arr = np.array(model_arr)
+            score_arr = []
+            model_arr = []
+            # start iteration
+            for iter_idx in range(n_iter):
+                # cross validation
+                X = dnn_acts[:, iter_idx, :]
+                score_tmp = [self.model.cross_val_score(X, response[:, i], self.cv)
+                             for i in range(n_meas)]
+                score_arr.append(np.asarray(score_tmp).mean(-1))
 
-    pred_dict = {
-        'score': score_arr,
-        'model': model_arr
-    }
-    return pred_dict
+                # fit model
+                model_tmp = [self.model.fit(X, response[:, i]) for i in range(n_meas)]
+                model_arr.append(model_tmp)
+
+                print('Finish iteration{0}/{1}'.format(iter_idx + 1, n_iter))
+            score_arr = np.array(score_arr)
+            model_arr = np.array(model_arr)
+
+            pred_dict[layer] = {
+                'score': score_arr,
+                'model': model_arr
+            }
+        return pred_dict
 
 
 def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
