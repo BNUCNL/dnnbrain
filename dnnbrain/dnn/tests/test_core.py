@@ -528,5 +528,38 @@ class TestEncoder:
                 assert v2.shape == (n_row_col, self.response.shape[1])
 
 
+class TestDecoder:
+
+    # Prepare some simulation data
+    activation = dcore.Activation()
+    activation.set('conv5', np.random.randn(10, 2, 3, 3))
+    activation.set('fc3', np.random.randn(10, 10, 1, 1))
+    response = np.random.randn(10, 2)
+
+    def test_uva(self):
+
+        v1_keys = sorted(['score', 'measurement', 'model'])
+        decoder = dcore.Decoder('glm')
+        pred_dict = decoder.uva(self.response, self.activation)
+        assert list(pred_dict.keys()) == self.activation.layers
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            _, n_chn, n_row, n_col = self.activation.get(k1).shape
+            for v2 in v1.values():
+                assert v2.shape == (n_chn, n_row, n_col)
+
+    def test_mva(self):
+
+        v1_keys = sorted(['score', 'model'])
+        decoder = dcore.Decoder('glm')
+        pred_dict = decoder.mva(self.response, self.activation)
+        assert list(pred_dict.keys()) == self.activation.layers
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            _, n_chn, n_row, n_col = self.activation.get(k1).shape
+            for v2 in v1.values():
+                assert v2.shape == (n_chn, n_row, n_col)
+
+
 if __name__ == '__main__':
     pytest.main()
