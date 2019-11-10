@@ -1,150 +1,78 @@
 #! /usr/bin/env python
-# -*- coding: utf-8 -*-
-
-"""
-    For specific layer and channel in a DNN network,
-    select topK stimulus from a set of stimulus.
-"""
-
-import os, argparse
 import numpy as np
+import os, copy, argparse
 from os.path import join as pjoin
 from os.path import exists as pexist
-from torch.utils.data import DataLoader
-from dnnbrain.dnn.base import ImageSet
-from torchvision.transforms import Compose, Resize, ToTensor
-from dnnbrain.dnn.core import DNN, Stimulus, Mask, dnn_pooling
+from dnnbrain.dnn.base import array_statistic
+from dnnbrain.dnn.core import DNN, Stimulus, Mask
+
+# For specific layer and channel in DNN network,
+# select topK stimulus from a set of stimulus.
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Select topK stimulus from '
-                                     'a set of stimulus for specific layers and channels. ')
+    parser = argparse.ArgumentParser()
 
     parser.add_argument('-net',
                         metavar='Name of DNN Model',
                         type=str, required=True,
-                        help='Name of DNN Model.It should be placed in '
-                                'system variable DNNBRAIN_MODEL_DIR with format *.pth. ')
-
+                        help='Name of DNN Model, which should be placed in system variable '
+                                'DNNBRAIN_MODEL_DIR with format *.pth. ')
     parser.add_argument('-top',
                         metavar='Number of Top Stimulus',
                         type=int, required=True,
-                        help='Number of top stimulus.For example, assign top = 5, and a  '
-                                '*.stim.csv file for top 5 image for each <layer,channel> pair '
-                                'will be generated. ')
-
-    parser.add_argument('-metric',
-                        metavar='The Metric of TopK',
-                        type=str, required=True,
-                        help='The metric of topK. Available args are: mean, max, L1, L2, median. '
-                        'We strong recommend to use \'max\', because the others work really poor!!! ')
-
+                        help='Number of top stimulus.For example, assign top = 5, and top 5 '
+                        'image for each <layer,channel> pair will be generated. ')
     parser.add_argument('-stim',
-                        metavar='stimulus_path',
+                        metavar='Path of Stimulus',
                         type=str, required=True,
                         help='A *.stim.csv file contained stimuli to calculate. ')
-
     parser.add_argument('-dmask',
-                        metavar='.dmask.csv dnnmask file',
+                        metavar='Path of Dmask',
                         type=str, required=True,
                         help='A *.dmask.csv list of interested layers and channels. ')
-
     parser.add_argument('-out',
-                        metavar='Output stim.hd5 file',
+                        metavar='Path of Output',
                         type=str, required=True,
-                        help='Output directory to save top stimulus for interested layers, '
-                                'channels, and assocaited *.act.hd5 file. ')
-
+                        help='Output directory to save .stim.csv for top stimulus, '
+                                'and associated .act.hd5 file. ')
     args = parser.parse_args()
 
-    # --- Judge the availability of metric ---
-    assert args.metric in ['L1', 'L2', 'mean', 'max', 'median'],\
-        'The input -metric is not supported! -metric for top K stimulus are mean, max, L1, L2, median.'
+    # Load net/stim/dmask
+    dnn = DNN(args.net)
+    stim = Stimulus(args.stim)
+    dmask = Mask(args.dmask)
 
+    # Extract activation
+    activation = dnn.compute_activation(stim, dmask)
+
+    # Create output file if inexistent
     if not pexist(args.out):
         os.mkdir(args.out)
 
-    # --- Load net ---
-    dnn = DNN(args.net)
+    for ly in activation.layers:
+        raw = activation.get(ly)
+        tmp = np.zeros(raw.shape)[0:args.top, :, :, :]
+        # Use array_statistic in dnn.base to do max
+        act = array_statistic(raw, 'max', axis=(2, 3), keepdims=False).T
+        # Do sorting and arg-sorting
+        sort = np.argsort(-act, axis=1, kind='heapsort')[:, 0:args.top]
+        act = -np.sort(-act, axis=1, kind='heapsort')[:, 0:args.top]
+        for cid, chn in enumerate(dmask.get(ly)['chn']):
+            # Set .stim.csv act info
+            chn_stim = copy.deepcopy(stim)
+            chn_csv = ly + '_chn' + str(chn) + '_top' + str(args.top) + '.stim.csv'
+            chn_stim.set('stimID', stim.get('stimID')[sort[cid, :]])
+            # Save .stim.csv act info
+            chn_stim.set('value', act[cid, :])
+            chn_stim.save(pjoin(args.out, chn_csv))
+            tmp[:, cid, :, :] = raw[sort[cid, :], cid, :, :]
+        # Set .act.h5 act file for each layer
+        activation.set(ly, tmp)
 
-    # --- Load mask file ---
-    '''
-        .dmask.csv 's format should be like:
-            conv3=chn
-            256,257,258
-            conv5=chn
-            125,126,17
-            fc3=chn
-            54,66,272,888
-    '''
-    dmask = Mask(args.dmask)
-
-    # --- Load stimulus file ---
-    '''
-        .stim.csv 's format should be like:
-        (must erase other meta-tags, Only stimID!)
-            type=image
-            path=D:/data/dnn/test/img
-            data=stimID
-            M001.jpg
-            M002.jpg
-            M003.jpg
-            M004.jpg
-    '''
-    stim = Stimulus(args.stim)
-    transform = Compose([Resize(dnn.img_size), ToTensor()])
-    dataset = ImageSet(stim.meta['fname'], stim.get('stimID'), transform=transform)
-    stims, _ = dataset[:]
-
-    # --- Extract activation ---
-    acts = []
-    data_loader = DataLoader(dataset, batch_size=10, shuffle=False)
-    for stims, _ in data_loader:
-        acts.append(dnn.compute_activation(stims, dmask))
-    act = acts[0].concatenate(acts[1:])
-
-    # --- Count topK ---
-    for tmp_ly in act.layers:
-        tmp_raw = act.get(tmp_ly, raw_shape=True)
-        tmp_pool = dnn_pooling(act.get(tmp_ly), args.metric).squeeze(2).T
-        if len(tmp_raw) == 2:  # Deal with fully-connected layers
-            tmp_raw = (tmp_raw[0], tmp_raw[1], 1, 1)
-        toptmp = np.zeros((args.top, len(dmask.get(tmp_ly)['chn']), tmp_raw[2] * tmp_raw[3]))
-        for tmp_chn_id, tmp_chn in enumerate(dmask.get(tmp_ly)['chn']):
-            tmp_sort_id = np.argsort(-tmp_pool[tmp_chn_id])[0:args.top]
-            # --- Write TopK result into stim.csv file ---
-            tmpCSVname = args.net + '_' + tmp_ly + '_' + str(tmp_chn) + '_top' + \
-                str(args.top) + '_' + args.metric + '.stim.csv'
-            stim.set('stimID', dataset.img_ids[tmp_sort_id])
-            stim.set('poolValue', tmp_pool[tmp_chn_id][tmp_sort_id])  # Write pool value in to .stim.csv
-            stim.save(pjoin(args.out, tmpCSVname))
-            toptmp[:, tmp_chn_id, :] = act.get(tmp_ly)[tmp_sort_id, tmp_chn_id, :]
-        # --- Write TopK Activation into act.h5 file ---
-        act.set(tmp_ly, raw_shape=(args.top, tmp_raw[1], tmp_raw[2], tmp_raw[3]))
-        act.set(tmp_ly, toptmp)
-
-    h5name = args.net + '_top' + str(args.top) + '_' + args.metric + '.act.h5'
-    act.save(pjoin(args.out, h5name))
-
-    '''
-        The filename of output .stim.csv will be like:
-            alexnet_conv5_125_top5_max.stim.csv
-
-        in the .stim.csv there will be:
-            type=image
-            fname=D:/data/dnn/test/image/images
-            data=stimID,poolValue
-            013.jpeg,9.888635
-            017.jpeg,9.15324
-            009.jpeg,8.289201
-            019.jpeg,8.012778
-            020.jpeg,7.848186
-
-        The filename of output .act.h5 will be like:
-            alexnet_top5_max.act.h5
-
-    '''
+    # Save .act.h5 act file for all
+    activation.save(pjoin(args.out, 'result.act.h5'))
 
 
 if __name__ == '__main__':
