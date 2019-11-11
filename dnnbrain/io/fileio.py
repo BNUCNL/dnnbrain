@@ -254,26 +254,59 @@ class MaskFile:
                     wf.write(num_line + '\n')
 
 
-class RoiFile():
-        """a class to read and write roi file """
-        def __init__(self, file_path):        
-            assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
-            self.path = file_path
+class RoiFile:
+    """a class to read and write roi file """
+
+    def __init__(self, fname):
+        """
+        Parameter:
+        ---------
+        fname[str]: pre-designed .roi.h5 file
+        """
+        assert fname.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        self.fname = fname
             
-        def set(self, file_path):
-            """file_path: path for target file"""
-            self.path = file_path
-            
-        def read(self):
-            return h5py.File(self.path, 'r')
-            
-        def write(self, roi):
-            """
-            Write an activation object to a hdf5 file
-            roi: a roi object
-            """
-            h5py.File(self.path, roi, 'w')
-            
+    def read(self, rois=None):
+        """
+        Read data of ROIs of the brain.
+
+        Parameter:
+        ---------
+        rois[list]: ROIs of interest
+
+        Return:
+        ------
+        rois[list]: ROI names which are corresponding to columns in data
+        data[ndarray]: ROI data
+        """
+        rf = h5py.File(self.fname, 'r')
+        if rois is None:
+            rois = rf.attrs['roi'].tolist()
+            data = rf['data'][:]
+        else:
+            assert isinstance(rois, list), "Argument 'rois' must be a list!"
+            rois_all = rf.attrs['roi'].tolist()
+            roi_indices = [rois_all.index(roi) for roi in rois]
+            data = rf['data'][:, roi_indices]
+
+        rf.close()
+        return rois, data
+
+    def write(self, rois, data):
+        """
+        Write data of ROIs of the brain.
+
+        Parameters:
+        ---------
+        rois[list]: ROI names which are corresponding to columns in data
+        data[ndarray]: ROI data
+        """
+        wf = h5py.File(self.fname, 'w')
+        wf.attrs['roi'] = rois
+        wf.create_dataset('data', data=data)
+        wf.close()
+
+
 class ImageFile():
     """a class to read and write image file """
     def __init__(self, file_path):        
