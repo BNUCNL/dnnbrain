@@ -9,11 +9,40 @@ try:
 except ModuleNotFoundError:
     pass
     #raise Exception('Please install misc_functions in your work station')
+    
+class ImageDdecomposer():
+    """ A class to decompose an image into different parts or components"""
+    def __init__(self,):
+        pass
+    
+class CNNMinmalImageEstimator():
+    """
+    A class to generate minmal image for a CNN model using a specific part 
+    decomposer and optimization criterion
+    """
+    def __init__(self, model=None, part_decomposer=None, optimization_criterion = None):
+        self.model = model
+        self.decomposer = part_decomposer
+        self.optimization_criterion = optimization_criterion;
+        
+    def set(self, model, part_decomposer, optimization_criterion):
+        self.model = model
+        self.decomposer = part_decomposer
+        self.optimization_criterion = optimization_criterion
+        
+    def estimate(self, image, layer, channel):
+        """Generate minmal image of input image for a target layer and channel """
+        pass
 
     
     
-'1. Find optimal stimuli'
-###############################################################################
+class ReceptiveFieldEstimator():
+    
+    
+    
+
+
+
 ###############################################################################
 #define the class to find optimal stimuli
 class CNNLayerVisualization():
@@ -98,11 +127,7 @@ class CNNLayerVisualization():
             # Recreate image
             self.created_image = recreate_image(processed_image)
             
-            
 
-'2. Reconstruction in original picture'
-###############################################################################
-###############################################################################
 def rescale_grads(map,gradtype="all"):
     map = map - map.min()
     map /= map.max()
@@ -199,10 +224,6 @@ def layer_channel_reconstruction(model, picimg, layer, channel):
     return  out_image
   
 
-
-'3. Find position of RF'
-###############################################################################
-###############################################################################
 #visulize the receptive field
 import copy
 import sys
