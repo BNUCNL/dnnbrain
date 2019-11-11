@@ -10,11 +10,32 @@ except ModuleNotFoundError:
     pass
     #raise Exception('Please install misc_functions in your work station')
     
-class ImageDdecomposer():
+class ImageDecomposer():
     """ A class to decompose an image into different parts or components"""
     def __init__(self,):
         pass
-    def_
+    def decompose(self, image):
+        self._decompose(image)
+        
+class ImagePCAdecomposer():
+    """ A class to decompose an image into different parts or components"""
+    def __init__(self,):
+        pass
+    def decompose(self, image):
+        self._decompose(image)
+
+    def _decompose(self,image):
+        pass
+    
+class ImageParcelDecomposer():
+    """ A class to decompose an image into different parts or components"""
+    def __init__(self,):
+        pass
+    def decompose(self, image):
+        self._decompose(image)
+
+    def _decompose(self,image):
+        pass
     
 class CNNMinmalImageEstimator():
     """
@@ -87,7 +108,6 @@ class CNNReceptiveFieldEstimator():
         pass
 
 
-###############################################################################
 #define the class to find optimal stimuli
 class CNNLayerVisualization():
     """
