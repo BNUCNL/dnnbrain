@@ -14,6 +14,7 @@ class ImageDdecomposer():
     """ A class to decompose an image into different parts or components"""
     def __init__(self,):
         pass
+    def_
     
 class CNNMinmalImageEstimator():
     """
@@ -23,7 +24,7 @@ class CNNMinmalImageEstimator():
     def __init__(self, model=None, part_decomposer=None, optimization_criterion = None):
         self.model = model
         self.decomposer = part_decomposer
-        self.optimization_criterion = optimization_criterion;
+        self.optimization_criterion = optimization_criterion
         
     def set(self, model, part_decomposer, optimization_criterion):
         self.model = model
@@ -34,13 +35,56 @@ class CNNMinmalImageEstimator():
         """Generate minmal image of input image for a target layer and channel """
         pass
 
-    
-    
-class ReceptiveFieldEstimator():
-    
-    
-    
 
+class ImagePixelActivation():
+    def __init__(self, model=None, metric=None):
+        self.model = model
+        self.metric = metric
+        
+    def estimate(self, image, layer, channel): 
+        """The method use _estimate to caculate the pixel activtion"""
+        self._estimate(image,layer,channel)
+        pass
+               
+class SlideOccluderImagePixelActivation(ImagePixelActivation):
+    def __init__(self, model=None, metric=None,kernel, stride):
+        super(SlideWindowImagePixelActivation,self).__init__(model, metric)
+        self.kernel = kernel
+        self.stride = stride
+        self.model = model
+        self.metric = metric
+    
+    def _estimate(image, layer, channel):
+        """ The method do real computation for discrepancy map based on sliding occluder"""
+        pass
+
+class UpsamplingImagePixelActivation(ImagePixelActivation):
+    def __init__(self, model=None, metric=None):
+        super(SlideWindowImagePixelActivation,self).__init__(model, metric)
+        self.kernel = kernel
+        self.stride = stride
+        self.model = model
+        self.metric = metric
+    
+    def _estimate(image, layer, channel):
+        """ The method do real computation for pixel activation based on feature mapping upsampling"""
+        pass
+    
+class CNNReceptiveFieldEstimator():
+    """
+    A class to estimate receptive field for a CNN model
+    """
+    def __init__(self, model=None, activation_estimator=None):
+        self.model = model
+        self.activation_estimator = activation_estimator
+        
+    def set(self, model):
+        self.model = model
+        self.activation_estimator = activation_estimator
+        
+    def estimate(self, image, layer, channel):
+        """Generate RF based on provided image and pixel activation estimator """
+        pass
 
 
 ###############################################################################
