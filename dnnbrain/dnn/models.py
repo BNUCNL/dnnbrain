@@ -1,8 +1,19 @@
+import os
 import copy
 import time
 import torch
 import numpy as np
+
+from os.path import join as pjoin
+from PIL import Image
 from torch import nn
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose, Resize, ToTensor
+from torchvision import models as tv_models
+from dnnbrain.dnn.core import Stimulus, Activation
+from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask
+
+DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
 def dnn_truncate(netloader, layer):
@@ -293,11 +304,11 @@ class TransferredNet(nn.Module):
         return x
         
 
-class Vgg_face(nn.Module):
+class VggFaceModel(nn.Module):
     """Vgg_face's model architecture"""
 
     def __init__(self):
-        super(Vgg_face, self).__init__()
+        super(VggFaceModel, self).__init__()
         self.meta = {'mean': [129.186279296875, 104.76238250732422, 93.59396362304688],
                      'std': [1, 1, 1],
                      'imageSize': [3, 224, 224]}
@@ -381,3 +392,204 @@ class Vgg_face(nn.Module):
         x = self.dropout7(x)
         x = self.fc8(x)
         return x
+
+
+class DNN:
+    """Deep neural network"""
+
+    def __init__(self):
+
+        self.model = None
+        self.layer2loc = None
+        self.img_size = None
+
+    def save(self, fname):
+        """
+        Save DNN parameters
+
+        Parameter:
+        ---------
+        fname[str]: output file name with suffix as .pth
+        """
+        assert fname.endswith('.pth'), 'File suffix must be .pth'
+        torch.save(self.model.state_dict(), fname)
+
+    def set(self, model, parameters=None, layer2loc=None, img_size=None):
+        """
+        Load DNN model, parameters, layer2loc and img_size manually
+
+        Parameters:
+        ----------
+        model[nn.Modules]: DNN model
+        parameters[state_dict]: Parameters of DNN model
+        layer2loc[dict]: map layer name to its location in the DNN model
+        img_size[tuple]: the input image size
+        """
+        self.model = model
+        if parameters is not None:
+            self.model.load_state_dict(parameters)
+        self.layer2loc = layer2loc
+        self.img_size = img_size
+
+    def compute_activation(self, stimuli, dmask):
+        """
+        Extract DNN activation
+
+        Parameters:
+        ----------
+        stimuli[Stimulus|ndarray]: input stimuli
+            If is Stimulus, loaded from files on the disk.
+            If is ndarray, its shape is (n_stim, n_chn, height, width)
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+
+        Return:
+        ------
+        activation[Activation]: DNN activation
+        """
+        # prepare stimuli loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(stimuli, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
+            stim_set = [(transform(img), 0) for img in stim_set]
+        elif isinstance(stimuli, Stimulus):
+            if stimuli.meta['type'] == 'image':
+                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            elif stimuli.meta['type'] == 'video':
+                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            else:
+                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
+        else:
+            raise TypeError('The input stimuli must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # -extract activation-
+        # change to eval mode
+        self.model.eval()
+        n_stim = len(stim_set)
+        activation = Activation()
+        for layer in dmask.layers:
+            # prepare dnn activation hook
+            acts_holder = []
+
+            def hook_act(module, input, output):
+                # copy dnn activation and mask it
+                acts = output.detach().numpy().copy()
+                if acts.ndim == 4:
+                    pass
+                elif acts.ndim == 2:
+                    acts = acts[:, :, None, None]
+                else:
+                    raise ValueError('Unexpected activation shape:', acts.shape)
+                mask = dmask.get(layer)
+                acts = dnn_mask(acts, mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
+                # hold the information
+                acts_holder.extend(acts)
+
+            module = self.model
+            for k in self.layer2loc[layer]:
+                module = module._modules[k]
+            hook_handle = module.register_forward_hook(hook_act)
+
+            # extract DNN activation
+            for stims, _ in data_loader:
+                # stimuli with shape as (n_stim, n_chn, height, width)
+                self.model(stims)
+                print('Extracted activation of {0}: {1}/{2}'.format(
+                    layer, len(acts_holder), n_stim))
+            activation.set(layer, np.asarray(acts_holder))
+
+            hook_handle.remove()
+
+        return activation
+
+    def get_kernel(self, layer, kernel_num=None):
+        """
+        Get kernel's weights of the layer
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        kernel_num[int]: the sequence number of the kernel
+
+        Return:
+        ------
+        kernel[array]: kernel weights
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # get the weights
+        kernel = module.weight
+        if kernel_num is not None:
+            kernel = kernel[kernel_num]
+
+        return kernel.detach().numpy()
+
+    def ablate(self, layer, channels=None):
+        """
+        Ablate DNN kernels' weights
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channels[list]: sequence numbers of channels of interest
+            If None, ablate the whole layer.
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # ablate kernels' weights
+        if channels is None:
+            module.weight.data[:] = 0
+        else:
+            channels = [chn - 1 for chn in channels]
+            module.weight.data[channels] = 0
+
+
+class AlexNet(DNN):
+
+    def __init__(self):
+        super(AlexNet, self).__init__()
+
+        self.model = tv_models.alexnet()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
+        self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                          'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                          'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                          'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                          'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                          'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
+                          'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
+                          'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
+                          'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
+        self.img_size = (224, 224)
+
+
+class VggFace(DNN):
+
+    def __init__(self):
+        super(VggFace, self).__init__()
+
+        self.model = VggFaceModel()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
+        self.layer2loc = None
+        self.img_size = (224, 224)
+
+
+class Vgg11(DNN):
+
+    def __init__(self):
+        super(Vgg11, self).__init__()
+
+        self.model = tv_models.vgg11()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
+        self.layer2loc = None
+        self.img_size = (224, 224)
