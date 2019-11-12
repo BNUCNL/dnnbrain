@@ -7,7 +7,8 @@ Extract activation from DNN
 import argparse
 import numpy as np
 
-from dnnbrain.dnn.core import DNN, Stimulus, Mask
+from dnnbrain.dnn.core import Stimulus, Mask
+from dnnbrain.dnn import models as db_models  # used by eval
 
 
 def main():
@@ -16,6 +17,7 @@ def main():
                         metavar='Net',
                         required=True,
                         type=str,
+                        choices=('AlexNet',),
                         help='a neural network name')
     parser.add_argument('-layer',
                         metavar='Layer',
@@ -24,11 +26,29 @@ def main():
                         help="names of the layers used to specify where activation is extracted from "
                              "For example, 'conv1' represents the first convolution layer, and "
                              "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="Channel numbers used to specify where activation is extracted from "
+                             "Default is extracting all channels of each layer specified by -layer.")
+    parser.add_argument('-row',
+                        metavar='row',
+                        type=int,
+                        nargs='+',
+                        help="Row numbers used to specify where activation is extracted from "
+                             "Default is extracting all rows of each layer specified by -layer.")
+    parser.add_argument('-col',
+                        metavar='Column',
+                        type=int,
+                        nargs='+',
+                        help="Column numbers used to specify where activation is extracted from "
+                             "Default is extracting all columns of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,
                         help='a .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest.')
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-stim',
                         metavar='Stimulus',
                         required=True,
@@ -44,7 +64,7 @@ def main():
         'Use one and only one of the -layer and -dmask!'
 
     # -load DNN-
-    dnn = DNN(args.net)
+    dnn = eval('db_models.{}()'.format(args.net))
 
     # -load stimuli-
     stimuli = Stimulus(args.stim)
@@ -53,7 +73,7 @@ def main():
     dmask = Mask()
     if args.layer is not None:
         for layer in args.layer:
-            dmask.set(layer)
+            dmask.set(layer, args.chn, args.row, args.col)
     else:
         dmask.load(args.dmask)
 
