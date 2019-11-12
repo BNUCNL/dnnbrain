@@ -4,46 +4,61 @@ import math
 import torch
 from torch.nn import ReLU
 from torch.optim import Adam
+from abc import ABC
 try:
     from misc_functions import preprocess_image, recreate_image
 except ModuleNotFoundError:
     pass
     #raise Exception('Please install misc_functions in your work station')
     
-class ImageDecomposer():
-    """ A class to decompose an image into different parts or components"""
-    def __init__(self,):
+class ImageDecomposer(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self):
         pass
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
     def decompose(self, image):
-        self._decompose(image)
+        return NotImplemented
         
-class ImagePCAdecomposer():
-    """ A class to decompose an image into different parts or components"""
-    def __init__(self,):
-        pass
-    def decompose(self, image):
-        self._decompose(image)
-
-    def _decompose(self,image):
+class ImageComponentDecomposer(ImageDecomposer):
+    """ Use a component model to decompose an image into different components"""
+    def __init__(self,component_model):
+        self.model = componet
+    
+    def set_params(self):
+        """Set necessary parameters for the decomposer"""
         pass
     
-class ImageParcelDecomposer():
-    """ A class to decompose an image into different parts or components"""
-    def __init__(self,):
-        pass
     def decompose(self, image):
-        self._decompose(image)
-
-    def _decompose(self,image):
+        print('Please write code here to decompose image.')
+        
+class ImageParcelDecomposer(ImageDecomposer):
+    """ Use a parcel model to decompose an image into different components"""
+    def __init__(self,parcel_model):
+        self.model = parcel_model
+        
+    def set_params(self):
+        """Set necessary parameters for the decomposer"""
         pass
-    
-class CNNMinmalImageEstimator():
+        
+    def decompose(self, image):
+        print('Please write code here to segment image into different parcels.')
+
+
+class MinmalImageEstimator():
     """
     A class to generate minmal image for a CNN model using a specific part 
     decomposer and optimization criterion
     """
-    def __init__(self, model=None, part_decomposer=None, optimization_criterion = None):
-        self.model = model
+    def __init__(self, dnn = None, part_decomposer=None, optimization_criterion = None):
+        self.model = dnn
         self.decomposer = part_decomposer
         self.optimization_criterion = optimization_criterion
         
@@ -57,16 +72,24 @@ class CNNMinmalImageEstimator():
         pass
 
 
-class ImagePixelActivation():
-    def __init__(self, model=None, metric=None):
-        self.model = model
+class ImagePixelActivation(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for pixel activation, 
+    which compute the activation for each pixel of an image
+    """
+    def __init__(self, dnn = None, metric = None):
+        self.model = dnn
         self.metric = metric
         
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+        
+    @abstractmethod
     def estimate(self, image, layer, channel): 
         """The method use _estimate to caculate the pixel activtion"""
-        self._estimate(image,layer,channel)
-        pass
-               
+        return NotImplemented
+
 class SlideOccluderImagePixelActivation(ImagePixelActivation):
     def __init__(self, model=None, metric=None,kernel, stride):
         super(SlideWindowImagePixelActivation,self).__init__(model, metric)
@@ -74,8 +97,12 @@ class SlideOccluderImagePixelActivation(ImagePixelActivation):
         self.stride = stride
         self.model = model
         self.metric = metric
+        
+    def set_params(self):
+        """Set necessary parameters for the estimator"""
+        pass
     
-    def _estimate(image, layer, channel):
+    def estimate(image, layer, channel):
         """ The method do real computation for discrepancy map based on sliding occluder"""
         pass
 
@@ -87,20 +114,24 @@ class UpsamplingImagePixelActivation(ImagePixelActivation):
         self.model = model
         self.metric = metric
     
-    def _estimate(image, layer, channel):
+    def set_params(self):
+        """Set necessary parameters for the estimator"""
+        pass
+    
+    def estimate(image, layer, channel):
         """ The method do real computation for pixel activation based on feature mapping upsampling"""
         pass
     
-class CNNReceptiveFieldEstimator():
+class ReceptiveFieldEstimator():
     """
-    A class to estimate receptive field for a CNN model
+    A class to estimate receptive field for a DNN model
     """
-    def __init__(self, model=None, activation_estimator=None):
-        self.model = model
+    def __init__(self, dnn = None, activation_estimator = None):
+        self.model = dnn
         self.activation_estimator = activation_estimator
         
-    def set(self, model):
-        self.model = model
+    def set(self, dnn = None):
+        self.model = dnn
         self.activation_estimator = activation_estimator
         
     def estimate(self, image, layer, channel):
