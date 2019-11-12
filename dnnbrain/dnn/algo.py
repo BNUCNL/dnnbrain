@@ -139,6 +139,97 @@ class ReceptiveFieldEstimator():
         pass
 
 
+class GradientVisualizer(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None, layer = None, channel = None):
+        self.model = dnn
+        self.layer = layer
+        self.channel = channel
+    
+    def set_params(self,  dnn = None, layer = None, channel = None):
+        self.model = dnn
+        self.layer = layer
+        self.channel = channel
+        
+    def hooker(self):
+        pass
+    
+    @abstractmethod
+    def gradient(self, image):
+        return NotImplemented
+    
+    def smooth_gradient(self, image): 
+        'Please do your implementation here'
+        pass
+
+class VanilaBackPropGradientVisualizer(GradientVisualizer):
+    """ 
+    A class to compute vanila Backprob gradient for a image.
+    """
+    
+    def gradient(self, image):
+        'Please do your implementation here'
+    
+class GuidedBackPropGradientVisualizer(GradientVisualizer):
+    """ 
+    A class to compute Guided Backprob gradient for a image.
+    """    
+    def gradient(self, image):
+        'Please do your implementation here'
+
+
+class Regularizer(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None):
+        self.model = dnn
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+    
+class InternelRepresentation(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None, bp = None, regularizer = None):
+        self.model = dnn
+        self.bp = bp
+        self.regularizer = regularizer
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+
+
+class L1InternelRepresentation(InternelRepresentation):
+    """ Use L1 regularization to estimate internel representation """
+    def __init__(self, dnn = None):
+        self.model = dnn
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+    
+
 #define the class to find optimal stimuli
 class CNNLayerVisualization():
     """
