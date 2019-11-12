@@ -283,6 +283,24 @@ class TestActivation:
             np.testing.assert_almost_equal(data,
                                            activation._activation[layer])
 
+    def test_convolve_hrf(self):
+
+        # prepare
+        onsets = np.arange(5)
+        durations = np.ones(5)
+        n_vol = 2
+        tr = 2
+        activation = dcore.Activation()
+        activation._activation = self.activation_true
+
+        # convolution
+        activation.convolve_hrf(onsets, durations, n_vol, tr)
+
+        # assert
+        for layer, data in activation._activation.items():
+            assert data.shape == (n_vol, *self.activation_true[layer].shape[1:])
+            np.testing.assert_almost_equal(data[0], np.zeros(data.shape[1:]))
+
     def test_arithmetic(self):
         pass
 

@@ -4,6 +4,7 @@ from copy import deepcopy
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
 from dnnbrain.dnn.base import Classifier, Regressor
+from dnnbrain.brain.algo import convolve_hrf
 
 
 class Stimulus:
@@ -369,6 +370,26 @@ class Activation:
                 activation.set(layer, data)
 
         return activation
+
+    def convolve_hrf(self, onsets, durations, n_vol, tr, ops=100):
+        """
+        Convolve DNN activation with HRF and align with the timeline of BOLD signal
+
+        parameters:
+        ----------
+        onsets[array_like]: in sec. size = n_event
+        durations[array_like]: in sec. size = n_event
+        n_vol[int]: the number of volumes of BOLD signal
+        tr[float]: repeat time in second
+        ops[int]: oversampling number per second
+        """
+        for layer in self.layers:
+            X = self.get(layer)
+            n_stim, n_chn, n_row, n_col = X.shape
+            X = convolve_hrf(X.reshape(n_stim, -1), onsets, durations,
+                             n_vol, tr, ops)
+            X = X.reshape(n_vol, n_chn, n_row, n_col)
+            self.set(layer, X)
 
     def _check_arithmetic(self, other):
         """
