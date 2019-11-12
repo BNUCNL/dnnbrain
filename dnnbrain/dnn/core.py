@@ -96,7 +96,7 @@ class Stimulus:
 
         Parameter:
         ---------
-        indices[int|tuple|slice]: subscript indices
+        indices[int|list|tuple|slice]: subscript indices
 
         Return:
         ------

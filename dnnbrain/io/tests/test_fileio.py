@@ -134,5 +134,42 @@ class TestMaskFile:
         assert dmask1['fc1'].keys() == dmask2['fc1'].keys()
 
 
+class TestRoiFile:
+
+    def test_read(self):
+
+        fname = pjoin(DNNBRAIN_TEST, 'PHA1.roi.h5')
+        # ground truth
+        rf = h5py.File(fname, 'r')
+
+        # assert read without rois
+        rois, data = fio.RoiFile(fname).read()
+        assert rois == rf.attrs['roi'].tolist()
+        np.testing.assert_equal(data, rf['data'][:])
+
+        # assert read with rois
+        rois, data = fio.RoiFile(fname).read('PHA1_R')
+        assert rois == ['PHA1_R']
+        np.testing.assert_equal(data, rf['data'][:, [1]])
+
+        rf.close()
+
+    def test_write(self):
+
+        fname = pjoin(TMP_DIR, 'test.roi.h5')
+        # ground truth
+        rois = ['OFA', 'FFA']
+        data = np.random.randn(5, 2)
+
+        # write by RoiFile::write
+        fio.RoiFile(fname).write(rois, data)
+
+        # assert
+        rf = h5py.File(fname, 'r')
+        assert rois == rf.attrs['roi'].tolist()
+        np.testing.assert_equal(data, rf['data'][:])
+        rf.close()
+
+
 if __name__ == '__main__':
     pytest.main()
