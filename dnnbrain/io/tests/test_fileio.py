@@ -148,7 +148,8 @@ class TestRoiFile:
         np.testing.assert_equal(data, rf['data'][:])
 
         # assert read with rois
-        rois, data = fio.RoiFile(fname).read(['PHA1_R'])
+        rois, data = fio.RoiFile(fname).read('PHA1_R')
+        assert rois == ['PHA1_R']
         np.testing.assert_equal(data, rf['data'][:, [1]])
 
         rf.close()
@@ -167,6 +168,7 @@ class TestRoiFile:
         rf = h5py.File(fname, 'r')
         assert rois == rf.attrs['roi'].tolist()
         np.testing.assert_equal(data, rf['data'][:])
+        rf.close()
 
 
 if __name__ == '__main__':

@@ -272,7 +272,7 @@ class RoiFile:
 
         Parameter:
         ---------
-        rois[list]: ROIs of interest
+        rois[str|list]: ROI names of interest
 
         Return:
         ------
@@ -284,7 +284,8 @@ class RoiFile:
             rois = rf.attrs['roi'].tolist()
             data = rf['data'][:]
         else:
-            assert isinstance(rois, list), "Argument 'rois' must be a list!"
+            if isinstance(rois, str):
+                rois = [rois]
             rois_all = rf.attrs['roi'].tolist()
             roi_indices = [rois_all.index(roi) for roi in rois]
             data = rf['data'][:, roi_indices]
@@ -298,9 +299,22 @@ class RoiFile:
 
         Parameters:
         ---------
-        rois[list]: ROI names which are corresponding to columns in data
+        rois[str|list]: ROI names which are corresponding to columns in data
         data[ndarray]: ROI data
         """
+        # preprocessing
+        if isinstance(rois, str):
+            rois = [rois]
+        if data.ndim == 1:
+            assert len(rois) == 1, 'The number of rois mismatches the data shape.'
+            data = data.reshape((-1, 1))
+        elif data.ndim == 2:
+            assert data.shape[1] == len(rois), 'The number of rois mismatches ' \
+                                               'the number of columns of the data.'
+        else:
+            raise ValueError('The number of dimensions of the data must be 1 or 2.')
+
+        # write to file
         wf = h5py.File(self.fname, 'w')
         wf.attrs['roi'] = rois
         wf.create_dataset('data', data=data)
