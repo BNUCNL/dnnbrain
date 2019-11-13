@@ -33,14 +33,15 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="layer names of interest"
+                        help="layer names of interest "
                              "For example, 'conv1' represents the first convolution layer, and "
                              "'fc1' represents the first full connection layer. ")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
                         nargs='+',
-                        help="channel numbers of interest")
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,

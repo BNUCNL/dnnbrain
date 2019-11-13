@@ -7,9 +7,8 @@ And match it with the time points of Brain activation.
 
 import argparse
 
-from dnnbrain.dnn.io import ActReader, ActWriter
-from dnnbrain.dnn.analyzer import convolve_hrf
-from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.dnn.core import Activation, Stimulus
+from dnnbrain.utils.util import gen_dmask
 
 
 def main():
@@ -23,11 +22,20 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="Layers of interest to do feature extraxtion. "
-                             "E.g., 'conv1' represents the first convolution layer, "
-                             "and 'fc1' represents the first full connection layer. "
-                             "Default is to do hrf convolution for all layers "
-                             "in the activation file.")
+                        help="layer names of interest "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-stim',
                         metavar='Stimulus',
                         required=True,
@@ -56,25 +64,18 @@ def main():
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
-    # prepare DNN activation
-    reader = ActReader(args.act)
-    writer = ActWriter(args.out, reader.title + ' hrf')
-    layers = reader.layers if args.layer is None else args.layer
-    # prepare stimulus information
-    stim_dict = read_stim_csv(args.stim)
-    onsets = stim_dict['stim']['onset']
-    durations = stim_dict['stim']['duration']
-    # start convolution
-    for layer in layers:
-        dnn_acts = reader.get_act(layer)
-        n_stim, n_chn, n_col = dnn_acts.shape
-        dnn_acts = convolve_hrf(dnn_acts.reshape(n_stim, -1), onsets, durations,
-                                args.n_vol, args.tr, args.ops)
-        dnn_acts = dnn_acts.reshape(args.n_vol, n_chn, n_col)
-        writer.set_act(layer, dnn_acts)
+    stimuli = Stimulus(args.stim)  # load stimuli
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
 
-    reader.close()
-    writer.close()
+    # do convolution
+    activation = Activation(args.act, dmask)
+    activation = activation.convolve_hrf(stimuli.get('onset'), stimuli.get('duration'),
+                                         args.n_vol, args.tr, args.ops)
+    activation.save(args.out)
 
 
 if __name__ == '__main__':
