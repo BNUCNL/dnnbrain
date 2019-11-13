@@ -49,6 +49,10 @@ class TestAlexNet:
         stimuli2 = np.asarray(stimuli2)
         activation2 = dnn.compute_activation(stimuli2, dmask)
 
+        # compute with pool
+        activation3 = dnn.compute_activation(stimuli1, dmask, 'max')
+        activation4 = activation1.pool('max')
+
         # assert
         np.testing.assert_almost_equal(np.asarray(rf['conv5']),
                                        activation1.get('conv5'), 4)
@@ -56,6 +60,8 @@ class TestAlexNet:
                                        activation1.get('fc3'), 4)
         np.testing.assert_equal(activation1.get('conv5'), activation2.get('conv5'))
         np.testing.assert_equal(activation1.get('fc3'), activation2.get('fc3'))
+        np.testing.assert_equal(activation3.get('conv5'), activation4.get('conv5'))
+        np.testing.assert_equal(activation3.get('fc3'), activation4.get('fc3'))
 
         rf.close()
 

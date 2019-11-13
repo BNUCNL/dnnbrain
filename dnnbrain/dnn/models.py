@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Resize, ToTensor
 from torchvision import models as tv_models
 from dnnbrain.dnn.core import Stimulus, Activation
-from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask
+from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
 
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
@@ -431,7 +431,7 @@ class DNN:
         self.layer2loc = layer2loc
         self.img_size = img_size
 
-    def compute_activation(self, stimuli, dmask):
+    def compute_activation(self, stimuli, dmask, pool_method=None):
         """
         Extract DNN activation
 
@@ -441,6 +441,7 @@ class DNN:
             If is Stimulus, loaded from files on the disk.
             If is ndarray, its shape is (n_stim, n_chn, height, width)
         dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        pool_method[str]: pooling method, choices=(max, mean, median, L1, L2)
 
         Return:
         ------
@@ -472,7 +473,8 @@ class DNN:
             acts_holder = []
 
             def hook_act(module, input, output):
-                # copy dnn activation and mask it
+
+                # copy activation
                 acts = output.detach().numpy().copy()
                 if acts.ndim == 4:
                     pass
@@ -480,10 +482,17 @@ class DNN:
                     acts = acts[:, :, None, None]
                 else:
                     raise ValueError('Unexpected activation shape:', acts.shape)
+
+                # mask activation
                 mask = dmask.get(layer)
                 acts = dnn_mask(acts, mask.get('chn'),
                                 mask.get('row'), mask.get('col'))
-                # hold the information
+
+                # pool activation
+                if pool_method is not None:
+                    acts = array_statistic(acts, pool_method, (2, 3), True)
+
+                # hold activation
                 acts_holder.extend(acts)
 
             module = self.model
