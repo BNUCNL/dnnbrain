@@ -139,7 +139,7 @@ class ReceptiveFieldEstimator():
         pass
 
 
-class GradientVisualizer(ABC):
+class BackPropGradient(ABC):
     """ 
     An Abstract Base Classes class to define interface for image decomposer, 
     which decompose an image into different parcels or components
@@ -165,7 +165,7 @@ class GradientVisualizer(ABC):
         'Please do your implementation here'
         pass
 
-class VanilaBackPropGradientVisualizer(GradientVisualizer):
+class VanilaBackPropGradient(BackPropGradient):
     """ 
     A class to compute vanila Backprob gradient for a image.
     """
@@ -173,13 +173,12 @@ class VanilaBackPropGradientVisualizer(GradientVisualizer):
     def gradient(self, image):
         'Please do your implementation here'
     
-class GuidedBackPropGradientVisualizer(GradientVisualizer):
+class GuidedBackPropGradient(BackPropGradient):
     """ 
     A class to compute Guided Backprob gradient for a image.
     """    
     def gradient(self, image):
         'Please do your implementation here'
-
 
 class Regularizer(ABC):
     """ 
