@@ -5,11 +5,10 @@ Extract features of DNN activation
 """
 
 import argparse
-import numpy as np
 
 from collections import namedtuple
-from dnnbrain.dnn.io import ActReader, ActWriter
-from dnnbrain.dnn.analyzer import dnn_fe
+from dnnbrain.dnn.core import Activation
+from dnnbrain.utils.util import gen_dmask
 
 
 class MethodAction(argparse.Action):
@@ -34,11 +33,19 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="Layers of interest to do feature extraxtion. "
-                             "E.g., 'conv1' represents the first convolution layer, "
-                             "and 'fc1' represents the first full connection layer. "
-                             "Default is to do feature extraction for all layers "
-                             "in the activation file.")
+                        help="layer names of interest"
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="channel numbers of interest")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-meth',
                         nargs=2,
                         metavar=('Method', 'N_feature'),
@@ -52,7 +59,7 @@ def main():
     parser.add_argument('-axis',
                         metavar='Axis',
                         type=str,
-                        choices=('chn', 'col'),
+                        choices=('chn', 'row_col'),
                         help='axis for feature extraction '
                              'Default is extracting features from the whole layer.')
     parser.add_argument('-out',
@@ -62,16 +69,16 @@ def main():
                         help='Output filename with suffix .act.h5')
     args = parser.parse_args()
 
-    reader = ActReader(args.act)
-    writer = ActWriter(args.out, reader.title + ' fe')
-    layers = reader.layers if args.layer is None else args.layer
-    for layer in layers:
-        data = dnn_fe(reader.get_act(layer), args.meth.method,
-                      args.meth.n_feat, args.axis)
-        writer.set_act(layer, data)
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
 
-    reader.close()
-    writer.close()
+    # do feature extraction
+    activation = Activation(args.act, dmask)
+    activation = activation.fe(args.meth.method, args.meth.n_feat, args.axis)
+    activation.save(args.out)
 
 
 if __name__ == '__main__':
