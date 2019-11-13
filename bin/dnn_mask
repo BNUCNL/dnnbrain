@@ -21,15 +21,15 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="names of the layers used to specify where activation is extracted from "
+                        help="layer names of interest "
                              "For example, 'conv1' represents the first convolution layer, and "
                              "'fc1' represents the first full connection layer. ")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
                         nargs='+',
-                        help="Channel numbers used to specify where activation is extracted from "
-                             "Default is extracting all channels of each layer specified by -layer.")
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,
