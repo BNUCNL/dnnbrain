@@ -309,35 +309,26 @@ class Activation:
 
         return activation
 
-    def pool(self, method, dmask=None):
+    def pool(self, method):
         """
         Pooling DNN activation for each channel
 
-        Parameters:
-        ----------
-        method[str]: pooling method, choices=(max, mean, median)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        Parameter:
+        ---------
+        method[str]: pooling method, choices=(max, mean, median, L1, L2)
 
         Return:
         ------
         activation[Activation]: DNN activation
         """
         activation = Activation()
-        if dmask is None:
-            for layer, data in self._activation.items():
-                data = array_statistic(data, method, (2, 3), True)
-                activation.set(layer, data)
-        else:
-            for layer in dmask.layers:
-                mask = dmask.get(layer)
-                data = dnn_mask(self.get(layer), mask.get('chn'),
-                                mask.get('row'), mask.get('col'))
-                data = array_statistic(data, method, (2, 3), True)
-                activation.set(layer, data)
+        for layer, data in self._activation.items():
+            data = array_statistic(data, method, (2, 3), True)
+            activation.set(layer, data)
 
         return activation
 
-    def fe(self, method, n_feat, axis=None, dmask=None):
+    def fe(self, method, n_feat, axis=None):
         """
         Extract features of DNN activation
 
@@ -350,24 +341,15 @@ class Activation:
                 psd: use power spectral density as features
         n_feat[int]: The number of features to extract
         axis{str}: axis for feature extraction, choices=(chn, row_col)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
         ------
         activation[Activation]: DNN activation
         """
         activation = Activation()
-        if dmask is None:
-            for layer, data in self._activation.items():
-                data = dnn_fe(data, method, n_feat, axis)
-                activation.set(layer, data)
-        else:
-            for layer in dmask.layers:
-                mask = dmask.get(layer)
-                data = dnn_mask(self.get(layer), mask.get('chn'),
-                                mask.get('row'), mask.get('col'))
-                data = dnn_fe(data, method, n_feat, axis)
-                activation.set(layer, data)
+        for layer, data in self._activation.items():
+            data = dnn_fe(data, method, n_feat, axis)
+            activation.set(layer, data)
 
         return activation
 
@@ -375,21 +357,27 @@ class Activation:
         """
         Convolve DNN activation with HRF and align with the timeline of BOLD signal
 
-        parameters:
+        Parameters:
         ----------
         onsets[array_like]: in sec. size = n_event
         durations[array_like]: in sec. size = n_event
         n_vol[int]: the number of volumes of BOLD signal
         tr[float]: repeat time in second
         ops[int]: oversampling number per second
+
+        Return:
+        ------
+        activation[Activation]: DNN activation
         """
-        for layer in self.layers:
-            X = self.get(layer)
-            n_stim, n_chn, n_row, n_col = X.shape
-            X = convolve_hrf(X.reshape(n_stim, -1), onsets, durations,
-                             n_vol, tr, ops)
-            X = X.reshape(n_vol, n_chn, n_row, n_col)
-            self.set(layer, X)
+        activation = Activation()
+        for layer, data in self._activation.items():
+            n_stim, n_chn, n_row, n_col = data.shape
+            data = convolve_hrf(data.reshape(n_stim, -1), onsets, durations,
+                                n_vol, tr, ops)
+            data = data.reshape(n_vol, n_chn, n_row, n_col)
+            activation.set(layer, data)
+
+        return activation
 
     def _check_arithmetic(self, other):
         """

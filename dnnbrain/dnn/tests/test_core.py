@@ -267,8 +267,7 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = array_statistic(data, 'max', (2, 3), True)
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_fe(self):
 
@@ -280,8 +279,7 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = dnn_fe(data, 'pca', 3)
-            np.testing.assert_almost_equal(data,
-                                           activation._activation[layer])
+            np.testing.assert_almost_equal(data, activation._activation[layer])
 
     def test_convolve_hrf(self):
 
@@ -292,9 +290,7 @@ class TestActivation:
         tr = 2
         activation = dcore.Activation()
         activation._activation = self.activation_true
-
-        # convolution
-        activation.convolve_hrf(onsets, durations, n_vol, tr)
+        activation = activation.convolve_hrf(onsets, durations, n_vol, tr)
 
         # assert
         for layer, data in activation._activation.items():
