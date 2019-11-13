@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Extract DNN activation for layer, channel, row and column of interest
+Pooling DNN activation for each channel
 """
 
 import argparse
@@ -35,6 +35,17 @@ def main():
                         type=str,
                         help='a .dmask.csv file in which layers of interest are listed '
                              'with their own channels, rows and columns of interest.')
+    parser.add_argument('-meth',
+                        metavar='Method',
+                        required=True,
+                        type=str,
+                        choices=('max', 'mean', 'median', 'L1', 'L2'),
+                        help='Pooling method: '
+                             'max: max pooling; '
+                             'mean: mean pooling; '
+                             'median: median pooling; '
+                             'L1: 1-norm; '
+                             'L2: 2-norm.')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
@@ -42,9 +53,14 @@ def main():
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
-    # extract dnn activation with mask
-    dmask = gen_dmask(args.layer, args.chn, args.dmask)
-    activation = Activation(args.act, dmask)
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+
+    # do pooling
+    activation = Activation(args.act, dmask).pool(args.meth)
     activation.save(args.out)
 
 

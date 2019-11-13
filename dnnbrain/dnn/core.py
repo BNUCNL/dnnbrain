@@ -568,10 +568,13 @@ class Mask:
         if layer not in self._dmask:
             self._dmask[layer] = dict()
         if channels is not None:
+            assert isinstance(channels, list), "'channels' must be a list!"
             self._dmask[layer]['chn'] = channels
         if rows is not None:
+            assert isinstance(rows, list), "'rows' must be a list!"
             self._dmask[layer]['row'] = rows
         if columns is not None:
+            assert isinstance(columns, list), "'columns' must be a list!"
             self._dmask[layer]['col'] = columns
 
     def copy(self):

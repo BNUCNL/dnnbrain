@@ -5,9 +5,9 @@ Extract activation from DNN
 """
 
 import argparse
-import numpy as np
 
-from dnnbrain.dnn.core import Stimulus, Mask
+from dnnbrain.dnn.core import Stimulus
+from dnnbrain.utils.util import gen_dmask
 from dnnbrain.dnn import models as db_models  # used by eval
 
 
@@ -32,18 +32,6 @@ def main():
                         nargs='+',
                         help="Channel numbers used to specify where activation is extracted from "
                              "Default is extracting all channels of each layer specified by -layer.")
-    parser.add_argument('-row',
-                        metavar='Row',
-                        type=int,
-                        nargs='+',
-                        help="Row numbers used to specify where activation is extracted from "
-                             "Default is extracting all rows of each layer specified by -layer.")
-    parser.add_argument('-col',
-                        metavar='Column',
-                        type=int,
-                        nargs='+',
-                        help="Column numbers used to specify where activation is extracted from "
-                             "Default is extracting all columns of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,
@@ -54,31 +42,29 @@ def main():
                         required=True,
                         type=str,
                         help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-pool',
+                        metavar='Pooling',
+                        type=str,
+                        choices=('max', 'mean', 'median', 'L1', 'L2'),
+                        help='Pooling method: '
+                             'max: max pooling; '
+                             'mean: mean pooling; '
+                             'median: median pooling; '
+                             'L1: 1-norm; '
+                             'L2: 2-norm.')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert np.logical_xor(args.layer is None, args.dmask is None), \
-        'Use one and only one of the -layer and -dmask!'
 
-    # -load DNN-
-    dnn = eval('db_models.{}()'.format(args.net))
-
-    # -load stimuli-
-    stimuli = Stimulus(args.stim)
-
-    # -load mask-
-    dmask = Mask()
-    if args.layer is not None:
-        for layer in args.layer:
-            dmask.set(layer, args.chn, args.row, args.col)
-    else:
-        dmask.load(args.dmask)
+    dnn = eval('db_models.{}()'.format(args.net))  # load DNN
+    stimuli = Stimulus(args.stim)  # load stimuli
+    dmask = gen_dmask(args.layer, args.chn, args.dmask)  # generate DNN mask
 
     # -extract activation-
-    activation = dnn.compute_activation(stimuli, dmask)
+    activation = dnn.compute_activation(stimuli, dmask, args.pool)
     activation.save(args.out)
 
 

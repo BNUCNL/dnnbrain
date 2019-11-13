@@ -1,4 +1,8 @@
 import cv2
+import numpy as np
+
+from dnnbrain.dnn.core import Mask
+
 
 def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, after_vid=0):
     """
@@ -42,3 +46,53 @@ def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, afte
         onsets.append(onsets[-1] + d)
 
     return frame_nums, onsets, durations
+
+
+def gen_dmask(layers=None, channels=None, dmask_file=None):
+    """
+    Generate DNN mask object by:
+    1. combining layers and channels.
+    2. loading from dmask file.
+
+    Parameters:
+    ----------
+    layers[list]: layer names
+    channels[list]: channel numbers
+    dmask_file[str]: .dmask.csv file
+
+    Return:
+    ------
+    dmask[Mask]: DNN mask
+    """
+    # set some assertions
+    assert np.logical_xor(layers is None, dmask_file is None), \
+        "Use one and only one of the 'layers' and 'dmask_file'!"
+    if layers is None:
+        assert channels is None, "'channels' can't be used without 'layers'!"
+
+    dmask = Mask()
+    if layers is None:
+        # load from dmask file
+        dmask.load(dmask_file)
+    else:
+        # combine layers and channels
+        # contain all rows and columns for each layer
+        n_layer = len(layers)
+        if n_layer == 0:
+            raise ValueError("'layers' can't be empty!")
+        elif n_layer == 1:
+            # All channels belong to the single layer
+            dmask.set(layers[0], channels)
+        else:
+            if channels is None:
+                # contain all channels for each layer
+                for layer in layers:
+                    dmask.set(layer)
+            elif n_layer == len(channels):
+                # one-to-one correspondence between layers and channels
+                for layer, chn in zip(layers, channels):
+                    dmask.set(layer, [chn])
+            else:
+                raise ValueError("'channels' must be None or a list with same length as 'layers'"
+                                 " when the length of 'layers' is larger than 1.")
+    return dmask
