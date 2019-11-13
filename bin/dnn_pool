@@ -1,0 +1,68 @@
+#! /usr/bin/env python
+
+"""
+Pooling DNN activation for each channel
+"""
+
+import argparse
+
+from dnnbrain.dnn.core import Activation
+from dnnbrain.utils.util import gen_dmask
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="names of the layers used to specify where activation is extracted from "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="Channel numbers used to specify where activation is extracted from "
+                             "Default is extracting all channels of each layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
+    parser.add_argument('-meth',
+                        metavar='Method',
+                        required=True,
+                        type=str,
+                        choices=('max', 'mean', 'median', 'L1', 'L2'),
+                        help='Pooling method: '
+                             'max: max pooling; '
+                             'mean: mean pooling; '
+                             'median: median pooling; '
+                             'L1: 1-norm; '
+                             'L2: 2-norm.')
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .act.h5')
+    args = parser.parse_args()
+
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+
+    # do pooling
+    activation = Activation(args.act, dmask).pool(args.meth)
+    activation.save(args.out)
+
+
+if __name__ == '__main__':
+    main()
