@@ -33,7 +33,7 @@ def main():
                         help="Channel numbers used to specify where activation is extracted from "
                              "Default is extracting all channels of each layer specified by -layer.")
     parser.add_argument('-row',
-                        metavar='row',
+                        metavar='Row',
                         type=int,
                         nargs='+',
                         help="Row numbers used to specify where activation is extracted from "
