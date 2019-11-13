@@ -1,13 +1,10 @@
-import torch
 import numpy as np
 
 from copy import deepcopy
-from PIL import Image
-from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, Resize, ToTensor
 from dnnbrain.io import fileio as fio
-from dnnbrain.dnn.base import DNNLoader, dnn_mask, dnn_fe, array_statistic
-from dnnbrain.dnn.base import ImageSet, VideoSet, Classifier, Regressor
+from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
+from dnnbrain.dnn.base import Classifier, Regressor
+from dnnbrain.brain.algo import convolve_hrf
 
 
 class Stimulus:
@@ -180,182 +177,6 @@ class Stimulus:
         return stim
 
 
-class DNN:
-    """Deep neural network"""
-
-    def __init__(self, net=None):
-        """
-        Parameter:
-        ---------
-        net[str]: deep neural network name
-        """
-        self.model = None
-        self.layer2loc = None
-        self.img_size = None
-        if net is not None:
-            self.load(net)
-
-    def load(self, net):
-        """
-        Load DNN and associated information
-
-        Parameter:
-        ---------
-        net[str]: deep neural network name
-        """
-        loader = DNNLoader(net)
-        self.model = loader.model
-        self.layer2loc = loader.layer2loc
-        self.img_size = loader.img_size
-
-    def save(self, fname):
-        """
-        Save DNN parameters
-
-        Parameter:
-        ---------
-        fname[str]: output file name with suffix as .pth
-        """
-        assert fname.endswith('.pth'), 'File suffix must be .pth'
-        torch.save(self.model.state_dict(), fname)
-
-    def set(self, model, parameters=None, layer2loc=None, img_size=None):
-        """
-        Load DNN model, parameters, layer2loc and img_size manually
-
-        Parameters:
-        ----------
-        model[nn.Modules]: DNN model
-        parameters[state_dict]: Parameters of DNN model
-        layer2loc[dict]: map layer name to its location in the DNN model
-        img_size[tuple]: the input image size
-        """
-        self.model = model
-        if parameters is not None:
-            self.model.load_state_dict(parameters)
-        self.layer2loc = layer2loc
-        self.img_size = img_size
-
-    def compute_activation(self, stimuli, dmask):
-        """
-        Extract DNN activation
-
-        Parameters:
-        ----------
-        stimuli[Stimulus|ndarray]: input stimuli
-            If is Stimulus, loaded from files on the disk.
-            If is ndarray, its shape is (n_stim, n_chn, height, width)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
-
-        Return:
-        ------
-        activation[Activation]: DNN activation
-        """
-        # prepare stimuli loader
-        transform = Compose([Resize(self.img_size), ToTensor()])
-        if isinstance(stimuli, np.ndarray):
-            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
-            stim_set = [(transform(img), 0) for img in stim_set]
-        elif isinstance(stimuli, Stimulus):
-            if stimuli.meta['type'] == 'image':
-                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
-            elif stimuli.meta['type'] == 'video':
-                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
-            else:
-                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
-        else:
-            raise TypeError('The input stimuli must be an instance of Tensor or Stimulus!')
-        data_loader = DataLoader(stim_set, 8, shuffle=False)
-
-        # -extract activation-
-        # change to eval mode
-        self.model.eval()
-        n_stim = len(stim_set)
-        activation = Activation()
-        for layer in dmask.layers:
-            # prepare dnn activation hook
-            acts_holder = []
-
-            def hook_act(module, input, output):
-                # copy dnn activation and mask it
-                acts = output.detach().numpy().copy()
-                if acts.ndim == 4:
-                    pass
-                elif acts.ndim == 2:
-                    acts = acts[:, :, None, None]
-                else:
-                    raise ValueError('Unexpected activation shape:', acts.shape)
-                mask = dmask.get(layer)
-                acts = dnn_mask(acts, mask.get('chn'),
-                                mask.get('row'), mask.get('col'))
-                # hold the information
-                acts_holder.extend(acts)
-
-            module = self.model
-            for k in self.layer2loc[layer]:
-                module = module._modules[k]
-            hook_handle = module.register_forward_hook(hook_act)
-
-            # extract DNN activation
-            for stims, _ in data_loader:
-                # stimuli with shape as (n_stim, n_chn, height, width)
-                self.model(stims)
-                print('Extracted activation of {0}: {1}/{2}'.format(
-                    layer, len(acts_holder), n_stim))
-            activation.set(layer, np.asarray(acts_holder))
-
-            hook_handle.remove()
-
-        return activation
-
-    def get_kernel(self, layer, kernel_num=None):
-        """
-        Get kernel's weights of the layer
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        kernel_num[int]: the sequence number of the kernel
-
-        Return:
-        ------
-        kernel[array]: kernel weights
-        """
-        # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
-
-        # get the weights
-        kernel = module.weight
-        if kernel_num is not None:
-            kernel = kernel[kernel_num]
-
-        return kernel.detach().numpy()
-
-    def ablate(self, layer, channels=None):
-        """
-        Ablate DNN kernels' weights
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        channels[list]: sequence numbers of channels of interest
-            If None, ablate the whole layer.
-        """
-        # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
-
-        # ablate kernels' weights
-        if channels is None:
-            module.weight.data[:] = 0
-        else:
-            channels = [chn - 1 for chn in channels]
-            module.weight.data[channels] = 0
-
-
 class Activation:
     """DNN activation"""
 
@@ -488,35 +309,26 @@ class Activation:
 
         return activation
 
-    def pool(self, method, dmask=None):
+    def pool(self, method):
         """
         Pooling DNN activation for each channel
 
-        Parameters:
-        ----------
-        method[str]: pooling method, choices=(max, mean, median)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        Parameter:
+        ---------
+        method[str]: pooling method, choices=(max, mean, median, L1, L2)
 
         Return:
         ------
         activation[Activation]: DNN activation
         """
         activation = Activation()
-        if dmask is None:
-            for layer, data in self._activation.items():
-                data = array_statistic(data, method, (2, 3), True)
-                activation.set(layer, data)
-        else:
-            for layer in dmask.layers:
-                mask = dmask.get(layer)
-                data = dnn_mask(self.get(layer), mask.get('chn'),
-                                mask.get('row'), mask.get('col'))
-                data = array_statistic(data, method, (2, 3), True)
-                activation.set(layer, data)
+        for layer, data in self._activation.items():
+            data = array_statistic(data, method, (2, 3), True)
+            activation.set(layer, data)
 
         return activation
 
-    def fe(self, method, n_feat, axis=None, dmask=None):
+    def fe(self, method, n_feat, axis=None):
         """
         Extract features of DNN activation
 
@@ -529,24 +341,41 @@ class Activation:
                 psd: use power spectral density as features
         n_feat[int]: The number of features to extract
         axis{str}: axis for feature extraction, choices=(chn, row_col)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
 
         Return:
         ------
         activation[Activation]: DNN activation
         """
         activation = Activation()
-        if dmask is None:
-            for layer, data in self._activation.items():
-                data = dnn_fe(data, method, n_feat, axis)
-                activation.set(layer, data)
-        else:
-            for layer in dmask.layers:
-                mask = dmask.get(layer)
-                data = dnn_mask(self.get(layer), mask.get('chn'),
-                                mask.get('row'), mask.get('col'))
-                data = dnn_fe(data, method, n_feat, axis)
-                activation.set(layer, data)
+        for layer, data in self._activation.items():
+            data = dnn_fe(data, method, n_feat, axis)
+            activation.set(layer, data)
+
+        return activation
+
+    def convolve_hrf(self, onsets, durations, n_vol, tr, ops=100):
+        """
+        Convolve DNN activation with HRF and align with the timeline of BOLD signal
+
+        Parameters:
+        ----------
+        onsets[array_like]: in sec. size = n_event
+        durations[array_like]: in sec. size = n_event
+        n_vol[int]: the number of volumes of BOLD signal
+        tr[float]: repeat time in second
+        ops[int]: oversampling number per second
+
+        Return:
+        ------
+        activation[Activation]: DNN activation
+        """
+        activation = Activation()
+        for layer, data in self._activation.items():
+            n_stim, n_chn, n_row, n_col = data.shape
+            data = convolve_hrf(data.reshape(n_stim, -1), onsets, durations,
+                                n_vol, tr, ops)
+            data = data.reshape(n_vol, n_chn, n_row, n_col)
+            activation.set(layer, data)
 
         return activation
 
@@ -739,10 +568,13 @@ class Mask:
         if layer not in self._dmask:
             self._dmask[layer] = dict()
         if channels is not None:
+            assert isinstance(channels, list), "'channels' must be a list!"
             self._dmask[layer]['chn'] = channels
         if rows is not None:
+            assert isinstance(rows, list), "'rows' must be a list!"
             self._dmask[layer]['row'] = rows
         if columns is not None:
+            assert isinstance(columns, list), "'columns' must be a list!"
             self._dmask[layer]['col'] = columns
 
     def copy(self):
