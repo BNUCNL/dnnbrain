@@ -5,9 +5,9 @@ Extract DNN activation for layer, channel, row and column of interest
 """
 
 import argparse
-import numpy as np
 
-from dnnbrain.dnn.core import Mask, Activation
+from dnnbrain.dnn.core import Activation
+from dnnbrain.utils.util import gen_dmask
 
 
 def main():
@@ -30,18 +30,6 @@ def main():
                         nargs='+',
                         help="Channel numbers used to specify where activation is extracted from "
                              "Default is extracting all channels of each layer specified by -layer.")
-    parser.add_argument('-row',
-                        metavar='Row',
-                        type=int,
-                        nargs='+',
-                        help="Row numbers used to specify where activation is extracted from "
-                             "Default is extracting all rows of each layer specified by -layer.")
-    parser.add_argument('-col',
-                        metavar='Column',
-                        type=int,
-                        nargs='+',
-                        help="Column numbers used to specify where activation is extracted from "
-                             "Default is extracting all columns of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,
@@ -53,17 +41,9 @@ def main():
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert np.logical_xor(args.layer is None, args.dmask is None), \
-        'Use one and only one of the -layer and -dmask!'
 
     # extract dnn activation with mask
-    dmask = Mask()
-    if args.layer is not None:
-        for layer in args.layer:
-            dmask.set(layer, args.chn, args.row, args.col)
-    else:
-        dmask.load(args.dmask)
-
+    dmask = gen_dmask(args.layer, args.chn, args.dmask)
     activation = Activation(args.act, dmask)
     activation.save(args.out)
 
