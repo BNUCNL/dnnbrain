@@ -56,7 +56,7 @@ def main():
                         required=True,
                         type=str,
                         help='a .roi.h5/.nii file '
-                             'If it is .nii file, -meas will be ignore. '
+                             'If it is .nii file, -roi will be ignore. '
                              "All voxels' activation will be a correlate.")
     parser.add_argument('-bmask',
                         metavar='BrainMask',

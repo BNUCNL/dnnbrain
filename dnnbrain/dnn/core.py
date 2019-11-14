@@ -757,8 +757,7 @@ class Encoder:
                     X = dnn_acts[:, iter_idx, max_elem_idx][:, None]
                     y = response[:, meas_idx]
                     model_arr[iter_idx, meas_idx] = self.model.fit(X, y)
-                    print('Meas: {0}/{1}; iter:{2}/{3}'.format(meas_idx + 1, n_meas,
-                                                               iter_idx + 1, n_iter))
+                    print(f'Layer-{layer} meas-{meas_idx+1}/{n_meas} iter-{iter_idx+1}/{n_iter}')
             pred_dict[layer] = {
                 'score': score_arr,
                 'channel': channel_arr,
@@ -822,7 +821,7 @@ class Encoder:
                 model_tmp = [self.model.fit(X, response[:, i]) for i in range(n_meas)]
                 model_arr.append(model_tmp)
 
-                print('Finish iteration{0}/{1}'.format(iter_idx + 1, n_iter))
+                print(f'Layer-{layer} iter-{iter_idx+1}/{n_iter}')
             score_arr = np.array(score_arr)
             model_arr = np.array(model_arr)
 
