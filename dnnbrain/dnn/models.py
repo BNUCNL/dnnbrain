@@ -559,6 +559,111 @@ class DNN:
             channels = [chn - 1 for chn in channels]
             module.weight.data[channels] = 0
 
+    def train(self, data, n_epoch, criterion, optimizer=None, method='tradition', target=None):
+        """
+        Train the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: training data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        n_epoch[int]: the number of epochs
+        criterion[str|object]: criterion function
+            If is str, choices=('classification', 'regression').
+            If is not str, it must be torch loss object.
+        optimizer[object]: optimizer function
+            If is None, use Adam default.
+            If is not None, it must be torch optimizer object.
+        method[str]: training method, by default is 'tradition'.
+            For some specific models (e.g. inception), loss needs to be calculated in another way.
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # prepare criterion
+        if criterion == 'classification':
+            criterion = nn.CrossEntropyLoss()
+        elif criterion == 'regression':
+            criterion = nn.MSELoss()
+
+        # prepare optimizer
+        if optimizer is None:
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+
+        loss_list = []
+        time1 = time.time()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.train()
+        self.model = self.model.to(device)
+        for epoch in range(n_epoch):
+            print(f'Epoch-{epoch+1}/{n_epoch}')
+            print('-' * 10)
+            time2 = time.time()
+            running_loss = 0.0
+
+            for inputs, targets in data_loader:
+                inputs.requires_grad_(True)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                with torch.set_grad_enabled(True):
+                    if method == 'tradition':
+                        outputs = self.model(inputs)
+                        loss = criterion(outputs, targets)
+                    elif method == 'inception':
+                        # Google inception model
+                        outputs, aux_outputs = self.model(inputs)
+                        loss1 = criterion(outputs, targets)
+                        loss2 = criterion(aux_outputs, targets)
+                        loss = loss1 + 0.4 * loss2
+                    else:
+                        raise Exception(f'not supported method-{method}')
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                # Statistics loss in every batch
+                running_loss += loss.item() * inputs.size(0)
+
+            # calculate loss in every epoch
+            epoch_loss = running_loss / len(data_loader.dataset)
+            print(f'Loss: {epoch_loss}')
+            loss_list.append(epoch_loss)
+
+            # print time of a epoch
+            epoch_time = time.time() - time2
+            print('This epoch costs {:.0f}m {:.0f}s\n'.format(epoch_time // 60, epoch_time % 60))
+
+        time_elapsed = time.time() - time1
+        print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
 
 class AlexNet(DNN):
 
@@ -602,3 +707,9 @@ class Vgg11(DNN):
             pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
         self.layer2loc = None
         self.img_size = (224, 224)
+
+
+if __name__ == '__main__':
+    dnn = AlexNet()
+    stim = Stimulus('e:/useful_things/data/AI/dnnbrain_data/test/image/sub-CSI1_ses-01_imagenet.stim.csv')
+    dnn.train(stim, 2, 'classification')
