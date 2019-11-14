@@ -9,7 +9,6 @@ import time
 import argparse
 import numpy as np
 import pandas as pd
-import pickle as pkl
 
 from os.path import join as pjoin
 from dnnbrain.dnn.core import Activation, Encoder
@@ -68,7 +67,7 @@ def main():
                         required=True,
                         type=str,
                         help='a .roi.h5/.nii file '
-                             'If it is .nii file, -roi will be ignore. '
+                             'If it is .nii file, -roi will be ignored. '
                              "All voxels' activation will be regarded as the "
                              "ground truth of a regression task. ")
     parser.add_argument('-bmask',
@@ -192,7 +191,7 @@ def main():
                 col_pos_img[:, bmask] = data['column']
                 save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
 
-        pkl.dump(data['model'], open(pjoin(trg_dir, f'model_{args.anal}.pkl'), 'wb'))
+        np.save(pjoin(trg_dir, f'model_{args.anal}.npy'), data['model'], allow_pickle=True)
         print(f'Finish save {layer}.')
     # -save out end-
 

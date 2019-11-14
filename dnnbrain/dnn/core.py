@@ -923,7 +923,7 @@ class Decoder:
                         X = response[:, max_meas_idx][:, None]
                         y = dnn_acts[:, chn_idx, row_idx, col_idx]
                         model_arr[chn_idx, row_idx, col_idx] = self.model.fit(X, y)
-                print(f'Finish-{layer}-{chn_idx+1}/{n_chn}')
+                print(f'Layer-{layer} chn-{chn_idx+1}/{n_chn}')
 
             pred_dict[layer] = {
                 'score': score_arr,
@@ -975,7 +975,7 @@ class Decoder:
                         # save to containers
                         score_arr[chn_idx, row_idx, col_idx] = np.mean(cv_scores)
                         model_arr[chn_idx, row_idx, col_idx] = self.model.fit(X, y)
-                print(f'Finish-{layer}-{chn_idx + 1}/{n_chn}')
+                print(f'Layer-{layer} chn-{chn_idx + 1}/{n_chn}')
 
             pred_dict[layer] = {
                 'score': score_arr,
