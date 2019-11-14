@@ -5,6 +5,7 @@ import torch
 import numpy as np
 
 from os.path import join as pjoin
+from scipy.stats import pearsonr
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
@@ -617,11 +618,12 @@ class DNN:
         if optimizer is None:
             optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
 
+        # start train
         loss_list = []
         time1 = time.time()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.train()
-        self.model = self.model.to(device)
+        model = self.model.to(device)
         for epoch in range(n_epoch):
             print(f'Epoch-{epoch+1}/{n_epoch}')
             print('-' * 10)
@@ -634,11 +636,11 @@ class DNN:
                 targets = targets.to(device)
                 with torch.set_grad_enabled(True):
                     if method == 'tradition':
-                        outputs = self.model(inputs)
+                        outputs = model(inputs)
                         loss = criterion(outputs, targets)
                     elif method == 'inception':
                         # Google inception model
-                        outputs, aux_outputs = self.model(inputs)
+                        outputs, aux_outputs = model(inputs)
                         loss1 = criterion(outputs, targets)
                         loss2 = criterion(aux_outputs, targets)
                         loss = loss1 + 0.4 * loss2
@@ -663,6 +665,113 @@ class DNN:
 
         time_elapsed = time.time() - time1
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    def test(self, data, task, target=None):
+        """
+        Test the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: testing data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        task[str]: choices=(classification, regression)
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+
+        Returns:
+        -------
+        test_dict[dict]:
+            if task == 'classification':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                acc_top1[float]: prediction accuracy of top1
+                acc_top5[float]: prediction accuracy of top5
+            if task == 'regression':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                r_square[float]: R square between pred_values and true_values
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # start test
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+        model = self.model.to(device)
+        pred_values = []
+        true_values = []
+        if task == 'classification':
+            pred_values_top5 = []
+        with torch.no_grad():
+            for i, (inputs, targets) in enumerate(data_loader):
+                inputs = inputs.to(device)
+                outputs = model(inputs)
+
+                # collect outputs
+                if task == 'classification':
+                    _, pred_labels = torch.max(outputs, 1)
+                    _, pred_labels_top5 = torch.topk(outputs, 5)
+                    pred_values.extend(pred_labels.detach().numpy())
+                    pred_values_top5.extend(pred_labels_top5.detach().numpy())
+                    true_values.extend(targets.numpy())
+                elif task == 'regression':
+                    pred_values.extend(outputs.detach().numpy())
+                    true_values.extend(targets.numpy())
+                else:
+                    raise ValueError('unsupported task:', task)
+
+        test_dict = dict()
+        pred_values = np.array(pred_values)
+        true_values = np.array(true_values)
+        if task == 'classification':
+            pred_values_top5 = np.array(pred_values_top5)
+
+            # calculate the top1 acc and top5 acc
+            acc_top1 = np.sum(pred_values == true_values) / len(true_values)
+            acc_top5 = 0.0
+            for i in range(5):
+                acc_top5 += np.sum(pred_values_top5[:, i] == true_values)
+            acc_top5 = acc_top5 / len(true_values)
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['acc_top1'] = acc_top1
+            test_dict['act_top5'] = acc_top5
+        else:
+            # calculate r_square
+            r, _ = pearsonr(pred_values.ravel(), true_values.ravel())
+            r_square = r ** 2
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['r_square'] = r_square
+
+        return test_dict
 
 
 class AlexNet(DNN):
@@ -707,9 +816,3 @@ class Vgg11(DNN):
             pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
         self.layer2loc = None
         self.img_size = (224, 224)
-
-
-if __name__ == '__main__':
-    dnn = AlexNet()
-    stim = Stimulus('e:/useful_things/data/AI/dnnbrain_data/test/image/sub-CSI1_ses-01_imagenet.stim.csv')
-    dnn.train(stim, 2, 'classification')
