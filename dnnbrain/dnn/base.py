@@ -110,6 +110,7 @@ class ImageSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
@@ -172,6 +173,7 @@ class VideoSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
