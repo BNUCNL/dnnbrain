@@ -11,9 +11,10 @@ import numpy as np
 import pandas as pd
 
 from os.path import join as pjoin
-from dnnbrain.dnn.io import ActReader
-from dnnbrain.utils.io import read_stim_csv
+from dnnbrain.dnn.core import Activation
+from dnnbrain.brain.core import ROI
 from dnnbrain.brain.io import load_brainimg, save_brainimg
+from dnnbrain.utils.util import gen_dmask
 from sklearn.metrics import pairwise_distances
 
 
@@ -28,36 +29,46 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="names of the layers which are used "
+                        help="layer names of interest "
                              "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. "
-                             "Default using all layers in the DNN activation file.")
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-iteraxis',
                         type=str,
                         metavar='Axis',
-                        choices=('chn', 'col'),
+                        choices=('channel', 'row_col'),
                         help="Iterate along the specified axis."
-                             "chn: Summarize the maximal R square for each channel. "
-                             "col: Summarize the maximal R square for each column. "
+                             "channel: Summarize the maximal R square for each channel. "
+                             "row_col: Summarize the maximal R square for each position (row_idx, col_idx). "
                              "default: Summarize the maximal R square for the whole layer.")
     parser.add_argument('-resp',
                         metavar='Response',
                         required=True,
                         type=str,
-                        help='a .stim.csv/.roi.h5/.nii file '
-                             'If it is .nii file, -meas will be ignore. '
+                        help='a .roi.h5/.nii file '
+                             'If it is .nii file, -roi will be ignored. '
                              "All voxels' activation will be a correlate.")
     parser.add_argument('-bmask',
                         metavar='BrainMask',
                         type=str,
                         help='Brain mask is used to extract activation locally. '
                              'Only used when the response file is .nii file.')
-    parser.add_argument('-meas',
-                        metavar='Measurement',
+    parser.add_argument('-roi',
+                        metavar='RoiName',
                         type=str,
                         nargs='+',
-                        help='Specify measurements the correlates. '
-                             'Default is using all measurements in response file.')
+                        help='Specify ROI names as the correlates. '
+                             'Default is using all ROIs in .roi.h5 file.')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
@@ -66,15 +77,9 @@ def main():
     args = parser.parse_args()
 
     # -Load response start-
-    if args.resp.endswith('.stim.csv'):
-        resp_dict = read_stim_csv(args.resp)
-        if args.meas is None:
-            Y = list(resp_dict['meas'].values())
-            measurements = list(resp_dict['meas'].keys())
-        else:
-            Y = [resp_dict['meas'][k] for k in args.meas]
-            measurements = args.meas
-        Y = np.array(Y).T
+    if args.resp.endswith('.roi.h5'):
+        roi = ROI(args.resp, args.roi)
+        Y = roi.data
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
         Y, header = load_brainimg(args.resp)
@@ -90,60 +95,83 @@ def main():
         Y = Y[:, bmask]
 
     else:
-        raise IOError('Only .stim.csv and nifti/cifti are supported')
+        raise IOError('Only .roi.h5 and nifti/cifti are supported')
     n_samp, n_meas = Y.shape  # n_sample x n_measures
     print('Finish loading response: ', args.resp)
     # -Load response end-
 
-    act_reader = ActReader(args.act)
-    layers = act_reader.layers if args.layer is None else args.layer
-    for layer in layers:
-        start = time.time()
-        # load DNN activation
-        X = act_reader.get_act(layer)
-        n_stim, n_chn, n_col = X.shape
+    # -load activation start-
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+    activation = Activation(args.act, dmask)
+    print('Finish loading activation: ', args.act)
+    # -load activation end-
+
+    # -correlation start-
+    for layer in activation.layers:
+        time1 = time.time()
+        # get DNN activation and reshape it to 3D
+        dnn_acts = activation.get(layer)
+        n_stim, n_chn, n_row, n_col = dnn_acts.shape
         assert n_stim == n_samp, 'n_stim != n_samp'
+        n_row_col = n_row * n_col
+        dnn_acts = dnn_acts.reshape((n_stim, n_chn, n_row_col))
 
-        # transpose axis to keep X's shape as (n_stimulus, n_iterator, n_element)
+        # transpose axis to make dnn_acts's shape as (n_stimulus, n_iterator, n_element)
         if args.iteraxis is None:
-            X = X.reshape((n_stim, 1, n_chn * n_col))
-        elif args.iteraxis == 'col':
-            X = X.transpose((0, 2, 1))
-        n_stim, n_iter, n_elem = X.shape
+            dnn_acts = dnn_acts.reshape((n_stim, 1, -1))
+        elif args.iteraxis == 'row_col':
+            dnn_acts = dnn_acts.transpose((0, 2, 1))
+        elif args.iteraxis == 'channel':
+            pass
+        else:
+            raise ValueError("Unspported iteraxis:", args.iteraxis)
+        n_stim, n_iter, n_elem = dnn_acts.shape
 
-        # --Perform correlation analysis--
         # prepare container
         score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
         channel_arr = np.zeros_like(score_arr, dtype=np.int)
+        row_arr = np.zeros_like(score_arr, dtype=np.int)
         column_arr = np.zeros_like(score_arr, dtype=np.int)
 
         # start iteration
         for meas_idx in range(n_meas):
             for iter_idx in range(n_iter):
                 # calculate correlation
-                score_tmp = pairwise_distances(X[:, iter_idx, :].T,
-                                               Y[:, meas_idx].reshape(1, -1), 'correlation')
-                score_tmp = (1 - np.squeeze(score_tmp)) ** 2
+                X = dnn_acts[:, iter_idx, :].T
+                y = Y[:, meas_idx].reshape(1, -1)
+                score_tmp = pairwise_distances(X, y, 'correlation')
+                score_tmp = (1 - score_tmp.ravel()) ** 2
 
                 # find max score
                 max_elem_idx = np.argmax(score_tmp)
                 max_score = score_tmp[max_elem_idx]
                 score_arr[iter_idx, meas_idx] = max_score
 
-                # find position of the max score
+                # find position for the max score
                 if args.iteraxis is None:
-                    chn_idx = max_elem_idx // n_col
+                    chn_idx = max_elem_idx // n_row_col
+                    row_idx = max_elem_idx % n_row_col // n_col
+                    col_idx = max_elem_idx % n_row_col % n_col
+                elif args.iteraxis == 'channel':
+                    chn_idx = iter_idx
+                    row_idx = max_elem_idx // n_col
                     col_idx = max_elem_idx % n_col
-                elif args.iteraxis == 'chn':
-                    chn_idx, col_idx = iter_idx, max_elem_idx
                 else:
-                    chn_idx, col_idx = max_elem_idx, iter_idx
+                    chn_idx = max_elem_idx
+                    row_idx = iter_idx // n_col
+                    col_idx = iter_idx % n_col
+
                 channel_arr[iter_idx, meas_idx] = chn_idx + 1
+                row_arr[iter_idx, meas_idx] = row_idx + 1
                 column_arr[iter_idx, meas_idx] = col_idx + 1
+                print(f'Layer: {layer} Meas: {meas_idx+1}/{n_meas}; iter: {iter_idx+1}/{n_iter}')
+        print(f'Finish correlation for {layer}, cost {time.time()-time1} seconds.')
 
-                print('Measure{0}/{1}: finish iteration{2}/{3}'.format(meas_idx + 1, n_meas, iter_idx + 1, n_iter))
-
-        # -save out start-
+        # --save out start--
         # prepare directory
         trg_dir = pjoin(args.out, layer)
         if not os.path.isdir(trg_dir):
@@ -154,17 +182,20 @@ def main():
                 os.makedirs(trg_dir)
 
         # save files
-        if args.resp.endswith('.stim.csv'):
+        if args.resp.endswith('.roi.h5'):
             # save score
-            score_df = pd.DataFrame(score_arr, columns=measurements)
+            score_df = pd.DataFrame(score_arr, columns=roi.rois)
             score_df.to_csv(pjoin(trg_dir, 'score_corr.csv'), index=False)
             del score_arr
 
             # save position
-            chn_pos_df = pd.DataFrame(channel_arr, columns=measurements)
+            chn_pos_df = pd.DataFrame(channel_arr, columns=roi.rois)
             chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
             del channel_arr
-            col_pos_df = pd.DataFrame(column_arr, columns=measurements)
+            row_pos_df = pd.DataFrame(row_arr, columns=roi.rois)
+            row_pos_df.to_csv(pjoin(trg_dir, 'row_position.csv'), index=False)
+            del row_arr
+            col_pos_df = pd.DataFrame(column_arr, columns=roi.rois)
             col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
             del column_arr
 
@@ -182,13 +213,16 @@ def main():
             chn_pos_img[:, bmask] = channel_arr
             save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
             del channel_arr
+            row_pos_img = np.zeros_like(score_img, dtype=np.int)
+            row_pos_img[:, bmask] = row_arr
+            save_brainimg(pjoin(trg_dir, 'row_position.' + resp_suffix), row_pos_img, header)
+            del row_arr
             col_pos_img = np.zeros_like(score_img, dtype=np.int)
             col_pos_img[:, bmask] = column_arr
             save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
             del column_arr
-        # -save out end-
-        end = time.time()
-        print('Finish corr in {0}: cost {1} seconds'.format(layer, end - start))
+        print(f'Finish saving for {layer}')
+        # --save out end--
 
 
 if __name__ == '__main__':
