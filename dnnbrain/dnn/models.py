@@ -5,6 +5,7 @@ import torch
 import numpy as np
 
 from os.path import join as pjoin
+from scipy.stats import pearsonr
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
@@ -558,6 +559,219 @@ class DNN:
         else:
             channels = [chn - 1 for chn in channels]
             module.weight.data[channels] = 0
+
+    def train(self, data, n_epoch, criterion, optimizer=None, method='tradition', target=None):
+        """
+        Train the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: training data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        n_epoch[int]: the number of epochs
+        criterion[str|object]: criterion function
+            If is str, choices=('classification', 'regression').
+            If is not str, it must be torch loss object.
+        optimizer[object]: optimizer function
+            If is None, use Adam default.
+            If is not None, it must be torch optimizer object.
+        method[str]: training method, by default is 'tradition'.
+            For some specific models (e.g. inception), loss needs to be calculated in another way.
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # prepare criterion
+        if criterion == 'classification':
+            criterion = nn.CrossEntropyLoss()
+        elif criterion == 'regression':
+            criterion = nn.MSELoss()
+
+        # prepare optimizer
+        if optimizer is None:
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+
+        # start train
+        loss_list = []
+        time1 = time.time()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.train()
+        model = self.model.to(device)
+        for epoch in range(n_epoch):
+            print(f'Epoch-{epoch+1}/{n_epoch}')
+            print('-' * 10)
+            time2 = time.time()
+            running_loss = 0.0
+
+            for inputs, targets in data_loader:
+                inputs.requires_grad_(True)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                with torch.set_grad_enabled(True):
+                    if method == 'tradition':
+                        outputs = model(inputs)
+                        loss = criterion(outputs, targets)
+                    elif method == 'inception':
+                        # Google inception model
+                        outputs, aux_outputs = model(inputs)
+                        loss1 = criterion(outputs, targets)
+                        loss2 = criterion(aux_outputs, targets)
+                        loss = loss1 + 0.4 * loss2
+                    else:
+                        raise Exception(f'not supported method-{method}')
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                # Statistics loss in every batch
+                running_loss += loss.item() * inputs.size(0)
+
+            # calculate loss in every epoch
+            epoch_loss = running_loss / len(data_loader.dataset)
+            print(f'Loss: {epoch_loss}')
+            loss_list.append(epoch_loss)
+
+            # print time of a epoch
+            epoch_time = time.time() - time2
+            print('This epoch costs {:.0f}m {:.0f}s\n'.format(epoch_time // 60, epoch_time % 60))
+
+        time_elapsed = time.time() - time1
+        print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    def test(self, data, task, target=None):
+        """
+        Test the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: testing data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        task[str]: choices=(classification, regression)
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+
+        Returns:
+        -------
+        test_dict[dict]:
+            if task == 'classification':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                acc_top1[float]: prediction accuracy of top1
+                acc_top5[float]: prediction accuracy of top5
+            if task == 'regression':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                r_square[float]: R square between pred_values and true_values
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # start test
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+        model = self.model.to(device)
+        pred_values = []
+        true_values = []
+        if task == 'classification':
+            pred_values_top5 = []
+        with torch.no_grad():
+            for i, (inputs, targets) in enumerate(data_loader):
+                inputs = inputs.to(device)
+                outputs = model(inputs)
+
+                # collect outputs
+                if task == 'classification':
+                    _, pred_labels = torch.max(outputs, 1)
+                    _, pred_labels_top5 = torch.topk(outputs, 5)
+                    pred_values.extend(pred_labels.detach().numpy())
+                    pred_values_top5.extend(pred_labels_top5.detach().numpy())
+                    true_values.extend(targets.numpy())
+                elif task == 'regression':
+                    pred_values.extend(outputs.detach().numpy())
+                    true_values.extend(targets.numpy())
+                else:
+                    raise ValueError('unsupported task:', task)
+
+        test_dict = dict()
+        pred_values = np.array(pred_values)
+        true_values = np.array(true_values)
+        if task == 'classification':
+            pred_values_top5 = np.array(pred_values_top5)
+
+            # calculate the top1 acc and top5 acc
+            acc_top1 = np.sum(pred_values == true_values) / len(true_values)
+            acc_top5 = 0.0
+            for i in range(5):
+                acc_top5 += np.sum(pred_values_top5[:, i] == true_values)
+            acc_top5 = acc_top5 / len(true_values)
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['acc_top1'] = acc_top1
+            test_dict['act_top5'] = acc_top5
+        else:
+            # calculate r_square
+            r, _ = pearsonr(pred_values.ravel(), true_values.ravel())
+            r_square = r ** 2
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['r_square'] = r_square
+
+        return test_dict
 
 
 class AlexNet(DNN):

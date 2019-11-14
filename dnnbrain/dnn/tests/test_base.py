@@ -72,7 +72,7 @@ class TestImageSet:
         image_new = transform(Image.open(pjoin(img_dir, img_ids[indices])))
 
         assert torch.equal(image_org, image_new)
-        assert labels_get[0] == labels[indices]
+        assert labels_get == labels[indices]
         
         # test indice list
         indices = [1, 2]

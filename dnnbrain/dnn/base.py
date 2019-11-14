@@ -66,6 +66,7 @@ class ImageSet:
         self.img_dir = img_dir
         self.img_ids = img_ids
         self.labels = np.ones(len(self.img_ids)) if labels is None else labels
+        self.labels = self.labels.astype(np.int64)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __len__(self):
@@ -110,6 +111,7 @@ class ImageSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
@@ -130,6 +132,7 @@ class VideoSet:
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
         self.labels = np.ones(len(self.frame_nums)) if labels is None else labels
+        self.labels = self.labels.astype(np.int64)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __getitem__(self, indices):
@@ -172,6 +175,7 @@ class VideoSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
