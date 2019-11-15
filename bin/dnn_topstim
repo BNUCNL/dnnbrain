@@ -42,47 +42,7 @@ def main():
     # Load net/stim/dmask
     dnn = DNN(args.net)
     stim = Stimulus(args.stim)
-<<<<<<< HEAD
-    transform = Compose([Resize(dnn.img_size), ToTensor()])
-    dataset = ImageSet(stim.meta['path'], stim.get('stimID'), transform=transform)
-    stims, _ = dataset[:]
-
-    # --- Extract activation ---
-    acts = []
-    data_loader = DataLoader(dataset, batch_size=10, shuffle=False)
-    for stims, _ in data_loader:
-        acts.append(dnn.compute_activation(stims, dmask))
-    act = acts[0].concatenate(acts[1:])
-
-    # --- Count topK ---
-    for tmp_ly in act.layers:
-        tmp_raw = act.get(tmp_ly, raw_shape=True)
-        tmp_pool = dnn_pooling(act.get(tmp_ly), args.metric).squeeze(2).T
-        if len(tmp_raw) == 2:  # Deal with fully-connected layers
-            tmp_raw = (tmp_raw[0], tmp_raw[1], 1, 1)
-        toptmp = np.zeros((args.top, len(dmask.get(tmp_ly)['chn']), tmp_raw[2] * tmp_raw[3]))
-        for tmp_chn_id, tmp_chn in enumerate(dmask.get(tmp_ly)['chn']):
-            tmp_sort_id = np.argsort(-tmp_pool[tmp_chn_id])[0:args.top]
-            # --- Write TopK result into stim.csv file ---
-            tmpCSVname = args.net + '_' + tmp_ly + '_' + str(tmp_chn) + '_top' + \
-                str(args.top) + '_' + args.metric + '.stim.csv'
-            stim.set('stimID', dataset.img_ids[tmp_sort_id])
-            stim.set('poolValue', tmp_pool[tmp_chn_id][tmp_sort_id])  # Write pool value in to .stim.csv
-            stim.save(pjoin(args.out, tmpCSVname))
-            toptmp[:, tmp_chn_id, :] = act.get(tmp_ly)[tmp_sort_id, tmp_chn_id, :]
-        # --- Write TopK Activation into act.h5 file ---
-        act.set(tmp_ly, raw_shape=(args.top, tmp_raw[1], tmp_raw[2], tmp_raw[3]))
-        act.set(tmp_ly, toptmp)
-
-    h5name = args.net + '_top' + str(args.top) + '_' + args.metric + '.act.h5'
-    act.save(pjoin(args.out, h5name))
-
-    '''
-        The filename of output .stim.csv will be like:
-            alexnet_conv5_125_top5_max.stim.csv
-=======
     dmask = Mask(args.dmask)
->>>>>>> 98659dad4b2866fe5b4fea624f16f0eea0249999
 
     # Extract activation
     activation = dnn.compute_activation(stim, dmask)
