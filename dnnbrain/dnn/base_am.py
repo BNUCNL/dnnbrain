@@ -65,8 +65,8 @@ class L1ActivationMaximization(ActivationMaximization):
         for i in range(1, self.niter):
             optimizer.zero_grad()
             
-            # Forward pass layer by layer to triger the hook funciton.
-            # Only need to forward until the target layer is reached
+            # Forward pass layer by layer until the target layer
+            # to triger the hook funciton.
             forawrd_image = optimal_image
             for name, module in enumerate(self.model):
                 forawrd_image = module(forawrd_image)
@@ -81,7 +81,9 @@ class L1ActivationMaximization(ActivationMaximization):
             loss.backward()
             # Update image
             optimizer.step()
-            # Recreate image
+            
+        # Return the optimized image
+        return optimal_image
 
 
    
