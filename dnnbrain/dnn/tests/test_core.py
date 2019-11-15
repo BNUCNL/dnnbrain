@@ -4,7 +4,6 @@ import h5py
 import pytest
 import numpy as np
 
-from PIL import Image
 from os.path import join as pjoin
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn import core as dcore
@@ -165,61 +164,6 @@ class TestStimulus:
         # -assert (slice, slice)-
 
 
-class TestDNN:
-
-    def test_load(self):
-        pass
-
-    def test_save(self):
-        pass
-
-    def test_compute_activation(self):
-
-        # -prepare-
-        # prepare ground truth
-        fname = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.act.h5')
-        rf = h5py.File(fname, 'r')
-
-        # prepare stimuli
-        stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
-
-        # prepare DNN mask
-        dmask = dcore.Mask()
-        dmask.set('conv5')
-        dmask.set('fc3')
-
-        # -compute activation-
-        dnn = dcore.DNN('alexnet')
-        # compute with Stimulus
-        stimuli1 = dcore.Stimulus(stim_file)
-        activation1 = dnn.compute_activation(stimuli1, dmask)
-
-        # compute with ndarray
-        stimuli2 = []
-        for stim_id in stimuli1.get('stimID'):
-            stim_file = pjoin(stimuli1.meta['path'], stim_id)
-            img = Image.open(stim_file).convert('RGB')
-            stimuli2.append(np.asarray(img).transpose((2, 0, 1)))
-        stimuli2 = np.asarray(stimuli2)
-        activation2 = dnn.compute_activation(stimuli2, dmask)
-
-        # assert
-        np.testing.assert_almost_equal(np.asarray(rf['conv5']),
-                                       activation1.get('conv5'), 4)
-        np.testing.assert_almost_equal(np.asarray(rf['fc3']),
-                                       activation1.get('fc3'), 4)
-        np.testing.assert_equal(activation1.get('conv5'), activation2.get('conv5'))
-        np.testing.assert_equal(activation1.get('fc3'), activation2.get('fc3'))
-
-        rf.close()
-
-    def test_get_kernel(self):
-        pass
-
-    def test_ablate(self):
-        pass
-
-
 class TestActivation:
 
     activation_true = {
@@ -323,8 +267,7 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = array_statistic(data, 'max', (2, 3), True)
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_fe(self):
 
@@ -336,8 +279,23 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = dnn_fe(data, 'pca', 3)
-            np.testing.assert_almost_equal(data,
-                                           activation._activation[layer])
+            np.testing.assert_almost_equal(data, activation._activation[layer])
+
+    def test_convolve_hrf(self):
+
+        # prepare
+        onsets = np.arange(5)
+        durations = np.ones(5)
+        n_vol = 2
+        tr = 2
+        activation = dcore.Activation()
+        activation._activation = self.activation_true
+        activation = activation.convolve_hrf(onsets, durations, n_vol, tr)
+
+        # assert
+        for layer, data in activation._activation.items():
+            assert data.shape == (n_vol, *self.activation_true[layer].shape[1:])
+            np.testing.assert_almost_equal(data[0], np.zeros(data.shape[1:]))
 
     def test_arithmetic(self):
         pass

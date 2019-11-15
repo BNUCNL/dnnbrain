@@ -254,26 +254,73 @@ class MaskFile:
                     wf.write(num_line + '\n')
 
 
-class RoiFile():
-        """a class to read and write roi file """
-        def __init__(self, file_path):        
-            assert file_path.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
-            self.path = file_path
+class RoiFile:
+    """a class to read and write roi file """
+
+    def __init__(self, fname):
+        """
+        Parameter:
+        ---------
+        fname[str]: pre-designed .roi.h5 file
+        """
+        assert fname.endswith('.roi.h5'), "the file's suffix must be .roi.h5"
+        self.fname = fname
             
-        def set(self, file_path):
-            """file_path: path for target file"""
-            self.path = file_path
-            
-        def read(self):
-            return h5py.File(self.path, 'r')
-            
-        def write(self, roi):
-            """
-            Write an activation object to a hdf5 file
-            roi: a roi object
-            """
-            h5py.File(self.path, roi, 'w')
-            
+    def read(self, rois=None):
+        """
+        Read data of ROIs of the brain.
+
+        Parameter:
+        ---------
+        rois[str|list]: ROI names of interest
+
+        Return:
+        ------
+        rois[list]: ROI names which are corresponding to columns in data
+        data[ndarray]: ROI data
+        """
+        rf = h5py.File(self.fname, 'r')
+        if rois is None:
+            rois = rf.attrs['roi'].tolist()
+            data = rf['data'][:]
+        else:
+            if isinstance(rois, str):
+                rois = [rois]
+            rois_all = rf.attrs['roi'].tolist()
+            roi_indices = [rois_all.index(roi) for roi in rois]
+            data = rf['data'][:, roi_indices]
+
+        rf.close()
+        return rois, data
+
+    def write(self, rois, data):
+        """
+        Write data of ROIs of the brain.
+
+        Parameters:
+        ---------
+        rois[str|list]: ROI names which are corresponding to columns in data
+        data[ndarray]: ROI data
+        """
+        # preprocessing
+        if isinstance(rois, str):
+            rois = [rois]
+        if data.ndim == 1:
+            assert len(rois) == 1, 'The number of rois mismatches the data shape.'
+            data = data.reshape((-1, 1))
+        elif data.ndim == 2:
+            assert data.shape[1] == len(rois), 'The number of rois mismatches ' \
+                                               'the number of columns of the data.'
+        else:
+            raise ValueError('The number of dimensions of the data must be 1 or 2.')
+
+        # write to file
+        wf = h5py.File(self.fname, 'w')
+        wf.attrs['roi'] = rois
+        wf.create_dataset('data', data=data)
+        wf.close()
+
+
 class ImageFile():
     """a class to read and write image file """
     def __init__(self, file_path):        

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Use DNN activation to encode brain or behavior response
+Use DNN activation to encode brain
 """
 
 import os
@@ -9,13 +9,12 @@ import time
 import argparse
 import numpy as np
 import pandas as pd
-import pickle as pkl
 
 from os.path import join as pjoin
-from dnnbrain.dnn.io import ActReader
+from dnnbrain.dnn.core import Activation, Encoder
+from dnnbrain.brain.core import ROI
 from dnnbrain.brain.io import load_brainimg, save_brainimg
-from dnnbrain.utils.io import read_stim_csv
-from dnnbrain.dnn.analyzer import db_uva, db_mva
+from dnnbrain.utils.util import gen_dmask
 
 
 def main():
@@ -36,29 +35,39 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="names of the layers which are encoded "
+                        help="layer names of interest "
                              "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. "
-                             "Default is encoding all layers in the DNN activation file.")
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-iteraxis',
                         type=str,
                         metavar='Axis',
-                        choices=('channel', 'column'),
+                        choices=('channel', 'row_col'),
                         help="Iterate along the specified axis."
                              "If -anal is uva:"
                              "channel: Summarize the maximal prediction score for each channel. "
-                             "column: Summarize the maximal prediction score for each column. "
+                             "row_col: Summarize the maximal prediction score for each position (row_idx, col_idx). "
                              "default: Summarize the maximal prediction score for the whole layer."
                              "If -anal is mva:"
                              "channel: Do mva using all units in each channel. "
-                             "column: Do mva using all units in each column. "
+                             "row_col: Do mva using all units in each position (row_idx, col_idx). "
                              "default: Do mva using all units in the whole layer.")
     parser.add_argument('-resp',
                         metavar='Response',
                         required=True,
                         type=str,
-                        help='a .stim.csv/.roi.h5/.nii file '
-                             'If it is .nii file, -meas will be ignore. '
+                        help='a .roi.h5/.nii file '
+                             'If it is .nii file, -roi will be ignored. '
                              "All voxels' activation will be regarded as the "
                              "ground truth of a regression task. ")
     parser.add_argument('-bmask',
@@ -66,24 +75,22 @@ def main():
                         type=str,
                         help='Brain mask is used to extract activation locally. '
                              'Only used when the response file is .nii file.')
-    parser.add_argument('-meas',
-                        metavar='Measurement',
+    parser.add_argument('-roi',
+                        metavar='RoiName',
                         type=str,
                         nargs='+',
-                        help='Specify measurements as the ground truth. '
-                             'Default is using all measurements in response file.')
+                        help='Specify ROI names as the ground truth. '
+                             'Default is using all ROIs in .roi.h5 file.')
     parser.add_argument('-model',
                         metavar='Model',
                         required=True,
                         type=str,
-                        choices=('glm', 'lasso', 'svc', 'lrc'),
-                        help='Select a model to predict brain or behavior responses by dnn activation. '
+                        choices=('glm', 'lasso'),
+                        help='Select a model to predict brain responses by dnn activation. '
                              'Use glm (general linear model) for regression. '
-                             'Use lasso (lasso regression) for regression. ' 
-                             'Use svc (support vector machine) for classification. '
-                             'Use lrc (logistic regression) for classification.')
-    parser.add_argument('-cvfold',
-                        metavar='FoldNumber',
+                             'Use lasso (lasso regression) for regression.')
+    parser.add_argument('-cv',
+                        metavar='CrossValidationFoldNumber',
                         type=int,
                         default=3,
                         help='cross validation fold number')
@@ -95,15 +102,9 @@ def main():
     args = parser.parse_args()
 
     # -Load response start-
-    if args.resp.endswith('.stim.csv'):
-        resp_dict = read_stim_csv(args.resp)
-        if args.meas is None:
-            Y = list(resp_dict['meas'].values())
-            measurements = list(resp_dict['meas'].keys())
-        else:
-            Y = [resp_dict['meas'][k] for k in args.meas]
-            measurements = args.meas
-        Y = np.array(Y).T
+    if args.resp.endswith('.roi.h5'):
+        roi = ROI(args.resp, args.roi)
+        Y = roi.data
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
         Y, header = load_brainimg(args.resp)
@@ -119,25 +120,32 @@ def main():
         Y = Y[:, bmask]
 
     else:
-        raise IOError('Only .stim.csv and nifti/cifti are supported')
+        raise IOError('Only .roi.h5 and nifti/cifti are supported')
     print('Finish loading response: ', args.resp)
     # -Load response end-
 
-    act_reader = ActReader(args.act)
-    layers = act_reader.layers if args.layer is None else args.layer
-    for layer in layers:
-        start = time.time()
-        # load DNN activation
-        X = act_reader.get_act(layer)
-        # do prediction
-        if args.anal == 'uva':
-            pred_dict = db_uva(X, Y, args.model, args.iteraxis, args.cvfold)
-        else:
-            pred_dict = db_mva(X, Y, args.model, args.iteraxis, args.cvfold)
-        end = time.time()
-        print('Finish prediction in {0}: cost {1} seconds'.format(layer, end - start))
+    # -load activation start-
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+    activation = Activation(args.act, dmask)
+    print('Finish loading activation: ', args.act)
+    # -load activation end-
 
-        # -save out start-
+    # -prediction start-
+    time1 = time.time()
+    encoder = Encoder(args.model, args.iteraxis, args.cv)
+    if args.anal == 'uva':
+        pred_dict = encoder.uva(activation, Y)
+    else:
+        pred_dict = encoder.mva(activation, Y)
+    print(f'Finish prediction: cost {time.time()-time1} seconds.')
+    # -prediction end-
+
+    # -save out start-
+    for layer, data in pred_dict.items():
         # prepare directory
         trg_dir = pjoin(args.out, layer)
         if not os.path.isdir(trg_dir):
@@ -148,38 +156,44 @@ def main():
                 os.makedirs(trg_dir)
 
         # save files
-        if args.resp.endswith('.stim.csv'):
+        if args.resp.endswith('.roi.h5'):
             # save score
-            score_df = pd.DataFrame(pred_dict['score'], columns=measurements)
-            score_df.to_csv(pjoin(trg_dir, 'score_{}.csv'.format(args.anal)), index=False)
+            score_df = pd.DataFrame(data['score'], columns=roi.rois)
+            score_df.to_csv(pjoin(trg_dir, f'score_{args.anal}.csv'), index=False)
 
             # save position
             if args.anal == 'uva':
-                chn_pos_df = pd.DataFrame(pred_dict['chn_pos'], columns=measurements)
+                chn_pos_df = pd.DataFrame(data['channel'], columns=roi.rois)
                 chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
-                col_pos_df = pd.DataFrame(pred_dict['col_pos'], columns=measurements)
+                row_pos_df = pd.DataFrame(data['row'], columns=roi.rois)
+                row_pos_df.to_csv(pjoin(trg_dir, 'row_position.csv'), index=False)
+                col_pos_df = pd.DataFrame(data['column'], columns=roi.rois)
                 col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
 
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
             resp_suffix = '.'.join(args.resp.split('.')[1:])
 
             # save score
-            score_img = np.zeros((pred_dict['score'].shape[0], *bshape))
-            score_img[:, bmask] = pred_dict['score']
-            save_brainimg(pjoin(trg_dir, 'score_{}.{}'.format(args.anal, resp_suffix)),
+            score_img = np.zeros((data['score'].shape[0], *bshape))
+            score_img[:, bmask] = data['score']
+            save_brainimg(pjoin(trg_dir, f'score_{args.anal}.{resp_suffix}'),
                           score_img, header)
 
             # save position
             if args.anal == 'uva':
                 chn_pos_img = np.zeros_like(score_img, dtype=np.int)
-                chn_pos_img[:, bmask] = pred_dict['chn_pos']
+                chn_pos_img[:, bmask] = data['channel']
                 save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
+                row_pos_img = np.zeros_like(score_img, dtype=np.int)
+                row_pos_img[:, bmask] = data['row']
+                save_brainimg(pjoin(trg_dir, 'row_position.' + resp_suffix), row_pos_img, header)
                 col_pos_img = np.zeros_like(score_img, dtype=np.int)
-                col_pos_img[:, bmask] = pred_dict['col_pos']
+                col_pos_img[:, bmask] = data['column']
                 save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
 
-        pkl.dump(pred_dict['model'], open(pjoin(trg_dir, 'model_{}.pkl'.format(args.anal)), 'wb'))
-        # -save out end-
+        np.save(pjoin(trg_dir, f'model_{args.anal}.npy'), data['model'], allow_pickle=True)
+        print(f'Finish save {layer}.')
+    # -save out end-
 
 
 if __name__ == '__main__':

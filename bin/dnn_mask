@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 
 """
-Extract DNN activation for layer, channel, and column of interest
+Extract DNN activation for layer, channel, row and column of interest
 """
 
 import argparse
 
-from dnnbrain.dnn.io import read_dmask_csv, ActReader, ActWriter
-from dnnbrain.dnn.analyzer import dnn_mask
+from dnnbrain.dnn.core import Activation
+from dnnbrain.utils.util import gen_dmask
 
 
 def main():
@@ -20,61 +20,32 @@ def main():
     parser.add_argument('-layer',
                         metavar='Layer',
                         type=str,
-                        help="Layer name used to specify where activation is extracted from "
+                        nargs='+',
+                        help="layer names of interest "
                              "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. "
-                             "Note: this option will be ignored if -dmask is used.")
+                             "'fc1' represents the first full connection layer. ")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
                         nargs='+',
-                        help="Channel numbers used to specify where activation is extracted from "
-                             "Default is extracting all channels of the layer specified by -layer.")
-    parser.add_argument('-col',
-                        metavar='Column',
-                        type=int,
-                        nargs='+',
-                        help="Column numbers used to specify where activation is extracted from "
-                             "Default is extracting all columns of the layer specified by -layer.")
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
     parser.add_argument('-dmask',
                         metavar='DnnMask',
                         type=str,
                         help='a .dmask.csv file in which layers of interest are listed '
-                             'with their own channels or columns of interest.')
+                             'with their own channels, rows and columns of interest.')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
                         type=str,
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
-    assert args.layer or args.dmask, 'At least one of (layer, dmask) should be used!'
 
     # extract dnn activation with mask
-    reader = ActReader(args.act)
-    writer = ActWriter(args.out, reader.title + ' mask')
-    if args.dmask is None:
-        dnn_acts = reader.get_act(args.layer)
-        chn = args.chn if args.chn is None else [i-1 for i in args.chn]
-        col = args.col if args.col is None else [i-1 for i in args.col]
-        dnn_acts = dnn_mask(dnn_acts, chn, col)
-        writer.set_act(args.layer, dnn_acts)
-    else:
-        dmask_dict = read_dmask_csv(args.dmask)
-        for layer, axes_dict in dmask_dict.items():
-            dnn_acts = reader.get_act(layer)
-            if axes_dict['chn'] is None:
-                chn = None
-            else:
-                chn = [i-1 for i in axes_dict['chn']]
-            if axes_dict['col'] is None:
-                col = None
-            else:
-                col = [i-1 for i in axes_dict['col']]
-            dnn_acts = dnn_mask(dnn_acts, chn, col)
-            writer.set_act(layer, dnn_acts)
-
-    reader.close()
-    writer.close()
+    dmask = gen_dmask(args.layer, args.chn, args.dmask)
+    activation = Activation(args.act, dmask)
+    activation.save(args.out)
 
 
 if __name__ == '__main__':

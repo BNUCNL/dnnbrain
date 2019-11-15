@@ -4,26 +4,63 @@ import math
 import torch
 from torch.nn import ReLU
 from torch.optim import Adam
+from abc import ABC
 try:
     from misc_functions import preprocess_image, recreate_image
 except ModuleNotFoundError:
     pass
     #raise Exception('Please install misc_functions in your work station')
     
-class ImageDdecomposer():
-    """ A class to decompose an image into different parts or components"""
-    def __init__(self,):
+class ImageDecomposer(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self):
         pass
     
-class CNNMinmalImageEstimator():
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def decompose(self, image):
+        return NotImplemented
+        
+class ImageComponentDecomposer(ImageDecomposer):
+    """ Use a component model to decompose an image into different components"""
+    def __init__(self,component_model):
+        self.model = componet
+    
+    def set_params(self):
+        """Set necessary parameters for the decomposer"""
+        pass
+    
+    def decompose(self, image):
+        print('Please write code here to decompose image.')
+        
+class ImageParcelDecomposer(ImageDecomposer):
+    """ Use a parcel model to decompose an image into different components"""
+    def __init__(self,parcel_model):
+        self.model = parcel_model
+        
+    def set_params(self):
+        """Set necessary parameters for the decomposer"""
+        pass
+        
+    def decompose(self, image):
+        print('Please write code here to segment image into different parcels.')
+
+
+class MinmalImageEstimator():
     """
     A class to generate minmal image for a CNN model using a specific part 
     decomposer and optimization criterion
     """
-    def __init__(self, model=None, part_decomposer=None, optimization_criterion = None):
-        self.model = model
+    def __init__(self, dnn = None, part_decomposer=None, optimization_criterion = None):
+        self.model = dnn
         self.decomposer = part_decomposer
-        self.optimization_criterion = optimization_criterion;
+        self.optimization_criterion = optimization_criterion
         
     def set(self, model, part_decomposer, optimization_criterion):
         self.model = model
@@ -34,16 +71,164 @@ class CNNMinmalImageEstimator():
         """Generate minmal image of input image for a target layer and channel """
         pass
 
+
+class ImagePixelActivation(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for pixel activation, 
+    which compute the activation for each pixel of an image
+    """
+    def __init__(self, dnn = None, metric = None):
+        self.model = dnn
+        self.metric = metric
+        
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+        
+    @abstractmethod
+    def estimate(self, image, layer, channel): 
+        """The method use _estimate to caculate the pixel activtion"""
+        return NotImplemented
+
+class SlideOccluderImagePixelActivation(ImagePixelActivation):
+    def __init__(self, model=None, metric=None,kernel, stride):
+        super(SlideWindowImagePixelActivation,self).__init__(model, metric)
+        self.kernel = kernel
+        self.stride = stride
+        self.model = model
+        self.metric = metric
+        
+    def set_params(self):
+        """Set necessary parameters for the estimator"""
+        pass
     
+    def estimate(image, layer, channel):
+        """ The method do real computation for discrepancy map based on sliding occluder"""
+        pass
+
+class UpsamplingImagePixelActivation(ImagePixelActivation):
+    def __init__(self, model=None, metric=None):
+        super(SlideWindowImagePixelActivation,self).__init__(model, metric)
+        self.kernel = kernel
+        self.stride = stride
+        self.model = model
+        self.metric = metric
+    
+    def set_params(self):
+        """Set necessary parameters for the estimator"""
+        pass
+    
+    def estimate(image, layer, channel):
+        """ The method do real computation for pixel activation based on feature mapping upsampling"""
+        pass
     
 class ReceptiveFieldEstimator():
-    
-    
-    
+    """
+    A class to estimate receptive field for a DNN model
+    """
+    def __init__(self, dnn = None, activation_estimator = None):
+        self.model = dnn
+        self.activation_estimator = activation_estimator
+        
+    def set(self, dnn = None):
+        self.model = dnn
+        self.activation_estimator = activation_estimator
+        
+    def estimate(self, image, layer, channel):
+        """Generate RF based on provided image and pixel activation estimator """
+        pass
 
 
+class BackPropGradient(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None, layer = None, channel = None):
+        self.model = dnn
+        self.layer = layer
+        self.channel = channel
+    
+    def set_params(self,  dnn = None, layer = None, channel = None):
+        self.model = dnn
+        self.layer = layer
+        self.channel = channel
+        
+    def hooker(self):
+        pass
+    
+    @abstractmethod
+    def gradient(self, image):
+        return NotImplemented
+    
+    def smooth_gradient(self, image): 
+        'Please do your implementation here'
+        pass
 
-###############################################################################
+class VanilaBackPropGradient(BackPropGradient):
+    """ 
+    A class to compute vanila Backprob gradient for a image.
+    """
+    
+    def gradient(self, image):
+        'Please do your implementation here'
+    
+class GuidedBackPropGradient(BackPropGradient):
+    """ 
+    A class to compute Guided Backprob gradient for a image.
+    """    
+    def gradient(self, image):
+        'Please do your implementation here'
+
+class Regularizer(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None):
+        self.model = dnn
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+    
+class InternelRepresentation(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for image decomposer, 
+    which decompose an image into different parcels or components
+    """
+    def __init__(self, dnn = None, bp = None, regularizer = None):
+        self.model = dnn
+        self.bp = bp
+        self.regularizer = regularizer
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+
+
+class L1InternelRepresentation(InternelRepresentation):
+    """ Use L1 regularization to estimate internel representation """
+    def __init__(self, dnn = None):
+        self.model = dnn
+    
+    @abstractmethod
+    def set_params(self):
+        return NotImplemented
+    
+    @abstractmethod
+    def estimate(self, layer, channel):
+        return NotImplemented
+    
+
 #define the class to find optimal stimuli
 class CNNLayerVisualization():
     """

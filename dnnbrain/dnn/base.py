@@ -11,8 +11,6 @@ from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score
 from scipy.signal import periodogram
 from torchvision import transforms
-from torchvision import models as torch_models
-from dnnbrain.dnn import models as db_models
 
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
@@ -68,6 +66,7 @@ class ImageSet:
         self.img_dir = img_dir
         self.img_ids = img_ids
         self.labels = np.ones(len(self.img_ids)) if labels is None else labels
+        self.labels = self.labels.astype(np.int64)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __len__(self):
@@ -112,6 +111,7 @@ class ImageSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
@@ -132,6 +132,7 @@ class VideoSet:
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
         self.labels = np.ones(len(self.frame_nums)) if labels is None else labels
+        self.labels = self.labels.astype(np.int64)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __getitem__(self, indices):
@@ -174,6 +175,7 @@ class VideoSet:
 
         if data.shape[0] == 1:
             data = data[0]
+            labels = labels[0]  # len(labels) == 1
 
         return data, labels
 
@@ -182,49 +184,6 @@ class VideoSet:
         Return the number of frames
         """
         return len(self.frame_nums)
-
-
-class DNNLoader:
-    """
-    Load DNN model and initiate some information
-    """
-
-    def __init__(self, net):
-        """
-        Load neural network model by net name
-
-        Parameter:
-        ---------
-        net[str]: a neural network's name
-        """
-        if net == 'alexnet':
-            self.model = torch_models.alexnet()
-            self.model.load_state_dict(torch.load(
-                pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
-            self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                              'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                              'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                              'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                              'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                              'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
-                              'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
-                              'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
-                              'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
-            self.img_size = (224, 224)
-        elif net == 'vgg11':
-            self.model = torch_models.vgg11()
-            self.model.load_state_dict(torch.load(
-                pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
-            self.layer2loc = None
-            self.img_size = (224, 224)
-        elif net == 'vggface':
-            self.model = db_models.Vgg_face()
-            self.model.load_state_dict(torch.load(
-                pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
-            self.layer2loc = None
-            self.img_size = (224, 224)
-        else:
-            raise ValueError("Not supported net name:", net)
 
 
 class Classifier:

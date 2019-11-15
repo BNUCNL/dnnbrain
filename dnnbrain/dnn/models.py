@@ -1,8 +1,20 @@
+import os
 import copy
 import time
 import torch
 import numpy as np
+
+from os.path import join as pjoin
+from scipy.stats import pearsonr
+from PIL import Image
 from torch import nn
+from torch.utils.data import DataLoader
+from torchvision.transforms import Compose, Resize, ToTensor
+from torchvision import models as tv_models
+from dnnbrain.dnn.core import Stimulus, Activation
+from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
+
+DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
 def dnn_truncate(netloader, layer):
@@ -293,11 +305,11 @@ class TransferredNet(nn.Module):
         return x
         
 
-class Vgg_face(nn.Module):
+class VggFaceModel(nn.Module):
     """Vgg_face's model architecture"""
 
     def __init__(self):
-        super(Vgg_face, self).__init__()
+        super(VggFaceModel, self).__init__()
         self.meta = {'mean': [129.186279296875, 104.76238250732422, 93.59396362304688],
                      'std': [1, 1, 1],
                      'imageSize': [3, 224, 224]}
@@ -381,3 +393,426 @@ class Vgg_face(nn.Module):
         x = self.dropout7(x)
         x = self.fc8(x)
         return x
+
+
+class DNN:
+    """Deep neural network"""
+
+    def __init__(self):
+
+        self.model = None
+        self.layer2loc = None
+        self.img_size = None
+
+    def save(self, fname):
+        """
+        Save DNN parameters
+
+        Parameter:
+        ---------
+        fname[str]: output file name with suffix as .pth
+        """
+        assert fname.endswith('.pth'), 'File suffix must be .pth'
+        torch.save(self.model.state_dict(), fname)
+
+    def set(self, model, parameters=None, layer2loc=None, img_size=None):
+        """
+        Load DNN model, parameters, layer2loc and img_size manually
+
+        Parameters:
+        ----------
+        model[nn.Modules]: DNN model
+        parameters[state_dict]: Parameters of DNN model
+        layer2loc[dict]: map layer name to its location in the DNN model
+        img_size[tuple]: the input image size
+        """
+        self.model = model
+        if parameters is not None:
+            self.model.load_state_dict(parameters)
+        self.layer2loc = layer2loc
+        self.img_size = img_size
+
+    def compute_activation(self, stimuli, dmask, pool_method=None):
+        """
+        Extract DNN activation
+
+        Parameters:
+        ----------
+        stimuli[Stimulus|ndarray]: input stimuli
+            If is Stimulus, loaded from files on the disk.
+            If is ndarray, its shape is (n_stim, n_chn, height, width)
+        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        pool_method[str]: pooling method, choices=(max, mean, median, L1, L2)
+
+        Return:
+        ------
+        activation[Activation]: DNN activation
+        """
+        # prepare stimuli loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(stimuli, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
+            stim_set = [(transform(img), 0) for img in stim_set]
+        elif isinstance(stimuli, Stimulus):
+            if stimuli.meta['type'] == 'image':
+                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            elif stimuli.meta['type'] == 'video':
+                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+            else:
+                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
+        else:
+            raise TypeError('The input stimuli must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # -extract activation-
+        # change to eval mode
+        self.model.eval()
+        n_stim = len(stim_set)
+        activation = Activation()
+        for layer in dmask.layers:
+            # prepare dnn activation hook
+            acts_holder = []
+
+            def hook_act(module, input, output):
+
+                # copy activation
+                acts = output.detach().numpy().copy()
+                if acts.ndim == 4:
+                    pass
+                elif acts.ndim == 2:
+                    acts = acts[:, :, None, None]
+                else:
+                    raise ValueError('Unexpected activation shape:', acts.shape)
+
+                # mask activation
+                mask = dmask.get(layer)
+                acts = dnn_mask(acts, mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
+
+                # pool activation
+                if pool_method is not None:
+                    acts = array_statistic(acts, pool_method, (2, 3), True)
+
+                # hold activation
+                acts_holder.extend(acts)
+
+            module = self.model
+            for k in self.layer2loc[layer]:
+                module = module._modules[k]
+            hook_handle = module.register_forward_hook(hook_act)
+
+            # extract DNN activation
+            for stims, _ in data_loader:
+                # stimuli with shape as (n_stim, n_chn, height, width)
+                self.model(stims)
+                print('Extracted activation of {0}: {1}/{2}'.format(
+                    layer, len(acts_holder), n_stim))
+            activation.set(layer, np.asarray(acts_holder))
+
+            hook_handle.remove()
+
+        return activation
+
+    def get_kernel(self, layer, kernel_num=None):
+        """
+        Get kernel's weights of the layer
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        kernel_num[int]: the sequence number of the kernel
+
+        Return:
+        ------
+        kernel[array]: kernel weights
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # get the weights
+        kernel = module.weight
+        if kernel_num is not None:
+            kernel = kernel[kernel_num]
+
+        return kernel.detach().numpy()
+
+    def ablate(self, layer, channels=None):
+        """
+        Ablate DNN kernels' weights
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channels[list]: sequence numbers of channels of interest
+            If None, ablate the whole layer.
+        """
+        # localize the module
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        # ablate kernels' weights
+        if channels is None:
+            module.weight.data[:] = 0
+        else:
+            channels = [chn - 1 for chn in channels]
+            module.weight.data[channels] = 0
+
+    def train(self, data, n_epoch, criterion, optimizer=None, method='tradition', target=None):
+        """
+        Train the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: training data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        n_epoch[int]: the number of epochs
+        criterion[str|object]: criterion function
+            If is str, choices=('classification', 'regression').
+            If is not str, it must be torch loss object.
+        optimizer[object]: optimizer function
+            If is None, use Adam default.
+            If is not None, it must be torch optimizer object.
+        method[str]: training method, by default is 'tradition'.
+            For some specific models (e.g. inception), loss needs to be calculated in another way.
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # prepare criterion
+        if criterion == 'classification':
+            criterion = nn.CrossEntropyLoss()
+        elif criterion == 'regression':
+            criterion = nn.MSELoss()
+
+        # prepare optimizer
+        if optimizer is None:
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+
+        # start train
+        loss_list = []
+        time1 = time.time()
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.train()
+        model = self.model.to(device)
+        for epoch in range(n_epoch):
+            print(f'Epoch-{epoch+1}/{n_epoch}')
+            print('-' * 10)
+            time2 = time.time()
+            running_loss = 0.0
+
+            for inputs, targets in data_loader:
+                inputs.requires_grad_(True)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                with torch.set_grad_enabled(True):
+                    if method == 'tradition':
+                        outputs = model(inputs)
+                        loss = criterion(outputs, targets)
+                    elif method == 'inception':
+                        # Google inception model
+                        outputs, aux_outputs = model(inputs)
+                        loss1 = criterion(outputs, targets)
+                        loss2 = criterion(aux_outputs, targets)
+                        loss = loss1 + 0.4 * loss2
+                    else:
+                        raise Exception(f'not supported method-{method}')
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                # Statistics loss in every batch
+                running_loss += loss.item() * inputs.size(0)
+
+            # calculate loss in every epoch
+            epoch_loss = running_loss / len(data_loader.dataset)
+            print(f'Loss: {epoch_loss}')
+            loss_list.append(epoch_loss)
+
+            # print time of a epoch
+            epoch_time = time.time() - time2
+            print('This epoch costs {:.0f}m {:.0f}s\n'.format(epoch_time // 60, epoch_time % 60))
+
+        time_elapsed = time.time() - time1
+        print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    def test(self, data, task, target=None):
+        """
+        Test the DNN model
+
+        Parameters:
+        ----------
+        data[Stimulus|ndarray]: testing data
+            If is Stimulus, load stimuli from files on the disk.
+                Note, the data of the 'label' item in the Stimulus object will be used as
+                output of the model when 'target' is None.
+            If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
+                Note, the output data must be specified by 'target' parameter.
+        task[str]: choices=(classification, regression)
+        target[ndarray]: the output of the model
+            Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
+                Note, n_feat is the number of features of the last layer.
+
+        Returns:
+        -------
+        test_dict[dict]:
+            if task == 'classification':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                acc_top1[float]: prediction accuracy of top1
+                acc_top5[float]: prediction accuracy of top5
+            if task == 'regression':
+                pred_value[array]: prediction values by the model
+                true_value[array]: observation values
+                r_square[float]: R square between pred_values and true_values
+        """
+        # prepare data loader
+        transform = Compose([Resize(self.img_size), ToTensor()])
+        if isinstance(data, np.ndarray):
+            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
+            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+        elif isinstance(data, Stimulus):
+            if data.meta['type'] == 'image':
+                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            elif data.meta['type'] == 'video':
+                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+                                    data.get('label'), transform=transform)
+            else:
+                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+
+            if target is not None:
+                # We presume small quantity stimuli will be used in this way.
+                # Usually hundreds or thousands such as fMRI stimuli.
+                stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
+        else:
+            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # start test
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
+        model = self.model.to(device)
+        pred_values = []
+        true_values = []
+        if task == 'classification':
+            pred_values_top5 = []
+        with torch.no_grad():
+            for i, (inputs, targets) in enumerate(data_loader):
+                inputs = inputs.to(device)
+                outputs = model(inputs)
+
+                # collect outputs
+                if task == 'classification':
+                    _, pred_labels = torch.max(outputs, 1)
+                    _, pred_labels_top5 = torch.topk(outputs, 5)
+                    pred_values.extend(pred_labels.detach().numpy())
+                    pred_values_top5.extend(pred_labels_top5.detach().numpy())
+                    true_values.extend(targets.numpy())
+                elif task == 'regression':
+                    pred_values.extend(outputs.detach().numpy())
+                    true_values.extend(targets.numpy())
+                else:
+                    raise ValueError('unsupported task:', task)
+
+        test_dict = dict()
+        pred_values = np.array(pred_values)
+        true_values = np.array(true_values)
+        if task == 'classification':
+            pred_values_top5 = np.array(pred_values_top5)
+
+            # calculate the top1 acc and top5 acc
+            acc_top1 = np.sum(pred_values == true_values) / len(true_values)
+            acc_top5 = 0.0
+            for i in range(5):
+                acc_top5 += np.sum(pred_values_top5[:, i] == true_values)
+            acc_top5 = acc_top5 / len(true_values)
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['acc_top1'] = acc_top1
+            test_dict['act_top5'] = acc_top5
+        else:
+            # calculate r_square
+            r, _ = pearsonr(pred_values.ravel(), true_values.ravel())
+            r_square = r ** 2
+
+            test_dict['pred_value'] = pred_values
+            test_dict['true_value'] = true_values
+            test_dict['r_square'] = r_square
+
+        return test_dict
+
+
+class AlexNet(DNN):
+
+    def __init__(self):
+        super(AlexNet, self).__init__()
+
+        self.model = tv_models.alexnet()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
+        self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                          'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                          'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                          'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                          'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                          'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
+                          'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
+                          'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
+                          'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
+        self.img_size = (224, 224)
+
+
+class VggFace(DNN):
+
+    def __init__(self):
+        super(VggFace, self).__init__()
+
+        self.model = VggFaceModel()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
+        self.layer2loc = None
+        self.img_size = (224, 224)
+
+
+class Vgg11(DNN):
+
+    def __init__(self):
+        super(Vgg11, self).__init__()
+
+        self.model = tv_models.vgg11()
+        self.model.load_state_dict(torch.load(
+            pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
+        self.layer2loc = None
+        self.img_size = (224, 224)
