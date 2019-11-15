@@ -9,6 +9,7 @@ class BackPropGradient(ABC):
     """
     def __init__(self, model):
         self.model = model
+        self.model.eval()
         self.activation = []
         self.gradient = None
         
