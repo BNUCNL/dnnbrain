@@ -40,7 +40,7 @@ def main():
     args = parser.parse_args()
 
     # Load net/stim/dmask
-    dnn = DNN(args.net)
+    dnn = eval(f'db_models.{args.net}()') 
     stim = Stimulus(args.stim)
     dmask = Mask(args.dmask)
 
