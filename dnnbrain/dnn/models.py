@@ -432,6 +432,20 @@ class DNN:
         self.layer2loc = layer2loc
         self.img_size = img_size
 
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        pass
+
     def compute_activation(self, stimuli, dmask, pool_method=None):
         """
         Extract DNN activation
@@ -496,9 +510,7 @@ class DNN:
                 # hold activation
                 acts_holder.extend(acts)
 
-            module = self.model
-            for k in self.layer2loc[layer]:
-                module = module._modules[k]
+            module = self.layer2module(layer)
             hook_handle = module.register_forward_hook(hook_act)
 
             # extract DNN activation
@@ -526,10 +538,8 @@ class DNN:
         ------
         kernel[array]: kernel weights
         """
-        # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
+        # get the module
+        module = self.layer2module(layer)
 
         # get the weights
         kernel = module.weight
@@ -549,9 +559,7 @@ class DNN:
             If None, ablate the whole layer.
         """
         # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
+        module = self.layer2module(layer)
 
         # ablate kernels' weights
         if channels is None:
@@ -778,7 +786,6 @@ class AlexNet(DNN):
 
     def __init__(self):
         super(AlexNet, self).__init__()
-
         self.model = tv_models.alexnet()
         self.model.load_state_dict(torch.load(
             pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
@@ -792,6 +799,23 @@ class AlexNet(DNN):
                           'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
                           'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
         self.img_size = (224, 224)
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        super(AlexNet, self).__init__()
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
 
 
 class VggFace(DNN):
