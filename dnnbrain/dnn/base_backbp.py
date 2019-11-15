@@ -88,7 +88,6 @@ class GuidedBackPropGradient(BackPropGradient):
             self.activation.append(feat_out[:, self.channel])
         def forward_hook(module,feat_in,feat_out):
             self.activation.append(feat_out)
-            # = feat_out[:, self.channel]
         def backward_hook(module,grad_in,grad_out):
             act = self.activation.pop()
             act[act > 0] = 1

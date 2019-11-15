@@ -75,7 +75,7 @@ class L1ActivationMaximization(ActivationMaximization):
                 
             # Loss function is the mean of the output of the selected layer/filter
             # We try to minimize the mean of the output of that specific filter
-            loss = -torch.mean(self.activation)
+            loss = -torch.mean(self.activation) + np.abs(optimal_image).sum()
             print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(loss.data.numpy()))
             # Backward
             loss.backward()
