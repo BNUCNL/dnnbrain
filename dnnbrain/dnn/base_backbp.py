@@ -9,7 +9,6 @@ class BackPropGradient(ABC):
     """
     def __init__(self, model):
         self.model = model
-        self.model.eval()
         self.activation = []
         self.gradient = None
         
@@ -34,7 +33,7 @@ class BackPropGradient(ABC):
         # Zero grads
         self.model.zero_grad()
         # Backward pass
-        self.activation.backward()
+        self.activation.pop().backward()
         # Convert Pytorch variable to numpy array
         # [0] to get rid of the first channel (1,3,224,224)
         gradient = self.gradients.data.numpy()[0]
