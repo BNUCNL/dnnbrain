@@ -1,10 +1,5 @@
 #import some packages needed
-import numpy as np
-import math
-import torch
-from torch.nn import ReLU
-from torch.optim import Adam
-from abc import ABC
+from abc import ABC, abstractmethod
 
 
 class ImagePixelActivation(ABC):
