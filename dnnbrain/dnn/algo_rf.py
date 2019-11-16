@@ -5,9 +5,10 @@ from abc import ABC, abstractmethod
 class ImagePixelActivation(ABC):
     """ 
     An Abstract Base Classes class to define interface for pixel activation, 
-    which compute the activation for each pixel of an image
+    which compute the activation for each pixel from an image
     """
     def __init__(self, dnn, metric = None):
+        """metric [str]: the metric used to dervie the activation of the pixel """
         self.dnn = dnn
         self.metric = metric
         
@@ -20,13 +21,15 @@ class ImagePixelActivation(ABC):
         """The method use _estimate to caculate the pixel activtion"""
 
 class OccluderDiscrepancyMap(ImagePixelActivation):
-    def __init__(self, dnn, metric = None, window = None, stride = None):
-        self.dnn = dnn
+    def __init__(self, dnn, metric = 'max', window = (11, 11), stride = 2):
+        """metric: max, min, L1, L2"""
+        super(OccluderDiscrepancyMap, self).__init__(dnn, metric)
+        self.metric = metric
         self.window = window
         self.stride = stride
-        self.metric = metric
+
         
-    def set_params(self, window, stride, metric = None):
+    def set_params(self, window, stride, metric):
         """Set necessary parameters for the estimator"""
         self.window = window
         self.stride = stride
@@ -37,13 +40,14 @@ class OccluderDiscrepancyMap(ImagePixelActivation):
         pass
 
 class UpsamplingActivationMap(ImagePixelActivation):
-    def __init__(self, dnn, metric=None):
-        self.dnn = dnn
-        self.metric = metric
+    def __init__(self, dnn, metric = 'bilinear'):
+        """metric: bilinear"""
+        super(UpsamplingActivationMap, self).__init__(dnn, metric)
+
     
-    def set_params(self):
+    def set_params(self, metric):
         """Set necessary parameters for the estimator"""
-        pass
+        self.metric = metric
     
     def compute(image, layer, channel):
         """ The method do real computation for pixel activation based on feature mapping upsampling"""
@@ -54,15 +58,14 @@ class EmpiricalReceptiveField():
     """
     A class to estimate empiral receptive field of a DNN model
     """
-    def __init__(self, image_pixel_activation_estimator):
+    def __init__(self, pixel_activation_estimator):
         """ image_pixel_activation_estimator is a ImagePixelActivation object """
-        self.estimator = image_pixel_activation_estimator
+        self.activation_estimator = pixel_activation_estimator
 
     def compute(self, stim, layer, channel):
         """Generate RF based on provided image and pixel activation estimator """
         for s in stim:
-            self.estimator(s,layer, channel)
-            
+            self.activation_estimator(s,layer, channel)
             
 class TheoreticalReceptiveField():
     def __init__(self, dnn):
