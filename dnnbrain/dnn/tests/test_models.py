@@ -1,5 +1,6 @@
 import os
 import h5py
+import torch
 import pytest
 import numpy as np
 
@@ -70,6 +71,13 @@ class TestAlexNet:
 
     def test_ablate(self):
         pass
+
+    def test_call(self):
+
+        dnn = db_models.AlexNet()
+        inputs = torch.randn(2, 3, 224, 224)
+        outputs = dnn(inputs)
+        assert outputs.shape == (2, 1000)
 
 
 @pytest.mark.skip

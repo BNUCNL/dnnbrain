@@ -437,6 +437,18 @@ class DNN:
         self.layer2loc = layer2loc
         self.img_size = img_size
 
+    def eval(self):
+        """
+        Turn to evaluation mode
+
+        Return:
+        ------
+        self[DNN]
+        """
+        self.model.eval()
+
+        return self
+
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
@@ -785,6 +797,23 @@ class DNN:
             test_dict['r_square'] = r_square
 
         return test_dict
+
+    def __call__(self, inputs):
+        """
+        Feed the model with the inputs
+
+        Parameter:
+        ---------
+        inputs[Tensor]: a tensor with shape as (n_stim, n_chn, n_height, n_width)
+
+        Return:
+        ------
+        outputs[Tensor]: output of the model, usually with shape as (n_stim, n_feat)
+            n_feat is the number of out features in the last layer of the model.
+        """
+        outputs = self.model(inputs)
+
+        return outputs
 
 
 class AlexNet(DNN):
