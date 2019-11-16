@@ -1,4 +1,5 @@
 import os
+import abc
 import copy
 import time
 import torch
@@ -404,6 +405,10 @@ class DNN:
         self.layer2loc = None
         self.img_size = None
 
+    @property
+    def layers(self):
+        raise NotImplementedError('This method should be implemented in subclasses.')
+
     def save(self, fname):
         """
         Save DNN parameters
@@ -800,6 +805,10 @@ class AlexNet(DNN):
                           'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
         self.img_size = (224, 224)
 
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
@@ -812,10 +821,12 @@ class AlexNet(DNN):
         ------
         module[Module]: PyTorch Module object
         """
-        super(AlexNet, self).__init__()
+        super(AlexNet, self).layer2module(layer)
         module = self.model
         for k in self.layer2loc[layer]:
             module = module._modules[k]
+
+        return module
 
 
 class VggFace(DNN):
