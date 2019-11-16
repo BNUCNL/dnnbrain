@@ -51,7 +51,7 @@ class BackPropGradient(abc.ABC):
         pass
         
 
-class VanilaBackPropGradient(BackPropGradient):
+class VanlinaSaliencyImage(BackPropGradient):
     """ 
     A class to compute vanila Backprob gradient for a image.
     """
@@ -72,7 +72,7 @@ class VanilaBackPropGradient(BackPropGradient):
         # register backward to the first layer
 
 
-class GuidedBackPropGradient(BackPropGradient):
+class GuidedSaliencyImage(BackPropGradient):
     """ 
     A class to compute Guided Backprob gradient for a image.
 
