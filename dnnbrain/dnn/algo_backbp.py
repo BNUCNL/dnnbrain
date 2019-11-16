@@ -3,7 +3,7 @@ import torch
 from torch.nn import ReLU
 
 
-class BackPropGradient(abc.ABC):
+class SaliencyImage(abc.ABC):
     """ 
     An Abstract Base Classes class to define interfaces for gradient backpropagation
     """
