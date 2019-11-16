@@ -45,3 +45,29 @@ class ImageParcelDecomposer(ImageDecomposer):
         
     def decompose(self, image):
         print('Please write code here to segment image into different parcels.')
+        
+        
+        
+class MinmalImage():
+    """
+    A class to generate minmal image for a CNN model using a specific part 
+    decomposer and optimization criterion
+    """
+    def __init__(self, dnn, decomposer, criterion):
+        """
+        dnn is a DNN object, decomposer is a ImageDecomposer object
+        criterion is a str: max
+        """
+        self.dnn = dnn
+        self.criterion = criterion
+        self.decomposer = decomposer
+    
+    def set_params(self,  decomposer, criterion):
+        """Set parameter for the estimator"""
+        self.decomposer = decomposer
+        self.criterion = criterion
+
+    def compute(self, stim, layer, channel):
+        """Generate minmal image for image listed in stim object """
+        for s in stim:
+            self.decomposer(s,layer,channel)
