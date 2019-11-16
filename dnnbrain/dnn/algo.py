@@ -1,6 +1,8 @@
 #import some packages needed
 import numpy as np
-import math
+from base_mi import *
+from base_am import *
+from base_rf import *
 import torch
 from torch.nn import ReLU
 from torch.optim import Adam
@@ -65,15 +67,18 @@ class MinmalImage():
         """
         self.dnn = dnn
         self.criterion = optimization_criterion
+        self.decomposer = None
     
     @abstractmethod
     def set_params(self):
         """Set parameter for the estimator"""        
 
-        
     def compute(self, stim, layer, channel):
         """Generate minmal image for image listed in stim object """
-        
+        for s in stim:
+            self.decomposer(s,layer,channel)
+            
+            
 class MinmalComponentImage(MinmalImage):
     """
     A class to generate minmal image for a CNN model using a specific part 
