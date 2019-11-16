@@ -120,33 +120,3 @@ class MinmalParcelImage(MinmalImage):
         
         
 
-
-
-class SynthesisImage(ABC):
-    """ Use L1 regularization to estimate internel representation """
-    def __init__(self, dnn):
-        self.dnn = dnn
-        self.am = None
-        
-    @abstractmethod
-    def set_params(self):
-        """set params for the am algorithm """
-    
-    def compute(self, stim, layer, channel):
-        for s in stim:
-            self.am.synthesize(s,layer,channel)
-    
-
-class L1SynthesisImage(ABC):
-    """ Use L1 regularization to estimate internel representation """
-    def __init__(self, dnn):
-        self.dnn = dnn
-        self.am = L1ActivationMaximization(dnn.model)
-        
-    def set_params(self, alpha):
-        """set params for the am algorithm """
-        self.am.set_params(alpha)
-
-
-    
-

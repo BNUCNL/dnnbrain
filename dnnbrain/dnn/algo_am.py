@@ -5,14 +5,14 @@ from torch.optim import Adam
 from abc import ABC, abstractmethod
 
 
-class ActivationMaximization(ABC):
+class SynthesisImage(ABC):
     """ 
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, model = None):
-        self.model = model
-        self.model.eval()
+    def __init__(self, dnn = None):
+        self.dnn = dnn
+        self.dnn.eval()
         self.activation = None
         self.channel = None
         self.layer = []
@@ -35,7 +35,7 @@ class ActivationMaximization(ABC):
             self.activation.append(feat_out[:, self.channel])
     
         # register forward hook to the target layer
-        module = self.model
+        module = self.dnn
         for L in self.layer:
             module = module._modules[L]
         module.register_forward_hook(forward_hook)       
@@ -47,7 +47,7 @@ class ActivationMaximization(ABC):
         As this a abstract method, it is needed to be override in every childclass
         """
 
-class L1ActivationMaximization(ActivationMaximization):
+class L1SynthesisImage(SynthesisImage):
     """ Use L1 regularization to estimate internel representation """
     
     def synthesize(self, layer, channel):
@@ -68,7 +68,7 @@ class L1ActivationMaximization(ActivationMaximization):
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             forawrd_image = optimal_image
-            for name, module in enumerate(self.model):
+            for name, module in enumerate(self.dnn):
                 forawrd_image = module(forawrd_image)
                 if name == self.layer:
                     break
