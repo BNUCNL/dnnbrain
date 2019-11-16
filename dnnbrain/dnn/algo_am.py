@@ -1,6 +1,6 @@
-#import some packages needed
-import numpy as np
 import torch
+import numpy as np
+
 from torch.optim import Adam
 from abc import ABC, abstractmethod
 
@@ -10,47 +10,65 @@ class SynthesisImage(ABC):
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn = None):
+    def __init__(self, dnn=None):
+        """
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        """
         self.dnn = dnn
         self.dnn.eval()
+        self.image_size = (3,) + self.dnn.img_size
         self.activation = None
         self.channel = None
-        self.layer = []
-        self.niter = None
-        
-    def set_layer(self, layer, channel, niter = None):
+        self.layer = None
+        self.n_iter = None
+
+    def set(self, layer, channel):
+        """
+        Set the target
+
+        Parameters:
+        ----------
+        layer[str]: layer name
+        channel[int]: channel number
+        """
         self.layer = layer
         self.channel = channel
-        self.niter = 31
-    
-    def set_image_size(self, xsize, ysize):
-        self.image_size = (xsize, ysize, 3)
+
+    def set_n_iter(self, n_iter=31):
+        """
+        Set the number of iteration
+
+        Parameter:
+        ---------
+        n_iter[int]: the number of iteration
+        """
+        self.n_iter = n_iter
         
     def register_hooks(self):
         """
-        Define regsister hook and register them to specific layer and channel.
-        As this a abstract method, it is needed to be override in every childclass
+        Define register hook and register them to specific layer and channel.
         """
-        def forward_hook(module, feat_in,feat_out):
-            self.activation.append(feat_out[:, self.channel])
+        def forward_hook(module, feat_in, feat_out):
+            self.activation = feat_out[:, self.channel]
     
         # register forward hook to the target layer
-        module = self.dnn
-        for L in self.layer:
-            module = module._modules[L]
+        module = self.dnn.layer2module(self.layer)
         module.register_forward_hook(forward_hook)       
     
     @abstractmethod
-    def synthesize(self, layer, channel):
+    def synthesize(self):
         """
         Synthesize the image which maximally activates target layer and channel.         
-        As this a abstract method, it is needed to be override in every childclass
+        As this a abstract method, it is needed to be override in every subclass
         """
 
+
 class L1SynthesisImage(SynthesisImage):
-    """ Use L1 regularization to estimate internel representation """
+    """Use L1 regularization to estimate internal representation."""
     
-    def synthesize(self, layer, channel):
+    def synthesize(self):
         """
         Synthesize the image which maximally activates target layer and channel
         using L1 regularization.
@@ -62,21 +80,17 @@ class L1SynthesisImage(SynthesisImage):
 
         # Define optimizer for the image
         optimizer = Adam([optimal_image], lr=0.1, weight_decay=1e-6)
-        for i in range(1, self.niter):
+        for i in range(1, self.n_iter+1):
             optimizer.zero_grad()
             
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
-            forawrd_image = optimal_image
-            for name, module in enumerate(self.dnn):
-                forawrd_image = module(forawrd_image)
-                if name == self.layer:
-                    break
+            self.dnn(optimal_image)
                 
-            # Loss function is the mean of the output of the selected layer/filter
-            # We try to minimize the mean of the output of that specific filter
+            # Loss function is the mean of the output of the selected filter
+            # We try to maximize the mean of the output of that specific filter
             loss = -torch.mean(self.activation) + np.abs(optimal_image).sum()
-            print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(loss.data.numpy()))
+            print('Iteration:', i, 'Loss:', "{0:.2f}".format(loss.data.numpy()))
             # Backward
             loss.backward()
             # Update image
@@ -84,6 +98,3 @@ class L1SynthesisImage(SynthesisImage):
             
         # Return the optimized image
         return optimal_image
-
-
-   
