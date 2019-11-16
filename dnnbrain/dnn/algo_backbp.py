@@ -56,9 +56,6 @@ class VanilaBackPropGradient(BackPropGradient):
     A class to compute vanila Backprob gradient for a image.
     """
 
-    def __init__(self, dnn):
-        super(VanilaBackPropGradient, self).__init__(dnn)
-
     def register_hooks(self):
         """
         Override the abstract method from BackPropGradient class to
@@ -80,9 +77,6 @@ class GuidedBackPropGradient(BackPropGradient):
     A class to compute Guided Backprob gradient for a image.
 
     """
-
-    def __init__(self, dnn):
-        super(GuidedBackPropGradient, self).__init__(dnn)
     
     def register_hooks(self):
         """
