@@ -119,54 +119,7 @@ class MinmalParcelImage(MinmalImage):
         self.nparcel = 10    
         
         
-class SaliencyImage(ABC):
-    """ 
-    An Abstract Base Classes class to define interface for image decomposer, 
-    which decompose an image into different parcels or components
-    """
-    def __init__(self, dnn):
-        self.dnn = dnn
-        self.bp = None
 
-    @abstractmethod
-    def set_params(self, is_smooth):
-        """set params for bp"""
-        self.bp.set_parms(is_smooth)
-        
-    def compute(self, stim, layer, channel):
-        """you need to write code to compute the saliency map using bp"""
-        for s in stim:
-            self.bp.gradient(s)
-        
-
-class VanlinaSaliencyImage(ABC):
-    """ 
-    An Abstract Base Classes class to define interface for image decomposer, 
-    which decompose an image into different parcels or components
-    """
-    def __init__(self, dnn):
-        self.dnn = dnn
-        self.bp = VanilaBackPropGradient(dnn.model)
-
-    @abstractmethod
-    def set_params(self, is_smooth):
-        """set params for bp"""
-        self.bp.set_parms(is_smooth)
-        
-
-class GuidedSaliencyImage(ABC):
-    """ 
-    An Abstract Base Classes class to define interface for image decomposer, 
-    which decompose an image into different parcels or components
-    """
-    def __init__(self, dnn):
-        self.dnn = dnn
-        self.bp = GuidedBackPropGradient(dnn.model)
-
-    @abstractmethod
-    def set_params(self, is_smooth):
-        """set params for bp"""
-        self.bp.set_parms(is_smooth)
 
 
 class SynthesisImage(ABC):
