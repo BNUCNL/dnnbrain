@@ -1,4 +1,5 @@
 import os
+import abc
 import copy
 import time
 import torch
@@ -404,6 +405,10 @@ class DNN:
         self.layer2loc = None
         self.img_size = None
 
+    @property
+    def layers(self):
+        raise NotImplementedError('This method should be implemented in subclasses.')
+
     def save(self, fname):
         """
         Save DNN parameters
@@ -431,6 +436,32 @@ class DNN:
             self.model.load_state_dict(parameters)
         self.layer2loc = layer2loc
         self.img_size = img_size
+
+    def eval(self):
+        """
+        Turn to evaluation mode
+
+        Return:
+        ------
+        self[DNN]
+        """
+        self.model.eval()
+
+        return self
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        pass
 
     def compute_activation(self, stimuli, dmask, pool_method=None):
         """
@@ -496,9 +527,7 @@ class DNN:
                 # hold activation
                 acts_holder.extend(acts)
 
-            module = self.model
-            for k in self.layer2loc[layer]:
-                module = module._modules[k]
+            module = self.layer2module(layer)
             hook_handle = module.register_forward_hook(hook_act)
 
             # extract DNN activation
@@ -526,10 +555,8 @@ class DNN:
         ------
         kernel[array]: kernel weights
         """
-        # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
+        # get the module
+        module = self.layer2module(layer)
 
         # get the weights
         kernel = module.weight
@@ -549,9 +576,7 @@ class DNN:
             If None, ablate the whole layer.
         """
         # localize the module
-        module = self.model
-        for k in self.layer2loc[layer]:
-            module = module._modules[k]
+        module = self.layer2module(layer)
 
         # ablate kernels' weights
         if channels is None:
@@ -773,12 +798,28 @@ class DNN:
 
         return test_dict
 
+    def __call__(self, inputs):
+        """
+        Feed the model with the inputs
+
+        Parameter:
+        ---------
+        inputs[Tensor]: a tensor with shape as (n_stim, n_chn, n_height, n_width)
+
+        Return:
+        ------
+        outputs[Tensor]: output of the model, usually with shape as (n_stim, n_feat)
+            n_feat is the number of out features in the last layer of the model.
+        """
+        outputs = self.model(inputs)
+
+        return outputs
+
 
 class AlexNet(DNN):
 
     def __init__(self):
         super(AlexNet, self).__init__()
-
         self.model = tv_models.alexnet()
         self.model.load_state_dict(torch.load(
             pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
@@ -792,6 +833,29 @@ class AlexNet(DNN):
                           'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
                           'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
         self.img_size = (224, 224)
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        super(AlexNet, self).layer2module(layer)
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
 
 
 class VggFace(DNN):
