@@ -4,7 +4,8 @@ import os, copy, argparse
 from os.path import join as pjoin
 from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
-from dnnbrain.dnn.core import DNN, Stimulus, Mask
+from dnnbrain.dnn.core import Stimulus, Mask
+from dnnbrain.dnn import models as db_models
 
 # For specific layer and channel in DNN network,
 # select topK stimulus from a set of stimulus.
