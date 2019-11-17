@@ -4,7 +4,9 @@ import os, copy, argparse
 from os.path import join as pjoin
 from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
+from dnnbrain.dnn.models import AlexNet
 from dnnbrain.dnn.core import DNN, Stimulus, Mask
+
 
 # For specific layer and channel in DNN network,
 # select topK stimulus from a set of stimulus.
@@ -40,7 +42,8 @@ def main():
     args = parser.parse_args()
 
     # Load net/stim/dmask
-    dnn = DNN(args.net)
+    dnn = AlexNet()  # load DNN
+    dnn.eval()  # turn to evaluate mode
     stim = Stimulus(args.stim)
     dmask = Mask(args.dmask)
 
