@@ -20,7 +20,7 @@ class Algorithm(ABC):
         """ set parames """
         
     @abstractmethod
-    def compute(self, image): 
+    def compute(self): 
         """Please implement your algorithm here"""
 
 class OccluderDiscrepancyMap(Algorithm):      
@@ -34,7 +34,7 @@ class OccluderDiscrepancyMap(Algorithm):
         self.stride = stride
         self.metric = metric
     
-    def compute(image):
+    def compute(self, image):
         """ 
         Please implement implement the sliding occluder algothrim 
         for discrepancy map"""
@@ -49,36 +49,18 @@ class UpsamplingActivationMap(Algorithm):
         """Set necessary parameters for upsampling estimator"""
         self.metric = metric
     
-    def compute(image):
+    def compute(self, image):
         """ The method do real computation for pixel activation based on feature mapping upsampling"""
         pass
 
-class EmpiricalReceptiveField():
-    """
-    A class to estimate empirical receptive field of a DNN model
-    """
-    def __init__(self, dnn, layer=None, channel=None):
-        self.dnn = dnn
-        self.layer = layer
-        self.channel = channel
-    
-    @abstractmethod
-    def set_params(self):
-        """ set parames """
-        
-    @abstractmethod
-    def compute(self, images):
-        """Generate RF based on provided image and pixel activation estimator """
-        pass
-            
 
-class OccluderERF(EmpiricalReceptiveField):
+class OccluderEmpiricalReceptiveField(Algorithm):
     """
     A class to estimate empiral receptive field of a DNN model
     """
     def __init__(self, dnn, layer, channel):
         """ image_pixel_activation_estimator is a Algorithm object """
-        super(OccluderERF,self).__init__(dnn, layer, channel)      
+        super(OccluderEmpiricalReceptiveField,self).__init__(dnn, layer, channel)      
         self. activation_estimator = \
         OccluderDiscrepancyMap(self.dnn, self.layer, self.channel)
         
@@ -89,12 +71,12 @@ class OccluderERF(EmpiricalReceptiveField):
         """Generate RF based on provided image and pixel activation estimator """
         pass
     
-class UpsamplingERF(EmpiricalReceptiveField):
+class UpsamplingEmpiricalReceptiveField(Algorithm):
     """
     A class to estimate empiral receptive field of a DNN model
     """
     def __init__(self, dnn, layer, channel):
-        super(UpsamplingERF,self).__init__(dnn, layer, channel)      
+        super(UpsamplingEmpiricalReceptiveField,self).__init__(dnn, layer, channel)      
         self. activation_estimator = \
         UpsamplingActivationMap(self.dnn, self.layer, self.channel)
  
@@ -105,11 +87,8 @@ class UpsamplingERF(EmpiricalReceptiveField):
         """Generate RF based on provided image and pixel activation estimator """
         pass
     
-class TheoreticalReceptiveField():
-    def __init__(self, dnn):
-        self.dnn = dnn
-        
-    def compute(self, layer, channel):
+class TheoreticalReceptiveField(Algorithm):        
+    def compute(self):
         pass
 
 
