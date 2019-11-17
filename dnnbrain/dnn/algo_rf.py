@@ -20,7 +20,7 @@ class Algorithm(ABC):
         """ set parames """
         
     @abstractmethod
-    def compute(self, image): 
+    def compute(self): 
         """Please implement your algorithm here"""
 
 class OccluderDiscrepancyMap(Algorithm):      
@@ -34,7 +34,7 @@ class OccluderDiscrepancyMap(Algorithm):
         self.stride = stride
         self.metric = metric
     
-    def compute(image):
+    def compute(self, image):
         """ 
         Please implement implement the sliding occluder algothrim 
         for discrepancy map"""
@@ -49,7 +49,7 @@ class UpsamplingActivationMap(Algorithm):
         """Set necessary parameters for upsampling estimator"""
         self.metric = metric
     
-    def compute(image):
+    def compute(self, image):
         """ The method do real computation for pixel activation based on feature mapping upsampling"""
         pass
 
@@ -105,11 +105,8 @@ class UpsamplingERF(EmpiricalReceptiveField):
         """Generate RF based on provided image and pixel activation estimator """
         pass
     
-class TheoreticalReceptiveField():
-    def __init__(self, dnn):
-        self.dnn = dnn
-        
-    def compute(self, layer, channel):
+class TheoreticalReceptiveField(Algorithm):        
+    def compute(self):
         pass
 
 
