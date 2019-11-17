@@ -4,27 +4,48 @@ import numpy as np
 from torch.optim import Adam
 from abc import ABC, abstractmethod
 
+class Algorithm(ABC):
+    """ 
+    An Abstract Base Classes class to define interface for dnn algorithm 
+    """
+    def __init__(self, dnn, layer=None, channel=None):
+        self.dnn = dnn
+        self.layer = layer
+        self.channel = channel
+        
+    def set_layer(self, layer, channel):
+        self.layer = layer
+        self.channel = channel
+        
+    @abstractmethod
+    def set_params(self):
+        """ set parames """
+        
+    @abstractmethod
+    def compute(self): 
+        """Please implement your algorithm here"""
 
-class SynthesisImage(ABC):
+class SynthesisImage(Algorithm):
     """ 
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn=None):
+    def __init__(self, dnn, layer=None, channel=None):
         """
         Parameter:
         ---------
         dnn[DNN]: dnnbrain's DNN object
         """
-        self.dnn = dnn
+        super(SynthesisImage, self).__init__(dnn, layer, channel)
         self.dnn.eval()
-        self.image_size = (3,) + self.dnn.img_size
         self.activation = None
-        self.channel = None
-        self.layer = None
         self.n_iter = None
 
-    def set(self, layer, channel):
+    def set_layer(self, layer, channel):
+        self.layer = layer
+        self.channel = channel
+        
+    def set_params(self, n_iter=31):
         """
         Set the target
 
@@ -32,17 +53,6 @@ class SynthesisImage(ABC):
         ----------
         layer[str]: layer name
         channel[int]: channel number
-        """
-        self.layer = layer
-        self.channel = channel
-
-    def set_n_iter(self, n_iter=31):
-        """
-        Set the number of iteration
-
-        Parameter:
-        ---------
-        n_iter[int]: the number of iteration
         """
         self.n_iter = n_iter
         
@@ -76,8 +86,10 @@ class L1SynthesisImage(SynthesisImage):
         # Hook the selected layer
         self.register_hooks()
         # Generate a random image
-        optimal_image = np.uint8(np.random.uniform(150, 180, self.image_size))
-
+        image_size = (3,) + self.dnn.img_size
+        optimal_image = np.uint8(np.random.uniform(150, 180, image_size))
+        optimal_image.requires_grad(True)
+        
         # Define optimizer for the image
         optimizer = Adam([optimal_image], lr=0.1, weight_decay=1e-6)
         for i in range(1, self.n_iter+1):

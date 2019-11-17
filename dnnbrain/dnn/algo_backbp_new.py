@@ -7,7 +7,7 @@ class SaliencyImage(abc.ABC):
     """ 
     An Abstract Base Classes class to define interfaces for gradient back propagation
     """
-    def __init__(self):
+    def __init__(self, dnn,):
         """
         Parameter:
         ---------

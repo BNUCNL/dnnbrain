@@ -10,7 +10,7 @@ class Algorithm(ABC):
     """ 
     An Abstract Base Classes class to define interface for dnn algorithm 
     """
-    def __init__(self, dnn, layer = None, channel = None):
+    def __init__(self, dnn, layer=None, channel=None):
         self.dnn = dnn
         self.layer = layer
         self.channel = channel
@@ -34,9 +34,9 @@ class MinmalParcelImage(Algorithm):
     decomposer and optimization criterion
     """
     
-    def set_params(self,  decomposer, criterion):
+    def set_params(self, meth='SLIC', criterion='max'):
         """Set parameter for the estimator"""
-        self.decomposer = decomposer
+        self.meth  = meth
         self.criterion = criterion
 
     def compute(self, image):
@@ -50,9 +50,9 @@ class MinmalComponentImage(Algorithm):
     decomposer and optimization criterion
     """
     
-    def set_params(self,  decomposer, criterion):
+    def set_params(self,  meth='pca', criterion='max'):
         """Set parameter for the estimator"""
-        self.decomposer = decomposer
+        self.meth = meth
         self.criterion = criterion
 
     def compute(self, image):
