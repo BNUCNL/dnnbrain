@@ -1,12 +1,11 @@
 #! /usr/bin/env python
 import numpy as np
-import os, copy, argparse
+import os, copy, argparse, time
 from os.path import join as pjoin
 from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
-from dnnbrain.dnn.models import AlexNet
-from dnnbrain.dnn.core import DNN, Stimulus, Mask
-
+from dnnbrain.dnn.core import Stimulus, Mask
+from dnnbrain.dnn import models as db_models
 
 # For specific layer and channel in DNN network,
 # select topK stimulus from a set of stimulus.
@@ -18,32 +17,36 @@ def main():
 
     parser.add_argument('-net',
                         metavar='Name of DNN Model',
-                        type=str, required=True,
+                        type=str, required=False,
                         help='Name of DNN Model, which should be placed in system variable '
                                 'DNNBRAIN_MODEL_DIR with format *.pth. ')
     parser.add_argument('-top',
                         metavar='Number of Top Stimulus',
-                        type=int, required=True,
+                        type=int, required=False,
                         help='Number of top stimulus.For example, assign top = 5, and top 5 '
                         'image for each <layer,channel> pair will be generated. ')
     parser.add_argument('-stim',
                         metavar='Path of Stimulus',
-                        type=str, required=True,
+                        type=str, required=False,
                         help='A *.stim.csv file contained stimuli to calculate. ')
     parser.add_argument('-dmask',
                         metavar='Path of Dmask',
-                        type=str, required=True,
+                        type=str, required=False,
                         help='A *.dmask.csv list of interested layers and channels. ')
     parser.add_argument('-out',
                         metavar='Path of Output',
-                        type=str, required=True,
+                        type=str, required=False,
                         help='Output directory to save .stim.csv for top stimulus, '
                                 'and associated .act.hd5 file. ')
     args = parser.parse_args()
+    args.top = 5
+    args.net = 'AlexNet'
+    args.out = 'D:/code/topstim/test/result'
+    args.stim = 'D:/code/topstim/test/test.stim.csv'
+    args.dmask = 'D:/code/topstim/test/test.dmask.csv'
 
     # Load net/stim/dmask
-    dnn = AlexNet()  # load DNN
-    dnn.eval()  # turn to evaluate mode
+    dnn = eval('db_models.{}()'.format(args.net))
     stim = Stimulus(args.stim)
     dmask = Mask(args.dmask)
 
@@ -79,4 +82,7 @@ def main():
 
 
 if __name__ == '__main__':
+    time_start = time.time()
     main()
+    time_end = time.time()
+    print("time cost: %.4f s" % (time_end - time_start))
