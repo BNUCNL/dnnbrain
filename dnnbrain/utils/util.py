@@ -96,3 +96,20 @@ def gen_dmask(layers=None, channels=None, dmask_file=None):
                 raise ValueError("'channels' must be None or a list with same length as 'layers'"
                                  " when the length of 'layers' is larger than 1.")
     return dmask
+
+
+def normalize(array):
+    """
+    Normalize an array's value domain to [0, 1]
+
+    Parameter:
+    ---------
+    array[ndarray]: a numpy array
+
+    Return:
+    ------
+    array[ndarray]: a numpy array after normalization
+    """
+    array = (array - array.min()) / (array.max() - array.min())
+
+    return array
