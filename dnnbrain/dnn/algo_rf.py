@@ -2,13 +2,11 @@
 from abc import ABC, abstractmethod
 
 
-class ImagePixelActivation(ABC):
+class Algorithm(ABC):
     """ 
-    An Abstract Base Classes class to define interface for pixel activation, 
-    which compute the activation for each pixel from an image
+    An Abstract Base Classes class to define interface for dnn algorithm 
     """
     def __init__(self, dnn, layer = None, channel = None):
-        """metric [str]: the metric used to dervie the activation of the pixel """
         self.dnn = dnn
         self.layer = layer
         self.channel = channel
@@ -23,10 +21,13 @@ class ImagePixelActivation(ABC):
         
     @abstractmethod
     def compute(self, image): 
-        """The method use _estimate to caculate the pixel activtion"""
+        """Please implement your algorithm here"""
 
-class OccluderDiscrepancyMap(ImagePixelActivation):      
-    
+class OccluderDiscrepancyMap(Algorithm):      
+    """ 
+    An class to compute activation for each pixel from an image 
+    using slide Occluder
+    """
     def set_params(self, window=(11, 11), stride=2, metric='max'):
         """Set necessary parameters for the estimator"""
         self.window = window
@@ -34,11 +35,16 @@ class OccluderDiscrepancyMap(ImagePixelActivation):
         self.metric = metric
     
     def compute(image):
-        """ The method do real computation for discrepancy map based on sliding occluder"""
+        """ 
+        Please implement implement the sliding occluder algothrim 
+        for discrepancy map"""
         pass
 
-class UpsamplingActivationMap(ImagePixelActivation):
-    
+class UpsamplingActivationMap(Algorithm):
+    """ 
+    A class to compute activation for each pixel from an image by upsampling 
+    activation map
+    """
     def set_params(self, metric='bilinear'):
         """Set necessary parameters for upsampling estimator"""
         self.metric = metric
@@ -49,7 +55,7 @@ class UpsamplingActivationMap(ImagePixelActivation):
 
 class EmpiricalReceptiveField():
     """
-    A class to estimate empiral receptive field of a DNN model
+    A class to estimate empirical receptive field of a DNN model
     """
     def __init__(self, dnn, layer=None, channel=None):
         self.dnn = dnn
@@ -71,7 +77,7 @@ class OccluderERF(EmpiricalReceptiveField):
     A class to estimate empiral receptive field of a DNN model
     """
     def __init__(self, dnn, layer, channel):
-        """ image_pixel_activation_estimator is a ImagePixelActivation object """
+        """ image_pixel_activation_estimator is a Algorithm object """
         super(OccluderERF,self).__init__(dnn, layer, channel)      
         self. activation_estimator = \
         OccluderDiscrepancyMap(self.dnn, self.layer, self.channel)
@@ -88,7 +94,6 @@ class UpsamplingERF(EmpiricalReceptiveField):
     A class to estimate empiral receptive field of a DNN model
     """
     def __init__(self, dnn, layer, channel):
-        """ image_pixel_activation_estimator is a ImagePixelActivation object """
         super(UpsamplingERF,self).__init__(dnn, layer, channel)      
         self. activation_estimator = \
         UpsamplingActivationMap(self.dnn, self.layer, self.channel)
