@@ -14,23 +14,34 @@ if not os.path.isdir(TMP_DIR):
     os.makedirs(TMP_DIR)
 
 
-class TestSaliencyImage:
+class TestVanillaSaliencyImage:
 
-    def test_VanlinaSaliencyImage(self):
+    def test_backprop(self):
 
-        # prepare
+        # prepare DNN
         dnn = AlexNet()
+
+        # prepare image
         transform = Compose([Resize(dnn.img_size), ToTensor()])
         fname = pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG')
         image = Image.open(fname)
         image.show()
         image = transform(image).unsqueeze(0)
 
-        vanlina = d_algo.VanlinaSaliencyImage(dnn, 'conv1')
-        vanlina.set('fc3', 276)
-        img_out = vanlina.visualize(image)
+        # prepare vanilla
+        vanilla = d_algo.VanillaSaliencyImage(dnn)
+        vanilla.set_layer('fc3', 276)
 
-        # assert
+        # test backprop to conv1
+        img_out = vanilla.backprop(image, 'conv1')
         assert img_out.shape == image.shape[1:]
+        plt.figure('conv1')
         plt.imshow(normalize(img_out).transpose((1, 2, 0)))
+
+        # test backprop to conv1_relu
+        img_out = vanilla.backprop(image, 'conv1_relu')
+        assert img_out.shape == (64, 55, 55)
+        plt.figure('conv1_relu')
+        plt.imshow(normalize(img_out)[0])
+
         plt.show()

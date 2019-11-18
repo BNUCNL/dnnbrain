@@ -2,43 +2,55 @@ import abc
 import torch
 
 
-class SaliencyImage(abc.ABC):
+class Algorithm(abc.ABC):
+    """
+    An Abstract Base Classes class to define interface for dnn algorithm
+    """
+    def __init__(self, dnn, layer=None, channel=None):
+        """
+        Parameters:
+        ----------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        self.dnn = dnn
+        self.dnn.eval()
+        self.layer = layer
+        self.channel = channel
+
+    def set_layer(self, layer, channel):
+        """
+        Set layer or its channel
+
+        Parameters:
+        ----------
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        self.layer = layer
+        self.channel = channel
+
+
+class SaliencyImage(Algorithm):
     """
     An Abstract Base Classes class to define interfaces for gradient back propagation
     """
 
-    def __init__(self, dnn, first_layer):
+    def __init__(self, dnn, from_layer=None, from_chn=None):
         """
-        Parameter:
-        ---------
+        Parameters:
+        ----------
         dnn[DNN]: dnnbrain's DNN object
-        first_layer[str]: layer name of the first layer
+        from_layer[str]: name of the layer where gradients back propagate from
+        from_chn[int]: sequence number of the channel where gradient back propagate from
         """
-        # about DNN
-        self.dnn = dnn
-        self.dnn.eval()
+        super(SaliencyImage, self).__init__(dnn, from_layer, from_chn)
 
-        # about layer location
-        self.first_layer = first_layer
-        self.target_layer = None
-        self.chn_idx = None
-
-        # about hook
+        self.to_layer = None
         self.activation = []
         self.gradient = None
         self.hook_handles = []
-
-    def set(self, layer, channel):
-        """
-        Set the target
-
-        Parameters:
-        ----------
-        layer[str]: layer name
-        channel[int]: channel number
-        """
-        self.target_layer = layer
-        self.chn_idx = channel - 1
 
     @abc.abstractmethod
     def register_hooks(self):
@@ -47,22 +59,27 @@ class SaliencyImage(abc.ABC):
         As this a abstract method, it is needed to be override in every subclass
         """
 
-    def visualize(self, image):
+    def backprop(self, image, to_layer=None):
         """
-        Compute gradient corresponding to the target on the image with back propagation algorithm
+        Compute gradients of the layer corresponding to the self.layer and self.channel
+        by back propagation algorithm.
 
-        Parameter:
-        ---------
+        Parameters:
+        ----------
         image[Tensor]: an input of the model, with shape as (1, n_chn, n_height, n_width)
+        to_layer[str]: name of the layer where gradients back propagate to
+            If is None, get the first layer in the layers recorded in DNN.
 
         Return:
         ------
-        gradient[ndarray]: the input's gradients corresponding to the target activation
-            with shape as (n_chn, n_height, n_width)
+        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
+            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
         """
+        # deal with parameters
         if image.ndim != 4 or image.shape[0] != 1:
             raise ValueError("The input data must be a tensor with shape as "
                              "(1, n_chn, n_height, n_width)")
+        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
 
         self.register_hooks()
         # forward
@@ -73,7 +90,7 @@ class SaliencyImage(abc.ABC):
         # backward
         self.activation.pop().backward()
         # tensor to ndarray
-        # [0] to get rid of the first dimension (1, n_chn, n_height, n_weight)
+        # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
         gradient = self.gradient.data.numpy()[0]
         self.gradient = None
 
@@ -83,7 +100,7 @@ class SaliencyImage(abc.ABC):
 
         return gradient
 
-    def smooth_gradient(self, image):
+    def backprop_smooth(self, image, n_iter, layer=None):
         """
         Compute smoothed gradient.
         It will use the gradient method to compute the gradient and then smooth it
@@ -91,7 +108,7 @@ class SaliencyImage(abc.ABC):
         pass
 
 
-class VanlinaSaliencyImage(SaliencyImage):
+class VanillaSaliencyImage(SaliencyImage):
     """
     A class to compute vanila Backprob gradient for a image.
     """
@@ -103,15 +120,15 @@ class VanlinaSaliencyImage(SaliencyImage):
         """
 
         def forward_hook(module, feat_in, feat_out):
-            self.activation.append(torch.mean(feat_out[0, self.chn_idx]))
+            self.activation.append(torch.mean(feat_out[0, self.channel-1]))
 
         def backward_hook(module, grad_in, grad_out):
             self.gradient = grad_in[0]
 
         # register forward hook to the target layer
-        trg_module = self.dnn.layer2module(self.target_layer)
-        self.hook_handles.append(trg_module.register_forward_hook(forward_hook))
+        module = self.dnn.layer2module(self.layer)
+        self.hook_handles.append(module.register_forward_hook(forward_hook))
 
         # register backward to the first layer
-        first_module = self.dnn.layer2module(self.first_layer)
-        self.hook_handles.append(first_module.register_backward_hook(backward_hook))
+        to_module = self.dnn.layer2module(self.to_layer)
+        self.hook_handles.append(to_module.register_backward_hook(backward_hook))
