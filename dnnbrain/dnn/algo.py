@@ -50,7 +50,7 @@ class SaliencyImage(Algorithm):
         super(SaliencyImage, self).__init__(dnn, from_layer, from_chn)
 
         self.to_layer = None
-        self.activation = []
+        self.activation = None
         self.gradient = None
         self.hook_handles = []
 
@@ -90,15 +90,18 @@ class SaliencyImage(Algorithm):
         # zero grads
         self.dnn.model.zero_grad()
         # backward
-        self.activation.pop().backward()
+        self.activation.backward()
         # tensor to ndarray
         # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
         gradient = self.gradient.data.numpy()[0]
-        self.gradient = None
 
         # remove hooks
         for hook_handle in self.hook_handles:
             hook_handle.remove()
+
+        # renew some attributions
+        self.activation = None
+        self.gradient = None
 
         return gradient
 
@@ -141,7 +144,7 @@ class SaliencyImage(Algorithm):
             # clean old gradients
             self.dnn.model.zero_grad()
             # backward
-            self.activation.pop().backward()
+            self.activation.backward()
             # tensor to ndarray
             # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
             gradient += self.gradient.data.numpy()[0]
@@ -151,7 +154,10 @@ class SaliencyImage(Algorithm):
         for hook_handle in self.hook_handles:
             hook_handle.remove()
 
+        # renew some attributions
+        self.activation = None
         self.gradient = None
+
         gradient = gradient / n_iter
         return gradient
 
@@ -167,16 +173,59 @@ class VanillaSaliencyImage(SaliencyImage):
         define a specific hook for vanila backprop gradient.
         """
 
-        def forward_hook(module, feat_in, feat_out):
-            self.activation.append(torch.mean(feat_out[0, self.channel-1]))
+        def from_layer_acti_hook(module, feat_in, feat_out):
+            self.activation = torch.mean(feat_out[0, self.channel-1])
 
-        def backward_hook(module, grad_in, grad_out):
+        def to_layer_grad_hook(module, grad_in, grad_out):
             self.gradient = grad_in[0]
 
         # register forward hook to the target layer
-        module = self.dnn.layer2module(self.layer)
-        self.hook_handles.append(module.register_forward_hook(forward_hook))
+        from_module = self.dnn.layer2module(self.layer)
+        from_handle = from_module.register_forward_hook(from_layer_acti_hook)
+        self.hook_handles.append(from_handle)
 
         # register backward to the first layer
         to_module = self.dnn.layer2module(self.to_layer)
-        self.hook_handles.append(to_module.register_backward_hook(backward_hook))
+        to_handle = to_module.register_backward_hook(to_layer_grad_hook)
+        self.hook_handles.append(to_handle)
+
+
+class GuidedSaliencyImage(SaliencyImage):
+    """
+    A class to compute Guided Backprob gradient for a image.
+    """
+
+    def register_hooks(self):
+        """
+        Override the abstract method from BackPropGradient class to
+        define a specific hook for guided backprop gradient.
+        """
+
+        def from_layer_acti_hook(module, feat_in, feat_out):
+            self.activation = torch.mean(feat_out[0, self.channel - 1])
+
+        def to_layer_grad_hook(module, grad_in, grad_out):
+            self.gradient = grad_in[0]
+
+        def relu_grad_hook(module, grad_in, grad_out):
+            grad_in[0][grad_out[0] <= 0] = 0
+
+        # register hook for from_layer
+        from_module = self.dnn.layer2module(self.layer)
+        handle = from_module.register_forward_hook(from_layer_acti_hook)
+        self.hook_handles.append(handle)
+
+        # register backward hook to all relu layers util from_layer
+        for module in self.dnn.model.modules():
+            # register hooks for relu
+            if isinstance(module, torch.nn.ReLU):
+                handle = module.register_backward_hook(relu_grad_hook)
+                self.hook_handles.append(handle)
+
+            if module is from_module:
+                break
+
+        # register hook for to_layer
+        to_module = self.dnn.layer2module(self.to_layer)
+        handle = to_module.register_backward_hook(to_layer_grad_hook)
+        self.hook_handles.append(handle)
