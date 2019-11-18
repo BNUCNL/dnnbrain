@@ -4,6 +4,7 @@ import numpy as np
 from torch.optim import Adam
 from abc import ABC, abstractmethod
 
+
 class Algorithm(ABC):
     """ 
     An Abstract Base Classes class to define interface for dnn algorithm 
@@ -16,14 +17,7 @@ class Algorithm(ABC):
     def set_layer(self, layer, channel):
         self.layer = layer
         self.channel = channel
-        
-    @abstractmethod
-    def set_params(self):
-        """ set parames """
-        
-    @abstractmethod
-    def compute(self): 
-        """Please implement your algorithm here"""
+
 
 class SynthesisImage(Algorithm):
     """ 
