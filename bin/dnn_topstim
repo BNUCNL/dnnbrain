@@ -5,7 +5,7 @@ from os.path import join as pjoin
 from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
 from dnnbrain.dnn.core import Stimulus, Mask
-from dnnbrain.dnn import models as db_models
+from dnnbrain.dnn import models as db_models # Use eval to import DNN model
 
 # For specific layer and channel in DNN network,
 # select topK stimulus from a set of stimulus.
@@ -17,37 +17,36 @@ def main():
 
     parser.add_argument('-net',
                         metavar='Name of DNN Model',
-                        type=str, required=False,
+                        type=str, required=True,
                         help='Name of DNN Model, which should be placed in system variable '
                                 'DNNBRAIN_MODEL_DIR with format *.pth. ')
     parser.add_argument('-top',
                         metavar='Number of Top Stimulus',
-                        type=int, required=False,
+                        type=int, required=True,
                         help='Number of top stimulus.For example, assign top = 5, and top 5 '
                         'image for each <layer,channel> pair will be generated. ')
     parser.add_argument('-stim',
                         metavar='Path of Stimulus',
-                        type=str, required=False,
+                        type=str, required=True,
                         help='A *.stim.csv file contained stimuli to calculate. ')
     parser.add_argument('-dmask',
                         metavar='Path of Dmask',
-                        type=str, required=False,
+                        type=str, required=True,
                         help='A *.dmask.csv list of interested layers and channels. ')
     parser.add_argument('-out',
                         metavar='Path of Output',
-                        type=str, required=False,
+                        type=str, required=True,
                         help='Output directory to save .stim.csv for top stimulus, '
                                 'and associated .act.hd5 file. ')
     args = parser.parse_args()
-    args.top = 5
-    args.net = 'AlexNet'
-    args.out = 'D:/code/topstim/test/result'
-    args.stim = 'D:/code/topstim/test/test.stim.csv'
-    args.dmask = 'D:/code/topstim/test/test.dmask.csv'
 
-    # Load net/stim/dmask
+    # Load net
     dnn = eval('db_models.{}()'.format(args.net))
+
+    # Load stim
     stim = Stimulus(args.stim)
+
+    # Load dmask
     dmask = Mask(args.dmask)
 
     # Extract activation
