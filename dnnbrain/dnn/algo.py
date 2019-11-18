@@ -1,6 +1,8 @@
 import abc
 import torch
 
+import numpy as np
+
 
 class Algorithm(abc.ABC):
     """
@@ -100,12 +102,58 @@ class SaliencyImage(Algorithm):
 
         return gradient
 
-    def backprop_smooth(self, image, n_iter, layer=None):
+    def backprop_smooth(self, image, n_iter, sigma_multiplier=1, to_layer=None):
         """
         Compute smoothed gradient.
         It will use the gradient method to compute the gradient and then smooth it
+
+        Parameters:
+        ----------
+        image[Tensor]: an input of the model, with shape as (1, n_chn, n_height, n_width)
+        n_iter[int]: the number of noisy images to be generated before average.
+        sigma_multiplier[int]: multiply when calculating std of noise
+        to_layer[str]: name of the layer where gradients back propagate to
+            If is None, get the first layer in the layers recorded in DNN.
+
+        Return:
+        ------
+        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
+            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
         """
-        pass
+        # deal with parameters
+        if image.ndim != 4 or image.shape[0] != 1:
+            raise ValueError("The input data must be a tensor with shape as "
+                             "(1, n_chn, n_height, n_width)")
+        assert isinstance(n_iter, int) and n_iter > 0, \
+            'The number of iterations must be a positive integer!'
+        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
+
+        self.register_hooks()
+        gradient = 0
+        sigma = sigma_multiplier / (image.max() - image.min()).item()
+        for iter_idx in range(1, n_iter+1):
+            # prepare image
+            image_noisy = image + image.normal_(0, sigma**2)
+            image_noisy.requires_grad_(True)
+
+            # forward
+            self.dnn(image_noisy)
+            # clean old gradients
+            self.dnn.model.zero_grad()
+            # backward
+            self.activation.pop().backward()
+            # tensor to ndarray
+            # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
+            gradient += self.gradient.data.numpy()[0]
+            print(f'Finish: noisy_image{iter_idx}/{n_iter}')
+
+        # remove hooks
+        for hook_handle in self.hook_handles:
+            hook_handle.remove()
+
+        self.gradient = None
+        gradient = gradient / n_iter
+        return gradient
 
 
 class VanillaSaliencyImage(SaliencyImage):
