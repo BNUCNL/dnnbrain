@@ -495,3 +495,134 @@ class BrainEncoder:
         pred_dict = self.model.predict(beh_data, self.brain_activ)
 
         return pred_dict
+
+
+class BrainDecoder:
+    """
+    Decode brain activation to DNN activation or behavior data.
+    """
+    def __init__(self, brain_activ=None, model_type=None, model_name=None, cv=3):
+        """
+        Parameters:
+        ----------
+        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+            For voxel-wise, n_meas is the number of voxels.
+            For ROI-wise, n_meas is the number of ROIs.
+        model_type[str]: choices=(uv, mv)
+            'uv': univariate prediction model
+            'mv': multivariate prediction model
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+                And the model_type must be 'uv'.
+        cv[int]: cross validation fold number
+        """
+        self.set(brain_activ, model_type, model_name, cv)
+
+    def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
+        """
+        Set some attributes
+
+        Parameters:
+        ----------
+        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+            For voxel-wise, n_meas is the number of voxels.
+            For ROI-wise, n_meas is the number of ROIs.
+        model_type[str]: choices=(uv, mv)
+            'uv': univariate prediction model
+            'mv': multivariate prediction model
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+                And the model_type must be 'uv'.
+        cv[int]: cross validation fold number
+        """
+        if brain_activ is not None:
+            self.brain_activ = brain_activ
+
+        if model_type is None:
+            pass
+        elif model_type == 'uv':
+            self.model = UnivariatePredictionModel()
+        elif model_type == 'mv':
+            self.model = MultivariatePredictionModel()
+        else:
+            raise ValueError('model_type must be one of the (uv, mv).')
+
+        if model_name is not None:
+            if not hasattr(self, 'model'):
+                raise RuntimeError('You have to set model_type first!')
+            self.model.set(model_name)
+
+        if cv is not None:
+            if not hasattr(self, 'model'):
+                raise RuntimeError('You have to set model_type first!')
+            self.model.set(cv=cv)
+
+    def decode_dnn(self, dnn_activ):
+        """
+        Decode brain activation to DNN activation.
+
+        Parameter:
+        ---------
+        dnn_activ[Activation]: DNN activation
+
+        Return:
+        ------
+        pred_dict[dict]:
+            ---for uv---
+            layer:
+                score[ndarray]: max scores
+                    shape=(n_chn, n_row, n_col)
+                model[ndarray]: fitted models of the max scores
+                    shape=(n_chn, n_row, n_col)
+                location[ndarray]: locations of measurement indicators with max scores
+                    shape=(n_chn, n_row, n_col)
+            ---for mv---
+            layer:
+                score[ndarray]: prediction scores
+                    shape=(n_chn, n_row, n_col)
+                model[ndarray]: fitted models
+                    shape=(n_chn, n_row, n_col)
+        """
+        pred_dict = dict()
+        for layer in dnn_activ.layers:
+            # get DNN activation
+            activ = dnn_activ.get(layer)
+            n_stim, *shape = activ.shape
+            activ = activ.reshape((n_stim, -1))
+
+            data = self.model.predict(self.brain_activ, activ)
+            data['score'] = data['score'].reshape(shape)
+            data['model'] = data['model'].reshape(shape)
+            if isinstance(self.model, UnivariatePredictionModel):
+                data['location'] = data['location'].reshape(shape)
+
+            pred_dict[layer] = data
+        return pred_dict
+
+    def decode_behavior(self, beh_data):
+        """
+        Decode brain activation to behavior data.
+
+        Parameter:
+        ---------
+        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+
+        Return:
+        ------
+        pred_dict[dict]:
+            ---for uv---
+            score[ndarray]: max scores
+                shape=(n_beh,)
+            model[ndarray]: fitted models of the max scores
+                shape=(n_beh,)
+            location[ndarray]: locations of measurement indicators with max scores
+                shape=(n_beh,)
+            ---for mv---
+            score[ndarray]: prediction scores
+                shape=(n_beh,)
+            model[ndarray]: fitted models
+                shape=(n_beh,)
+        """
+        pred_dict = self.model.predict(self.brain_activ, beh_data)
+
+        return pred_dict
