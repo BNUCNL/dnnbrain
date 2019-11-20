@@ -1,5 +1,6 @@
 import os
 import pytest
+import numpy as np
 
 from os.path import join as pjoin
 from dnnbrain.utils import util as db_util
@@ -60,3 +61,16 @@ def test_gen_dmask():
     assert dmask.get('conv5')['row'] == [4, 5]
     assert dmask.get('conv5')['col'] == [6, 7, 8]
     assert dmask.get('fc3')['chn'] == [1, 2, 3]
+
+
+def test_normalize():
+
+    # prepare
+    arr = np.random.randn(2, 3)
+    arr_true = (arr - arr.min()) / (arr.max() - arr.min())
+    arr_norm = db_util.normalize(arr)
+
+    # assert
+    assert arr_norm.min() == 0
+    assert arr_norm.max() == 1
+    np.testing.assert_equal(arr_norm, arr_true)

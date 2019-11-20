@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 import numpy as np
-import os, copy, argparse
+import os, copy, argparse, time
 from os.path import join as pjoin
 from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
 from dnnbrain.dnn.core import Stimulus, Mask
-from dnnbrain.dnn import models as db_models
+from dnnbrain.dnn import models as db_models # Use eval to import DNN model
 
 # For specific layer and channel in DNN network,
 # select topK stimulus from a set of stimulus.
@@ -40,9 +40,13 @@ def main():
                                 'and associated .act.hd5 file. ')
     args = parser.parse_args()
 
-    # Load net/stim/dmask
-    dnn = eval(f'db_models.{args.net}()') 
+    # Load net
+    dnn = eval('db_models.{}()'.format(args.net))
+
+    # Load stim
     stim = Stimulus(args.stim)
+
+    # Load dmask
     dmask = Mask(args.dmask)
 
     # Extract activation
@@ -77,4 +81,7 @@ def main():
 
 
 if __name__ == '__main__':
+    time_start = time.time()
     main()
+    time_end = time.time()
+    print("time cost: %.4f s" % (time_end - time_start))
