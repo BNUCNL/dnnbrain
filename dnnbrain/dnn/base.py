@@ -5,10 +5,12 @@ import numpy as np
 
 from PIL import Image
 from os.path import join as pjoin
+from copy import deepcopy
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score
+from sklearn.metrics import pairwise_distances
 from scipy.signal import periodogram
 from torchvision import transforms
 
@@ -186,196 +188,189 @@ class VideoSet:
         return len(self.frame_nums)
 
 
-class Classifier:
-    """
-    Encapsulate some classifier models of scikit-learn
-    """
+class UnivariatePredictionModel:
 
-    def __init__(self, name=None):
+    def __init__(self, model_name=None, cv=3):
         """
-        Parameter:
-        ---------
-        name[str]: the name of a classifier model
+        Parameters:
+        ----------
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+        cv[int]: cross validation fold number
         """
-        self.model = None
-        self.score_evl = 'accuracy'
-        if name is not None:
-            self.set(name)
+        self.set(model_name, cv)
 
-    def set(self, name):
+    def set(self, model_name=None, cv=None):
         """
-        Set model
+        Set some attributes
 
-        Parameter:
-        ---------
-        name[str]: the name of a classifier model
+        Parameters:
+        ----------
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+        cv[int]: cross validation fold number
         """
-        if name == 'lrc':
+        if model_name is None:
+            pass
+        elif model_name == 'lrc':
             self.model = LogisticRegression()
-        elif name == 'svc':
+            self.score_evl = 'accuracy'
+        elif model_name == 'svc':
             self.model = SVC(kernel='linear', C=0.025)
-        else:
-            raise ValueError('unsupported model:', name)
-
-    def fit(self, X, y):
-        """
-        Fit model
-
-        Parameters:
-        ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: target values with shape as (n_samples,)
-
-        Return:
-        ------
-        self[Classifier]: an instance of self
-        """
-        self.model.fit(X, y)
-
-        return self
-
-    def predict(self, X):
-        """
-        Do prediction
-
-        Parameter:
-        ---------
-        X[array]: the data with shape as (n_samples, n_features)
-
-        Return:
-        ------
-            [array]: predicted values with shape as (n_samples,)
-        """
-        return self.model.predict(X)
-
-    def score(self, X, y):
-        """
-        Evaluate the model
-
-        Parameters:
-        ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: true values with shape as (n_samples,)
-
-        Return:
-        ------
-            [float]: Mean accuracy of self.predict(X) wrt. y.
-        """
-        return self.model.score(X, y)
-
-    def cross_val_score(self, X, y, cv=3):
-        """
-        Evaluate the model through cross validation.
-
-        Parameters:
-        ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: true values with shape as (n_samples,)
-        cv[int]: the number of folds
-
-        Return:
-        ------
-        scores[array]: array of float with shape as (cv,)
-        """
-        scores = cross_val_score(self.model, X, y,
-                                 scoring=self.score_evl, cv=cv)
-        return scores
-
-
-class Regressor:
-    """
-    Encapsulate some regressor models of scikit-learn
-    """
-
-    def __init__(self, name=None):
-        """
-        Parameter:
-        ---------
-        name[str]: the name of a classifier model
-        """
-        self.model = None
-        self.score_evl = 'explained_variance'
-        if name is not None:
-            self.set(name)
-
-    def set(self, name):
-        """
-        Set model
-
-        Parameter:
-        ---------
-        name[str]: the name of a regreesor model
-        """
-        if name == 'glm':
+            self.score_evl = 'accuracy'
+        elif model_name == 'glm':
             self.model = LinearRegression()
-        elif name == 'lasso':
+            self.score_evl = 'explained_variance'
+        elif model_name == 'lasso':
             self.model = Lasso()
+            self.score_evl = 'explained_variance'
+        elif model_name == 'corr':
+            self.model = model_name
+            self.score_evl = 'R square'
         else:
-            raise ValueError('unsupported model:', name)
+            raise ValueError('unsupported model:', model_name)
 
-    def fit(self, X, y):
+        if cv is not None:
+            self.cv = cv
+
+    def predict(self, X, Y):
         """
-        Fit model
+        Use all columns of X (one-by-one) to predict each column of Y;
+        For each column of Y:
+            Find the location of the column of X which has the maximal prediction score;
+            Record the location, and corresponding score and model.
 
         Parameters:
         ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: target values with shape as (n_samples,)
+        X[ndarray]: shape=(n_sample, n_feature)
+        Y[ndarray]: shape=(n_sample, n_target)
 
         Return:
         ------
-        self[Classifier]: an instance of self
+        pred_dict[dict]:
+            score[ndarray]: shape=(n_target,)
+            model[ndarray]: shape=(n_target,)
+            location[ndarray]: shape=(n_target,)
+            If model_name == 'corr', the score is R square.
+                And the model is None.
         """
-        self.model.fit(X, y)
+        assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
+        assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
+        assert X.shape[0] == Y.shape[0], 'X and Y must have the ' \
+                                         'same number of samples!'
+        n_feat = X.shape[1]
+        n_trg = Y.shape[1]
+        scores = []
+        models = []
+        locations = []
+        for trg_idx in range(n_trg):
+            y = Y[:, trg_idx]
+            if self.model == 'corr':
+                scores_tmp = pairwise_distances(X.T, y.reshape(1, -1), 'correlation')
+                scores_tmp = (1 - scores_tmp.ravel()) ** 2
+            else:
+                scores_tmp = []
+                for feat_idx in range(n_feat):
+                    cv_scores = cross_val_score(self.model, X[:, feat_idx][:, None], y,
+                                                scoring=self.score_evl, cv=self.cv)
+                    scores_tmp.append(np.mean(cv_scores))
 
-        return self
+            # find maximal score and its location
+            max_feat_idx = np.argmax(scores_tmp)
+            locations.append(max_feat_idx)
+            max_score = scores_tmp[max_feat_idx]
+            scores.append(max_score)
 
-    def predict(self, X):
+            # fit the model with maximal score
+            if self.model == 'corr':
+                models.append(None)
+            else:
+                max_model = self.model.fit(X[:, max_feat_idx][:, None], y)
+                models.append(deepcopy(max_model))
+
+        pred_dict = {
+            'score': np.array(scores),
+            'model': np.array(models),
+            'location': np.array(locations)
+        }
+        return pred_dict
+
+
+class MultivariatePredictionModel:
+
+    def __init__(self, model_name=None, cv=3):
         """
-        Do prediction
-
-        Parameter:
-        ---------
-        X[array]: data with shape as (n_samples, n_features)
-
-        Return:
-        ------
-            [array]: predicted values with shape as (n_samples,)
+        Parameters:
+        ----------
+        model_name[str]: name of a model used to do prediction
+        cv[int]: cross validation fold number
         """
-        return self.model.predict(X)
+        self.set(model_name, cv)
 
-    def score(self, X, y):
+    def set(self, model_name=None, cv=None):
         """
-        Evaluate the model
+        Set some attributes
 
         Parameters:
         ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: true values with shape as (n_samples,)
-
-        Return:
-        ------
-            [float]: R^2 of self.predict(X) wrt. y.
+        model_name[str]: name of a model used to do prediction
+        cv[int]: cross validation fold number
         """
-        return self.model.score(X, y)
+        if model_name is None:
+            pass
+        elif model_name == 'lrc':
+            self.model = LogisticRegression()
+            self.score_evl = 'accuracy'
+        elif model_name == 'svc':
+            self.model = SVC(kernel='linear', C=0.025)
+            self.score_evl = 'accuracy'
+        elif model_name == 'glm':
+            self.model = LinearRegression()
+            self.score_evl = 'explained_variance'
+        elif model_name == 'lasso':
+            self.model = Lasso()
+            self.score_evl = 'explained_variance'
+        else:
+            raise ValueError('unsupported model:', model_name)
 
-    def cross_val_score(self, X, y, cv=3):
+        if cv is not None:
+            self.cv = cv
+
+    def predict(self, X, Y):
         """
-        Evaluate the model through cross validation.
+        Use all columns of X to predict each column of Y.
 
         Parameters:
         ----------
-        X[array]: data with shape as (n_samples, n_features)
-        y[array]: true values with shape as (n_samples,)
-        cv[int]: the number of folds
+        X[ndarray]: shape=(n_sample, n_feature)
+        Y[ndarray]: shape=(n_sample, n_target)
 
         Return:
         ------
-        scores[array]: array of float with shape as (cv,)
+        pred_dict[dict]:
+            score[ndarray]: shape=(n_target,)
+            model[ndarray]: shape=(n_target,)
         """
-        scores = cross_val_score(self.model, X, y,
-                                 scoring=self.score_evl, cv=cv)
-        return scores
+        assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
+        assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
+        assert X.shape[0] == Y.shape[0], 'X and Y must have the ' \
+                                         'same number of samples!'
+        n_trg = Y.shape[1]
+        scores = []
+        models = []
+        for trg_idx in range(n_trg):
+            y = Y[:, trg_idx]
+            cv_scores = cross_val_score(self.model, X, y,
+                                        scoring=self.score_evl, cv=self.cv)
+            # recording
+            scores.append(np.mean(cv_scores))
+            models.append(deepcopy(self.model.fit(X, y)))
+
+        pred_dict = {
+            'score': np.array(scores),
+            'model': np.array(models)
+        }
+        return pred_dict
 
 
 def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
