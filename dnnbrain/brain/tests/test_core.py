@@ -4,7 +4,8 @@ import pytest
 import numpy as np
 
 from os.path import join as pjoin
-from dnnbrain.brain.core import ROI
+from dnnbrain.brain.core import ROI, BrainDecoder
+from dnnbrain.dnn.core import Activation
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -64,6 +65,60 @@ class TestROI:
 
     def test_arithmetic(self):
         pass
+
+
+class TestBrainDecoder:
+
+    # Prepare brain activation
+    brain_activ = np.random.randn(10, 2)
+
+    def test_decode_dnn(self):
+
+        # prepare dnn activation
+        dnn_activ = Activation()
+        dnn_activ.set('conv5', np.random.randn(10, 2, 3, 3))
+        dnn_activ.set('fc3', np.random.randn(10, 10, 1, 1))
+
+        # test uv
+        decoder = BrainDecoder(self.brain_activ, 'uv', 'glm')
+        pred_dict = decoder.decode_dnn(dnn_activ)
+        assert list(pred_dict.keys()) == dnn_activ.layers
+        v1_keys = sorted(['score', 'model', 'location'])
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            _, n_chn, n_row, n_col = dnn_activ.get(k1).shape
+            for v2 in v1.values():
+                assert v2.shape == (n_chn, n_row, n_col)
+
+        # test mv
+        decoder.set(model_type='mv', model_name='glm')
+        pred_dict = decoder.decode_dnn(dnn_activ)
+        assert list(pred_dict.keys()) == dnn_activ.layers
+        v1_keys = sorted(['score', 'model'])
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            _, n_chn, n_row, n_col = dnn_activ.get(k1).shape
+            for v2 in v1.values():
+                assert v2.shape == (n_chn, n_row, n_col)
+
+    def test_decode_behavior(self):
+
+        # prepare behavior data
+        beh_data = np.random.randint(1, 3, (10, 1))
+
+        # test uv
+        decoder = BrainDecoder(self.brain_activ, 'uv', 'lrc')
+        pred_dict = decoder.decode_behavior(beh_data)
+        assert sorted(pred_dict.keys()) == sorted(['score', 'model', 'location'])
+        for v in pred_dict.values():
+            assert v.shape == (beh_data.shape[1],)
+
+        # test mv
+        decoder.set(model_type='mv', model_name='lrc')
+        pred_dict = decoder.decode_behavior(beh_data)
+        assert sorted(pred_dict.keys()) == sorted(['score', 'model'])
+        for v in pred_dict.values():
+            assert v.shape == (beh_data.shape[1],)
 
 
 if __name__ == '__main__':
