@@ -5,14 +5,14 @@ view feature maps of stimuli
 """
 
 import argparse
+import numpy as np
 
 from os.path import join as pjoin
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from dnnbrain.dnn.io import NetLoader, ImgDataset, VidDataset
-from dnnbrain.utils.io import read_stim_csv
+from PIL import Image
+from dnnbrain.dnn.core import Stimulus
 from dnnbrain.utils.plot import imgarray_show
-from dnnbrain.dnn.analyzer import dnn_activation
+from dnnbrain.utils.util import gen_dmask
+from dnnbrain.dnn import models as db_models  # used by eval
 
 
 def main():
@@ -21,6 +21,7 @@ def main():
                         metavar='Net',
                         required=True,
                         type=str,
+                        choices=('AlexNet',),
                         help='a neural network name')
     parser.add_argument('-layer',
                         metavar='Layer',
@@ -66,48 +67,45 @@ def main():
     assert args.layer.startswith('conv'), 'Only support convolution layer!'
     assert len(args.chn) <= 5, "Don't support view more than 5 channels at once!"
 
-    # -load DNN-
-    net_loader = NetLoader(args.net)
-    transform = transforms.Compose([transforms.Resize(net_loader.img_size), transforms.ToTensor()])
+    # load objects
+    dnn = eval('db_models.{}()'.format(args.net))  # load DNN
+    stimuli = Stimulus(args.stim)  # load stimuli
+    dmask = gen_dmask([args.layer], args.chn)  # generate DNN mask
 
-    # -load stimuli-
-    batch_size = 6
-    stim_dict = read_stim_csv(args.stim)
-    if stim_dict['type'] == 'image':
-        dataset = ImgDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             transform=transform)
-    elif stim_dict['type'] == 'video':
-        dataset = VidDataset(stim_dict['path'], stim_dict['stim']['stimID'],
-                             transform=transform)
-    else:
-        raise TypeError('{} is not a supported stimulus type.'.format(stim_dict['type']))
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-
-    # -display feature maps-
+    # compute DNN activation batch-wise
     count = 1
-    n_stim = len(dataset)
     n_row = len(args.chn) + 1
-    for stims, _ in data_loader:
-        # extract activation
-        dnn_acts = dnn_activation(stims, net_loader.model, net_loader.layer2loc[args.layer])
-        # prepare images
-        stims = stims.numpy().transpose((0, 2, 3, 1))
-        images = list(stims)
-        for chn in args.chn:
-            images.extend(dnn_acts[:, chn-1, :, :])
-        # prepare row_names
+    batch_size = 6
+    n_stim = len(stimuli)
+    batch_indices = list(range(0, n_stim, batch_size)) + [n_stim]
+    for idx, bat_idx in enumerate(batch_indices[:-1]):
+        stim = stimuli[bat_idx:batch_indices[idx+1]]
+
+        # -prepare images-
+        # prepare original images
+        images = []
+        for stim_id in stim.get('stimID'):
+            img = Image.open(pjoin(stim.meta['path'], stim_id))
+            images.append(np.array(img))
+        # prepare DNN activation feature maps
+        dnn_activ = dnn.compute_activation(stim, dmask)
+        for idx in range(len(args.chn)):
+            images.extend(dnn_activ.get(args.layer)[:, idx, ...])
+
+        # -prepare row_names-
         row_names = ['chn{}'.format(chn) for chn in args.chn]
         row_names.insert(0, 'stim')
-        # prepare save path
+
+        # -prepare save path-
         if args.out is None:
             save_path = None
         else:
             save_path = pjoin(args.out, '{0}_{1}_fig{2}.jpg'.format(args.net, args.layer, count))
 
-        n_col = len(stims)
+        n_col = len(stim)
         imgarray_show(images, n_row, n_col, row_names, args.vmin, args.vmax,
                       cmap=args.cmap, show=args.show, save_path=save_path)
-        print('Finish: {0}/{1}'.format((count-1)*batch_size+n_col, n_stim))
+        print('Finish: {0}/{1}'.format((count - 1) * batch_size + n_col, n_stim))
         count += 1
 
 
