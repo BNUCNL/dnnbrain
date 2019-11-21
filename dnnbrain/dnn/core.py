@@ -87,6 +87,16 @@ class Stimulus:
     def items(self):
         return list(self._data.keys())
 
+    def __len__(self):
+        """
+        the length of the Stimulus object
+
+        Return:
+        ------
+            [int]: the number of stimulus IDs
+        """
+        return len(self._data['stimID'])
+
     def __getitem__(self, indices):
         """
         Get part of the Stimulus object by imitating 2D array's subscript index

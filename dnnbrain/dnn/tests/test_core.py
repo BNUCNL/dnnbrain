@@ -101,6 +101,13 @@ class TestStimulus:
         for k, v in data.items():
             assert np.all(v == stimuli._data[k])
 
+    def test_len(self):
+
+        stimuli = dcore.Stimulus()
+        stimuli.meta = self.meta_true
+        stimuli._data = self.data_true
+        assert len(stimuli) == len(self.data_true['stimID'])
+
     def test_getitem(self):
 
         # prepare
