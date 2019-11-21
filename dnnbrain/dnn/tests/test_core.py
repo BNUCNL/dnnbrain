@@ -411,5 +411,40 @@ class TestMask:
             assert dmask.get(layer) == dmask_dict[layer]
 
 
+class TestDnnProbe:
+
+    # Prepare DNN activation
+    dnn_activ = dcore.Activation()
+    dnn_activ.set('conv5', np.random.randn(10, 2, 3, 3))
+    dnn_activ.set('fc3', np.random.randn(10, 10, 1, 1))
+
+    def test_probe(self):
+
+        # prepare behavior data
+        beh_data = np.random.randint(1, 3, (10, 1))
+
+        # test uv and iter_axis=None
+        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'lrc')
+        pred_dict = probe.probe(beh_data)
+        assert list(pred_dict.keys()) == self.dnn_activ.layers
+        v1_keys = sorted(['score', 'model', 'chn_loc', 'row_loc', 'col_loc'])
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            assert np.all(v1['chn_loc'] == 1)
+            for v2 in v1.values():
+                assert v2.shape == (1, beh_data.shape[1])
+
+        # test mv and iter_axis=channel
+        probe.set(model_type='mv', model_name='lrc')
+        pred_dict = probe.probe(beh_data, 'channel')
+        assert list(pred_dict.keys()) == self.dnn_activ.layers
+        v1_keys = sorted(['score', 'model'])
+        for k1, v1 in pred_dict.items():
+            assert sorted(v1.keys()) == v1_keys
+            n_chn = self.dnn_activ.get(k1).shape[1]
+            for v2 in v1.values():
+                assert v2.shape == (n_chn, beh_data.shape[1])
+
+
 if __name__ == '__main__':
     pytest.main()

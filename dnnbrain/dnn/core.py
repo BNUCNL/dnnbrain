@@ -3,6 +3,7 @@ import numpy as np
 from copy import deepcopy
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
+from dnnbrain.dnn.base import UnivariatePredictionModel, MultivariatePredictionModel
 from dnnbrain.brain.algo import convolve_hrf
 
 
@@ -608,3 +609,172 @@ class Mask:
     @property
     def layers(self):
         return list(self._dmask.keys())
+
+
+class DnnProbe:
+    """
+    Decode DNN activation to behavior data. As a result,
+    probe the ability of DNN activation to predict the behavior.
+    """
+    def __init__(self, dnn_activ=None, model_type=None, model_name=None, cv=3):
+        """
+        Parameters:
+        ----------
+        dnn_activ[Activation]: DNN activation
+        model_type[str]: choices=(uv, mv)
+            'uv': univariate prediction model
+            'mv': multivariate prediction model
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+                And the model_type must be 'uv'.
+        cv[int]: cross validation fold number
+        """
+        self.set(dnn_activ, model_type, model_name, cv)
+
+    def set(self, dnn_activ=None, model_type=None, model_name=None, cv=None):
+        """
+        Set some attributes
+
+        Parameters:
+        ----------
+        dnn_activ[Activation]: DNN activation
+        model_type[str]: choices=(uv, mv)
+            'uv': univariate prediction model
+            'mv': multivariate prediction model
+        model_name[str]: name of a model used to do prediction
+            If is 'corr', it just uses correlation rather than prediction.
+                And the model_type must be 'uv'.
+        cv[int]: cross validation fold number
+        """
+        if dnn_activ is not None:
+            self.dnn_activ = dnn_activ
+
+        if model_type is None:
+            pass
+        elif model_type == 'uv':
+            self.model = UnivariatePredictionModel()
+        elif model_type == 'mv':
+            self.model = MultivariatePredictionModel()
+        else:
+            raise ValueError('model_type must be one of the (uv, mv).')
+
+        if model_name is not None:
+            if not hasattr(self, 'model'):
+                raise RuntimeError('You have to set model_type first!')
+            self.model.set(model_name)
+
+        if cv is not None:
+            if not hasattr(self, 'model'):
+                raise RuntimeError('You have to set model_type first!')
+            self.model.set(cv=cv)
+
+    def probe(self, beh_data, iter_axis=None):
+        """
+        Probe the ability of DNN activation to predict the behavior.
+
+        Parameters:
+        ----------
+        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+        iter_axis[str]: iterate along the specified axis
+            ---for uv---
+            channel: Summarize the maximal prediction score for each channel.
+            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
+            default: Summarize the maximal prediction score for the whole layer.
+            ---for mv---
+            channel: Do multivariate prediction using all units in each channel.
+            row_col: Do multivariate prediction using all units in each position (row_idx, col_idx).
+            default: Do multivariate prediction using all units in the whole layer.
+
+        Return:
+        ------
+        pred_dict[dict]:
+            ---for uv---
+            layer:
+                score[ndarray]: max scores
+                    shape=(n_iter, n_beh)
+                model[ndarray]: fitted models of the max scores
+                    shape=(n_iter, n_beh)
+                chn_loc[ndarray]: channel locations of the max scores
+                    shape=(n_iter, n_beh)
+                row_loc[ndarray]: row locations of the max scores
+                    shape=(n_iter, n_beh)
+                col_loc[ndarray]: column locations of the max scores
+                    shape=(n_iter, n_beh)
+            ---for mv---
+            layer:
+                score[ndarray]: prediction scores
+                    shape=(n_iter, n_beh)
+                model[ndarray]: fitted models
+                    shape=(n_iter, n_beh)
+        """
+        _, n_beh = beh_data.shape
+
+        pred_dict = dict()
+        for layer in self.dnn_activ.layers:
+            # get DNN activation and reshape it to 3D
+            activ = self.dnn_activ.get(layer)
+            n_stim, n_chn, n_row, n_col = activ.shape
+            n_row_col = n_row * n_col
+            activ = activ.reshape((n_stim, n_chn, n_row_col))
+
+            # transpose axis to make activ's shape as (n_stimulus, n_iterator, n_element)
+            if iter_axis is None:
+                activ = activ.reshape((n_stim, 1, -1))
+            elif iter_axis == 'row_col':
+                activ = activ.transpose((0, 2, 1))
+            elif iter_axis == 'channel':
+                pass
+            else:
+                raise ValueError("Unsupported iter_axis:", iter_axis)
+            n_stim, n_iter, n_elem = activ.shape
+
+            # start encoding
+            score_arr = np.zeros((n_iter, n_beh), dtype=np.float)
+            model_arr = np.zeros_like(score_arr, dtype=np.object)
+            if isinstance(self.model, UnivariatePredictionModel):
+                channel_arr = np.zeros_like(score_arr, dtype=np.int)
+                row_arr = np.zeros_like(score_arr, dtype=np.int)
+                column_arr = np.zeros_like(score_arr, dtype=np.int)
+                for iter_idx in range(n_iter):
+                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    score_arr[iter_idx] = data['score']
+                    model_arr[iter_idx] = data['model']
+                    for beh_idx, loc in enumerate(data['location']):
+                        # transform location
+                        if iter_axis is None:
+                            chn_idx = loc // n_row_col
+                            row_idx = loc % n_row_col // n_col
+                            col_idx = loc % n_row_col % n_col
+                        elif iter_axis == 'channel':
+                            chn_idx = iter_idx
+                            row_idx = loc // n_col
+                            col_idx = loc % n_col
+                        else:
+                            chn_idx = loc
+                            row_idx = iter_idx // n_col
+                            col_idx = iter_idx % n_col
+
+                        channel_arr[iter_idx, beh_idx] = chn_idx + 1
+                        row_arr[iter_idx, beh_idx] = row_idx + 1
+                        column_arr[iter_idx, beh_idx] = col_idx + 1
+                    print(f'Layer-{layer} iter-{iter_idx+1}/{n_iter}')
+
+                pred_dict[layer] = {
+                    'score': score_arr,
+                    'model': model_arr,
+                    'chn_loc': channel_arr,
+                    'row_loc': row_arr,
+                    'col_loc': column_arr
+                }
+            else:
+                for iter_idx in range(n_iter):
+                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    score_arr[iter_idx] = data['score']
+                    model_arr[iter_idx] = data['model']
+                    print(f'Layer-{layer} iter-{iter_idx+1}/{n_iter}')
+
+                pred_dict[layer] = {
+                    'score': score_arr,
+                    'model': model_arr
+                }
+        return pred_dict
