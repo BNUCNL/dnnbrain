@@ -1,72 +1,100 @@
 #! /usr/bin/env python
 
 """
-Estimate receptive field using activation upsampling(us) method 
-for interested channels. The method only works for conv layers.
+Estimate RF with up-sampling method.
 """
 
-import argparse
+import numpy as np
+import argparse, cv2
+from os.path import join as pjoin
+from matplotlib import pyplot as plt
+from dnnbrain.dnn.core import Stimulus
+from dnnbrain.dnn import models as db_models # Use eval to import DNN model
+from dnnbrain.dnn.algo_rf import UpsamplingActivationMap, UpsamplingEmpiricalReceptiveField
 
 
 def main():
-    
-    parser = argparse.ArgumentParser(description='Estimate receptive field using '
-                                     'using activation upsampling method for '
-                                     'interested channels')
+
+    parser = argparse.ArgumentParser()
+
     parser.add_argument('-net',
-                        type = str,
-                        required = True,
-                        metavar='Name of target DNN',
-                        choices=['alexnet','vgg11','vgg16','vgg19'],
-                        help = 'Name of interested DNN')
-    parser.add_argument('-layer',
-                        nargs='+',
-                        metavar='Layer id list',
                         type=str,
-                        help='Layers of interest. '
-                             'conv, relu, pool, fc represents convolution, reLU, '
-                             'pooling, and fc layer, respectively.The top stimulis '
-                             'are selected for all layers and channels default.')
-    parser.add_argument('-channel',
-                        nargs='+',
-                        metavar='Channel id list',
-                        type=str,
-                        help='Channel of interest.If no channels are specificied, '
-                        'each channel will be processed. The layer and channel '
-                        'should be paired together.')
+                        required=True,
+                        metavar='Name of DNN Model',
+                        choices=['AlexNet', 'Vgg11', 'Vgg16', 'Vgg19'],
+                        help='Name of DNN Model, which should be placed in system variable '
+                             'DNNBRAIN_MODEL_DIR with format *.pth. Currently only AlexNet, '
+                             'Vgg11, Vgg16, Vgg19, are supported.')
+
     parser.add_argument('-stim',
                         type=str,
                         required=True,
-                        metavar='A csv file lists top stimuli to be used to '
-                        'estimate receptive field.',
+                        metavar='A *.csv file listing top stimuli to use to estimate RF.',
                         help='The file provide path of the top stimuli images '
                         'used to estimate receptive field.')
-    parser.add_argument('-act',
-                        metavar='DNN .act.hd5 file',
-                        required=False,
+
+    parser.add_argument('-layer',
                         type=str,
-                        help='DNN activation file from the stimuli. '
-                        'If activation file is input, it will be used directly '
-                        'to estimate the RF. Otherwise, the activation  '
-                        'will be recomputed for the input stimlui.')
-    parser.add_argument('-dmask',
-                        metavar='.dmask.csv dnnmask file',
                         required=True,
+                        metavar='The layer of top stimulus',
+                        help='Layers of interest. '
+                             'conv, relu, pool, fc represents convolution, relu, '
+                             'pooling, and fc layer, respectively.The top stimulis '
+                             'are selected for all layers and channels default.')
+
+    parser.add_argument('-channel',
+                        type=int,
+                        required=True,
+                        metavar='The channel of top stimulus',
+                        help='Channel of interest.If no channels are specified, '
+                        'each channel will be processed. The layer and channel '
+                        'should be paired together.')
+
+    parser.add_argument('-ip_metric',
                         type=str,
-                        help='A .dmask.csv file in which layers and channel of '
-                        'interest are listed')
-    parser.add_argument('-thr',
+                        required=True,
+                        metavar='interpolate method for magnifying the feature map',
+                        help='Currently support nearest/linear/bilinear/bicubic/trilinear/bicubic.')
+
+    parser.add_argument('-up_thres',
                         metavar='A threshold for activation',
-                        required=False,
+                        type=int,
+                        required=True,
                         help='The threshold is in the range of 0-1. Default is 0.5')
+
+    parser.add_argument('-rf_thres',
+                        metavar='A threshold for activation',
+                        type=int,
+                        required=True,
+                        help='The threshold is in the range of 0-1. Default is 0.5')
+
     parser.add_argument('-outdir',
-                        type = str,
-                        required = True,
+                        type=str,
+                        required=True,
                         metavar='Outputdir',
-                        help = 'Output directory to save RF images.')
-    
+                        help='Output directory to save RF images.')
+
     args = parser.parse_args()
-    
-    
+
+    stimuli = Stimulus(args.stim)
+
+    up_activation_maps = np.zeros([len(stimuli.get('stimID')), 224, 224])
+
+    up_estimator = UpsamplingActivationMap(args.net, args.layer, args.channel)
+    up_estimator.set_params(ip_metric=args.ip_metric, up_thres=args.up_thres)
+
+    rf_estimator = UpsamplingEmpiricalReceptiveField(args.net, args.layer, args.channel)
+    rf_estimator.set_params(rf_thres=args.rf_thres)
+
+    for i in range(len(stimuli.get('stimID'))):
+        current_pic_path = pjoin(stimuli.meta['path'], stimuli.get('stimID')[i])
+        current_pic = cv2.imread(current_pic_path)
+        up_activation_maps[i, :, :] = up_estimator.compute(current_pic)
+
+    up_activation_receptive_field = rf_estimator.compute(up_activation_maps)
+    plt.imsave(pjoin(args.outdir, 'rf_' + args.layer + '_chn' + str(args.channel) + '.png'),
+               up_activation_receptive_field, cmap='gray')
+
+
 if __name__ == '__main__':
     main()
