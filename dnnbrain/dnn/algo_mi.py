@@ -87,7 +87,6 @@ class MinmalParcelImage(Algorithm):
         
         """   
         self.parcel = segmentation.quickshift(image, kernel_size, max_dist, ratio)
-        
         return self.parcel
     
     def sort_parcel(self, order='descending'):

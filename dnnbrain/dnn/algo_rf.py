@@ -4,50 +4,7 @@ import torch, copy, cv2
 from os import remove
 from matplotlib import pyplot as plt
 from torch.nn.functional import interpolate
-from dnnbrain.dnn.core import Mask
-from dnnbrain.dnn import models as db_models # Use eval to import DNN model
-
-
-class Algorithm():
-
-    """
-    An abstract method to contain some necessary parameters to be used for
-    calculating upsampling activation map / upsampling empirical feceptive field /
-    occluder discrepancy map / occluder empirical receptive field.
-    """
-
-    def __init__(self, model, layer, channel):
-
-        """
-        Parameter:
-        ---------
-        model[str]: The name of DNN net.
-                  You should open dnnbrain.dnn.models
-                  to check if the DNN net is supported.
-        layer[str]: The name of layer in DNN net.
-        channel[int]: The channel of layer which you focus on.
-        """
-
-        self.model = eval('db_models.{}()'.format(model))
-        self.layer = layer
-        self.channel = channel
-        self.dmask = Mask()
-        self.dmask.set(self.layer, [self.channel, ])
-
-    def set_layer(self, layer, channel):
-
-        """
-        Parameter:
-        ---------
-        layer[str]: The name of layer in DNN net.
-        channel[int]: The channel of layer which you focus on.
-        """
-
-        self.layer = layer
-        self.channel = channel
-        self.dmask = Mask()
-        self.dmask.set(self.layer, [self.channel, ])
-
+from dnnbrain.dnn.core import Algorithm
 
 class UpsamplingActivationMap(Algorithm):
 
