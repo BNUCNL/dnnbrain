@@ -15,34 +15,13 @@ from skimage import segmentation
 from os.path import join as pjoin
 
 from dnnbrain.dnn.base import ImageSet
-from dnnbrain.dnn.core import Mask
+from dnnbrain.dnn.core import Mask, Algorithm
 
-class Algorithm(ABC):
-    """ 
-    An Abstract Base Classes class to define interface for dnn algorithm 
-    """
-    def __init__(self, dnn, layer=None, channel=None):
-        """
-        Parameters:
-        ----------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
-        """
-        self.dnn = dnn
-        self.dnn.eval()
-        self.layer = layer
-        self.channel = channel
-        
-        
-    def set_layer(self, layer, channel):
-        self.layer = layer
-        self.channel = channel
+
         
 class MinmalParcelImage(Algorithm):
     """
-    A class to generate minmal image for a CNN model using a specific part 
-    decomposer and optimization criterion
+    A class to generate minmal image for target channels from a DNN model 
    
     """
     def __init__(self, dnn, layer=None, channel=None):
@@ -51,33 +30,33 @@ class MinmalParcelImage(Algorithm):
        self.parcel = None
        
     
-    def set_params(self, meth='SLIC', criterion='max'):
+    def set_params(self, criterion='max'):
         """Set parameter for searching minmal image"""
         self.criterion = criterion
 
 
     def felzenszwalb_decompose(self, image, scale=100, sigma=0.5, min_size=50):
         """
-        decompose images to several segments and put each parcel into a separated image
+        Decompose image to multiple parcels using felzenszwalb method and
+        put each parcel into a separated image with a black background
         
         Parameter:
         ---------
         image[ndarray] : shape (height,width,n_chn) 
-        meth[str]: method to decompose images
         
         Return:
         ------
         segments[ndarray]: Integer mask indicating segment labels.
         
         """   
-        self.parcl = segmentation.felzenszwalb(image, scale, sigma, min_size)
+        self.parcel = segmentation.felzenszwalb(image, scale, sigma, min_size)
         return self.parcel
 
         
     def slic_decompose(self, image, n_segments=250, compactness=10, sigma=1):
         """
-        decompose images to several segments and put each parcel into a separated image
-        
+        Decompose image to multiple parcels using slic method and
+        put each parcel into a separated image with a black background        
         Parameter:
         ---------
         image[ndarray] : shape (height,width,n_chn) 
@@ -94,8 +73,8 @@ class MinmalParcelImage(Algorithm):
     
     def quickshift_decompose(self, image, kernel_size=3, max_dist=6, ratio=0.5):
         """
-        decompose images to several segments and put each parcel into 
-        a separated image with a black background
+        Decompose image to multiple parcels using quickshift method and
+        put each parcel into a separated image with a black background
         
         Parameter:
         ---------
@@ -111,10 +90,11 @@ class MinmalParcelImage(Algorithm):
         
         return self.parcel
     
-   
-    
-    def sort_parcel(self, order=''):
-        """sort the parcel according the activation of dnn. order, ascending or descendign"""
+    def sort_parcel(self, order='descending'):
+        """
+        sort the parcel according the activation of dnn. 
+        order[str]: ascending or descending
+        """
         
         dnn_acts = self.dnn.compute_activation(patch_all, self.dmask).pool('max').get(self.layer)
         act_all = dnn_acts.flatten()
@@ -149,13 +129,17 @@ class MinmalParcelImage(Algorithm):
     
     
     def combine_parcel(self, index):
-    """combine the indexed parcel into a image"""
+        """combine the indexed parcel into a image"""
         pass 
     
-    def generate_minmal_image(self)):
+    def generate_minmal_image(self):
         """
-        Generate minimal image for a image. First sort the parcel by the activiton and 
-        then iterate to find the best conbination of the parcel to get maximum activaiton
+        Generate minimal image. We first sort the parcel by the activiton and 
+        then iterate to find the combination of the parcels which can maximally
+        activate the target channel.
+        
+        Note: before call this method, you should call xx_decompose method to 
+        decompose the image into parcels. 
         
         Parameter:
         ---------
@@ -164,8 +148,12 @@ class MinmalParcelImage(Algorithm):
     
         ------
         image_min_all[list]: all minimal images
-        """    
+        """
         
+        if self.parcel is None: 
+            raise AssertionError('Please run decompose method to '
+                                 'decompose the image into parcels')
+                    
         
         # workflow
         
@@ -179,12 +167,46 @@ class MinmalComponentImage(Algorithm):
     A class to generate minmal image for a CNN model using a specific part 
     decomposer and optimization criterion
     """
-    
+
     def set_params(self,  meth='pca', criterion='max'):
         """Set parameter for the estimator"""
         self.meth = meth
         self.criterion = criterion
-
-    def compute(self, image):
-        """Generate minmal image for image listed in stim object """
+        
+        
+    def pca_decompose(self):
         pass
+    
+    
+    def ica_decompose(self):
+        pass
+    
+    
+    
+    def sort_componet(self, order='descending'):
+        """
+        sort the component according the activation of dnn. 
+        order[str]: ascending or descending
+        """
+      
+    def combine_parcel(self, index):
+        """combine the indexed component into a image"""
+        pass 
+    
+    
+    
+    def generate_minmal_image(self):
+        """
+        Generate minimal image. We first sort the component by the activiton and 
+        then iterate to find the combination of the components which can maximally
+        activate the target channel.
+        
+        Note: before call this method, you should call xx_decompose method to 
+        decompose the image into parcels. 
+        
+        Parameter:
+        ---------
+        stim[Stimulus]: stimulus
+        Return:
+    
+        ------
