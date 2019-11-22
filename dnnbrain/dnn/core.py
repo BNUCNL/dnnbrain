@@ -741,26 +741,6 @@ class DnnProbe:
             # start encoding
             score_arr = np.zeros((n_iter, n_beh), dtype=np.float)
             model_arr = np.zeros_like(score_arr, dtype=np.object)
-
-            # start iteration
-            for chn_idx in range(n_chn):
-                for row_idx in range(n_row):
-                    for col_idx in range(n_col):
-                        # calculate score
-                        X = response
-                        y = dnn_acts[:, chn_idx, row_idx, col_idx]
-                        cv_scores = self.model.cross_val_score(X, y, self.cv)
-
-                        # save to containers
-                        score_arr[chn_idx, row_idx, col_idx] = np.mean(cv_scores)
-                        model_arr[chn_idx, row_idx, col_idx] = self.model.fit(X, y)
-                print(f'Layer-{layer} chn-{chn_idx + 1}/{n_chn}')
-
-            pred_dict[layer] = {
-                'score': score_arr,
-                'model': model_arr
-            }
-        return pred_dict
             if isinstance(self.model, UnivariatePredictionModel):
                 channel_arr = np.zeros_like(score_arr, dtype=np.int)
                 row_arr = np.zeros_like(score_arr, dtype=np.int)
