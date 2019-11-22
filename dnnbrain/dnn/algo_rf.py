@@ -175,6 +175,9 @@ class EmpiricalReceptiveField(Algorithm):
         Note: before call this method, you should call xx_mapping method to 
         derive activation map in the image space. 
         """
+        if self.parcel is None: 
+            raise AssertionError('Please first call upsampling_mapping or occluder_mappin to '
+                                 'map activiton to image space')
 
         sum_act = np.zeros([up_maps.shape[0], 224 * 2 - 1, 224 * 2 - 1])
         for i in range(up_maps.shape[0]):
