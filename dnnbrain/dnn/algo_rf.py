@@ -6,13 +6,13 @@ from matplotlib import pyplot as plt
 from torch.nn.functional import interpolate
 from dnnbrain.dnn.core import Algorithm
 
-class UpsamplingActivationMapping():
+class UpsamplingActivationMapping(Algorithm):
     """
         A class to compute activation for each pixel from an image by upsampling
         activation map, with specific method assigned.
     """
     
-    def __init__(self, interp_meth='bicubic', interp_threshold=95):
+    def __init__(self, dnn, layer, channel, interp_meth='bicubic', interp_threshold=95):
 
         """
         Set necessary parameters for upsampling estimator.
@@ -25,7 +25,7 @@ class UpsamplingActivationMapping():
         up_thres[int]: The threshold to filter the feature map,
                     which you should assign between 0-99.
         """
-
+        super(UpsamplingActivationMapping, self).__init__(dnn, layer, channel)
         self.interp_meth = interp_meth
         self.interp_threshold = interp_threshold
 
@@ -68,11 +68,16 @@ class UpsamplingActivationMapping():
         return up_map
 
 
-class OccluderDiscrepancyMapping():
+class OccluderDiscrepancyMapping(Algorithm):
     """
     An class to compute activation for each pixel from an image
     using slide Occluder
-    """
+    """     
+    def __init__(self, dnn, layer, channel, window=(11, 11), stride=(2, 2), metric='max'):
+        super(UpsamplingActivationMapping, self).__init__(dnn, layer, channel)    
+        self.window = window
+        self.stride = stride
+        self.metric = metric
 
     def set_params(self, window=(11, 11), stride=(2, 2), metric='max'):
         """
@@ -152,16 +157,21 @@ class EmpiricalReceptiveField(Algorithm):
     def upsampling_mapping(self, image, interp_meth='bicubic', interp_threshold=95):
         """
         Compute activation for each pixel from an image by upsampling
-        activation map, with specific method assigned. 
+        activation map, with specific method assigned.
         """
-        self.mapping = UpsamplingActivationMappingz(interp_meth, interp_threshold)
+        
+        layer, channel = self.get_layer()
+        self.mapping = UpsamplingActivationMappingz(self.dnn, layer, channel, 
+                                                    interp_meth, interp_threshold)
         self.activation_map=self.maping(image)
 
     def occluder_mapping(self, image, window=(11, 11), stride=(2, 2), metric='max'):
         """
         Compute activation for each pixel from an image using sliding occluder window
         """
-        self.mapping = OccluderDiscrepancyMapping(window, stride=(2, 2), metric)
+        layer, channel = self.get_layer()
+        self.mapping = OccluderDiscrepancyMapping(self.dnn, layer, channel, 
+                                                  window, stride=(2, 2), metric)
         self.activation_map=self.maping(image)
       
     def generate_rf(self):
