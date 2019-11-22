@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 from abc import ABC, abstractmethod
 
-from skimage.segmentation import felzenszwalb, slic, quickshift
+from skimage import segmentation 
 from os.path import join as pjoin
 
 from dnnbrain.dnn.base import ImageSet
@@ -13,22 +13,23 @@ class Algorithm(ABC):
     """ 
     An Abstract Base Classes class to define interface for dnn algorithm 
     """
-    def __init__(self, dnn, dmask=None):
+    def __init__(self, dnn, layer=None, channel=None):
+        """
+        Parameters:
+        ----------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
         self.dnn = dnn
-        self.dmask = dmask
+        self.dnn.eval()
+        self.layer = layer
+        self.channel = channel
+        
         
     def set_layer(self, layer, channel):
         self.layer = layer
         self.channel = channel
-        
-    @abstractmethod
-    def set_params(self):
-        """ set parames """
-        
-    @abstractmethod
-    def compute(self, image): 
-        """Please implement your algorithm here"""
-        
         
 class MinmalParcelImage(Algorithm):
     """
@@ -36,15 +37,21 @@ class MinmalParcelImage(Algorithm):
     decomposer and optimization criterion
    
     """
+    def __init__(self, dnn, layer=None, channel=None):
+       
+       super(MinmalParcelImage, self).__init__(dnn, layer, channel)
+       self.parcel = None
+       
     
     def set_params(self, meth='SLIC', criterion='max'):
-        """Set parameter for the estimator"""
-        self.meth  = meth
+        """Set parameter for searching minmal image"""
         self.criterion = criterion
 
-    def decompose(self, image, meth):
+    
+    
+    def felzenszwalb_decompose(self, image, scale=100, sigma=0.5, min_size=50):
         """
-        decompose images to several segments
+        decompose images to several segments and put each parcel into a separated image
         
         Parameter:
 
@@ -57,127 +64,100 @@ class MinmalParcelImage(Algorithm):
         ------
         segments[ndarray]: Integer mask indicating segment labels.
         
-        """       
-            
-        if meth == 'felzenszwalb':
-            segments = felzenszwalb(image, scale=100, sigma=0.5, min_size=50)
-        if meth == 'SLIC':
-            segments = slic(image, n_segments=250, compactness=10, sigma=1)
-        if meth == 'quickshift':
-            segments = quickshift(image, kernel_size=3, max_dist=6, ratio=0.5)
-    
-        return segments
-    
-    def image_backgroud(self, image, RGB):
+        """   
+        self.parcl = segmentation.felzenszwalb(image, scale, sigma, min_size)
+        return self.parcel
+
+        
+    def slic_decompose(self, image, n_segments=250, compactness=10, sigma=1):
         """
-        Generate a copy of image with same size but replace RGB
+        decompose images to several segments and put each parcel into a separated image
         
         Parameter:
 
         ---------
-        image[ndarray] : (height,width,n_chn) shape
-        RGB[tuple]: RGB of replace color
+        image[ndarray] : shape (height,width,n_chn) 
+        meth[str]: method to decompose images
         
         Return:
 
         ------
-        image_copy[ndarray]: a copy of image with same size but replace RGB.
+        segments[ndarray]: Integer mask indicating segment labels.
         
-        """  
-        
-        image_copy=image.copy() 
-        
-        for i in range(image.shape[0]):
-            for j in range(image.shape[1]):
-                image_copy[i,j] = RGB
-                
-        return image_copy
+        """   
+        self.parcel =segmentation.slic(image, n_segments, compactness, sigma)
+        return self.parcel
 
-    def generate_patch_single(self, image, segments, RGB):
+    
+    def quickshift_decompose(self, image, kernel_size=3, max_dist=6, ratio=0.5):
         """
-        Generate all patches of an image,the other area is replaced by image_backgroud
+        decompose images to several segments and put each parcel into 
+        a separated image with a black background
         
         Parameter:
 
         ---------
-        image[ndarray] : (height,width,n_chn) shape
-        segments[ndarray]: label of segmented image
-        RGB[tuple]: RGB of replace color
+        image[ndarray] : shape (height,width,n_chn) 
+        meth[str]: method to decompose images
         
         Return:
 
         ------
-        patch_all[ndarray]: its shape is (n_segments, n_chn, height, width) 
-        """         
+        segments[ndarray]: Integer mask indicating segment labels.
         
-        patch_all = []
-        #find the location and replace other area with targeted RGB
-        for label in np.unique(segments):
-            image_RGB = self.image_backgroud(image, RGB)
-            place_x,place_y = np.where(segments==label)  
-            for i in range(len(place_x)):
-                image_RGB[place_x[i],place_y[i]]=image[place_x[i],place_y[i]] 
-            
-            #chage the shape(height,width,chn) to (chn,height,width)
-            patch = image_RGB.transpose((2,0,1)) 
-            
-            #append the ndarray in a list
-            patch_all.append(patch)
+        """   
+        self.parcel = segmentation.quickshift(image, kernel_size, max_dist, ratio)
         
-        #translate list to ndarray
-        patch_all = np.asarray(patch_all)
-        
-        return patch_all
-
+        return self.parcel
     
-    def generate_patch_mix(self, image, segments, act_sorted, RGB):
+   
+    
+    def sort_parcel(self, order=''):
+        """sort the parcel according the activation of dnn. order, ascending or descendign"""
+        
+        
+        dnn_acts = self.dnn.compute_activation(patch_all, self.dmask).pool('max').get(self.layer)
+        act_all = dnn_acts.flatten()
+        
+        #sort the activation from max to min
+        act_sorted = np.argsort(-act_all)
+        
+        
+        dnn_acts = self.dnn.compute_activation(patch_all, dmask)
+        dnn_acts = dnn_acts.pool('max')
+        dnn_acts = dnn_acts.get(layer)
+    
+        #put the dim from 4 to 1
+        act_all = dnn_acts.flatten()
+        
+        #sort the activation from max to min
+        act_sorted = np.argsort(-act_all)
+        
+        patch_add = self.generate_patch_mix(image, segments, act_sorted, RGB)
+        
+        dnn_acts_add = self.dnn.compute_activation(patch_add, dmask)
+        dnn_acts_add = dnn_acts_add.pool('max')
+        dnn_acts_add = dnn_acts_add.get(layer)
+        
+        act_add = dnn_acts_add.flatten()
+        
+        #find the max index
+        act_max_index = np.argmax(act_add)
+
+        #find the original index in act_sorted
+        act_back_index = act_sorted[act_max_index] #!!!!
+    
+    
+    def combine_parcel(self, index):
+    """combine the indexed parcel into a image"""
+        pass 
+    
+    
+    
+    def generate_minmal_image(self)):
         """
-        Generate all patches of an image,the sequence is to put the patch of activation from max to min
-        the other area is replaced by image_backgroud
-        
-        Parameter:
-
-        ---------
-        image[ndarray] : (height,width,n_chn) shape
-        segments[ndarray]: label of segmented image 
-        act_sorted[list] :index of activation from max to min in the original label
-        RGB[tuple]: RGB of replace color
-        
-        Return:
-
-        ------
-        patch_all[ndarray]: its shape is (n_segments, n_chn, height, width)
-        """    
-        
-        image_RGB = self.image_backgroud(image, RGB)
-        
-        #get size in order to fit dnn.compute_activation
-        size = [1,image.shape[2],image.shape[0],image.shape[1]]
-        #create a zeros ndarray to ensure concatenate can be down
-        patch_add=np.zeros(size, dtype='uint8')
-        
-        #find the location and replace other area with noise
-        for index in act_sorted:
-            place_x,place_y = np.where(segments==index)  #Í¨¹ý±ê¼ÇÕÒ³öÃ¿¸öpatchµÄÎ»ÖÃ
-            for i in range(len(place_x)):
-                image_RGB[place_x[i], place_y[i]]=image[place_x[i], place_y[i]] #¸Ä±äsegmentation¶ÔÓ¦Ô­Ê¼Í¼Æ¬Î»ÖÃµÄRGBÖµ
-            
-            #chage the shape(height,width,chn) to (chn,height,width) and add a newaxis
-            patch = image_RGB.transpose((2, 0, 1))[np.newaxis,:,:,:]
-            
-            #concatenate patch into patch_add
-            patch_add = np.concatenate((patch_add,patch),axis=0)
-            
-        #delete the original zeros ndarray
-        patch_add = np.delete(patch_add,0,0)
-        
-        return patch_add
-    
-    
-    def compute(self, stim, RGB=(255,255,255)):
-    
-        """
-        Generate minimal image for image listed in stim object
+        Generate minimal image for a image. First sort the parcel by the activiton and 
+        then iterate to find the best conbination of the parcel to get maximum activaiton
         
         Parameter:
 
@@ -189,61 +169,26 @@ class MinmalParcelImage(Algorithm):
         ------
         image_min_all[list]: all minimal images
         """    
-
-        #load the dmask 
-        dmask = Mask(self.dmask)
-
-        #prepare the layer
-        layer = dmask.layers[0]
         
-        dataset = ImageSet(stim.meta['path'], stim.get('stimID'))
         
-        image_min_all = []
+        # workflow
         
-        for img_id in dataset.img_ids:
-            
-            image = Image.open(pjoin(dataset.img_dir,img_id))
-            image = np.asarray(image)
-            image_min = self.image_backgroud(image, RGB)
-            
-            segments = self.decompose(image, meth='felzenszwalb')
-            
-            patch_all = self.generate_patch_single(image, segments, RGB)
-            
-            dnn_acts = self.dnn.compute_activation(patch_all, dmask)
-            dnn_acts = dnn_acts.pool('max')
-            dnn_acts = dnn_acts.get(layer)
+        # sort the image
+        # iterater combine image to get activation
+        # return the opimized curve and minmal image
         
-            #put the dim from 4 to 1
-            act_all = dnn_acts.flatten()
+        
+        
+        #generate the minimal image
+        for index in act_sorted:
+            place_x,place_y = np.where(segments==index)
+            for p in range(len(place_x)):
+                image_min[place_x[p],place_y[p]]=image[place_x[p],place_y[p]] #¸Ä±äsegmentation¶ÔÓ¦Ô­Ê¼Í¼Æ¬Î»ÖÃµÄRGBÖµ
+            if index == act_back_index:
+                break
             
-            #sort the activation from max to min
-            act_sorted = np.argsort(-act_all)
-            
-            patch_add = self.generate_patch_mix(image, segments, act_sorted, RGB)
-            
-            dnn_acts_add = self.dnn.compute_activation(patch_add, dmask)
-            dnn_acts_add = dnn_acts_add.pool('max')
-            dnn_acts_add = dnn_acts_add.get(layer)
-            
-            act_add = dnn_acts_add.flatten()
-            
-            #find the max index
-            act_max_index = np.argmax(act_add)
-    
-            #find the original index in act_sorted
-            act_back_index = act_sorted[act_max_index] #!!!!
-            
-            #generate the minimal image
-            for index in act_sorted:
-                place_x,place_y = np.where(segments==index)
-                for p in range(len(place_x)):
-                    image_min[place_x[p],place_y[p]]=image[place_x[p],place_y[p]] #¸Ä±äsegmentation¶ÔÓ¦Ô­Ê¼Í¼Æ¬Î»ÖÃµÄRGBÖµ
-                if index == act_back_index:
-                    break
-                
-            image_min_all.append(image_min)
-            
+        image_min_all.append(image_min)
+        
         return image_min_all
             
         
