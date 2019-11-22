@@ -2,8 +2,7 @@
 import os, argparse,time
 from os.path import exists as pexist
 import matplotlib.pyplot as plt
-
-from dnnbrain.dnn.core import Mask,Stimulus
+from dnnbrain.dnn.core import Stimulus
 from dnnbrain.dnn import models as db_models
 from dnnbrain.dnn.algo_mi import MinmalParcelImage
 
@@ -29,12 +28,16 @@ def main():
                         metavar='A csv file lists top stimuli to be simplyfied.',
                         help='The file provide path of the top stimuli images '
                         'to be simplified.')
-    parser.add_argument('-dmask',
-                        metavar='.dmask.csv dnnmask file',
+    parser.add_argument('-layer',
+                        metavar='layer of top stimulus',
                         required=True,
                         type=str,
-                        help='A .dmask.csv file in which layers and channel of '
-                        'interest are listed')
+                        help='Layer which the stimulus activation is max')
+    parser.add_argument('-chn',
+                        metavar='channel of top stimulus',
+                        required=True,
+                        type=int,
+                        help='The channel of layer which you focus on')
     parser.add_argument('-out',
                         type = str,
                         required = True,
@@ -43,30 +46,24 @@ def main():
                         'and associated act.hd5 activation file.')   
     args = parser.parse_args()
     
-    # Load net/stim/dmask
+    # Load net/stim
     dnn = eval('db_models.{}()'.format(args.net))
     stim = Stimulus(args.stim)
-    dmask = Mask(args.dmask)
-
-    #get layer/chn
-    layer = dmask.layers[0]
-    mask = dmask.get(layer)
-    chn  = mask.get('chn')[0]
 
     # Create output file if inexistent
     if not pexist(args.out):
         os.mkdir(args.out)
-    
-    #Create the minimal image class
-    minimal_image = MinmalParcelImage(dnn, args.dmask)
-    
-    #generate the minimal image
+        
+    # Create the minimal image class   
+    minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)    
+        
+    # generate the minimal image
     image_min = minimal_image.compute(stim)
     
-    #save the minimal image
+    # save the minimal image
     order = 1
     for image in image_min:
-        plt.imsave(args.out+str(layer)+'_chn'+str(chn)+'_'+str(order)+'.jpg',image)
+        plt.imsave(args.out+str(args.layer)+'_chn'+str(args.chn)+'_'+str(order)+'.jpg',image)
         plt.axis('off')
         order+=1
     
