@@ -1,6 +1,6 @@
 import abc
 import torch
-
+from dnnbrain.dnn.core import Mask
 import numpy as np
 
 
@@ -17,9 +17,10 @@ class Algorithm(abc.ABC):
         channel[int]: sequence number of the channel where the algorithm performs on
         """
         self.dnn = dnn
-        self.dnn.eval()
-        self.layer = layer
-        self.channel = channel
+        self.dnn.eval()        
+        self.mask = Mask()
+        self.mask.set(self.layer, [self.channel, ])
+
 
     def set_layer(self, layer, channel):
         """
@@ -32,6 +33,19 @@ class Algorithm(abc.ABC):
         """
         self.layer = layer
         self.channel = channel
+
+    def get_layer(self):
+        """
+        Get layer or its channel
+
+        Parameters:
+        ----------
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        layer = self.mask.layers[0]
+        channel = self.mask.get(layer)[0]
+        return layer, channel
 
 
 class SaliencyImage(Algorithm):
