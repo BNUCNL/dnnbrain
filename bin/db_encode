@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 
 from os.path import join as pjoin
-from dnnbrain.dnn.core import Activation, Encoder
-from dnnbrain.brain.core import ROI
+from dnnbrain.dnn.core import Activation
+from dnnbrain.brain.core import ROI, BrainEncoder
 from dnnbrain.brain.io import load_brainimg, save_brainimg
 from dnnbrain.utils.util import gen_dmask
 
@@ -23,7 +23,7 @@ def main():
                         metavar='Analysis',
                         required=True,
                         type=str,
-                        choices=('uva', 'mva'),
+                        choices=('uv', 'mv'),
                         help="uva: Do univariate analysis. "
                              "mva: Do multivariate analysis.")
     parser.add_argument('-act',
@@ -56,11 +56,11 @@ def main():
                         help="Iterate along the specified axis."
                              "If -anal is uva:"
                              "channel: Summarize the maximal prediction score for each channel. "
-                             "row_col: Summarize the maximal prediction score for each position (row_idx, col_idx). "
+                             "row_col: Summarize the maximal prediction score for each location (row_idx, col_idx). "
                              "default: Summarize the maximal prediction score for the whole layer."
                              "If -anal is mva:"
                              "channel: Do mva using all units in each channel. "
-                             "row_col: Do mva using all units in each position (row_idx, col_idx). "
+                             "row_col: Do mva using all units in each location (row_idx, col_idx). "
                              "default: Do mva using all units in the whole layer.")
     parser.add_argument('-resp',
                         metavar='Response',
@@ -136,11 +136,8 @@ def main():
 
     # -prediction start-
     time1 = time.time()
-    encoder = Encoder(args.model, args.iteraxis, args.cv)
-    if args.anal == 'uva':
-        pred_dict = encoder.uva(activation, Y)
-    else:
-        pred_dict = encoder.mva(activation, Y)
+    encoder = BrainEncoder(Y, args.anal, args.model, args.cv)
+    pred_dict = encoder.encode_dnn(activation, args.iteraxis)
     print(f'Finish prediction: cost {time.time()-time1} seconds.')
     # -prediction end-
 
@@ -159,16 +156,16 @@ def main():
         if args.resp.endswith('.roi.h5'):
             # save score
             score_df = pd.DataFrame(data['score'], columns=roi.rois)
-            score_df.to_csv(pjoin(trg_dir, f'score_{args.anal}.csv'), index=False)
+            score_df.to_csv(pjoin(trg_dir, 'score.csv'), index=False)
 
-            # save position
+            # save location
             if args.anal == 'uva':
-                chn_pos_df = pd.DataFrame(data['channel'], columns=roi.rois)
-                chn_pos_df.to_csv(pjoin(trg_dir, 'chn_position.csv'), index=False)
-                row_pos_df = pd.DataFrame(data['row'], columns=roi.rois)
-                row_pos_df.to_csv(pjoin(trg_dir, 'row_position.csv'), index=False)
-                col_pos_df = pd.DataFrame(data['column'], columns=roi.rois)
-                col_pos_df.to_csv(pjoin(trg_dir, 'col_position.csv'), index=False)
+                chn_loc_df = pd.DataFrame(data['chn_loc'], columns=roi.rois)
+                chn_loc_df.to_csv(pjoin(trg_dir, 'chn_location.csv'), index=False)
+                row_loc_df = pd.DataFrame(data['row_loc'], columns=roi.rois)
+                row_loc_df.to_csv(pjoin(trg_dir, 'row_location.csv'), index=False)
+                col_loc_df = pd.DataFrame(data['col_loc'], columns=roi.rois)
+                col_loc_df.to_csv(pjoin(trg_dir, 'col_location.csv'), index=False)
 
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
             resp_suffix = '.'.join(args.resp.split('.')[1:])
@@ -176,22 +173,22 @@ def main():
             # save score
             score_img = np.zeros((data['score'].shape[0], *bshape))
             score_img[:, bmask] = data['score']
-            save_brainimg(pjoin(trg_dir, f'score_{args.anal}.{resp_suffix}'),
+            save_brainimg(pjoin(trg_dir, f'score.{resp_suffix}'),
                           score_img, header)
 
-            # save position
+            # save location
             if args.anal == 'uva':
-                chn_pos_img = np.zeros_like(score_img, dtype=np.int)
-                chn_pos_img[:, bmask] = data['channel']
-                save_brainimg(pjoin(trg_dir, 'chn_position.' + resp_suffix), chn_pos_img, header)
-                row_pos_img = np.zeros_like(score_img, dtype=np.int)
-                row_pos_img[:, bmask] = data['row']
-                save_brainimg(pjoin(trg_dir, 'row_position.' + resp_suffix), row_pos_img, header)
-                col_pos_img = np.zeros_like(score_img, dtype=np.int)
-                col_pos_img[:, bmask] = data['column']
-                save_brainimg(pjoin(trg_dir, 'col_position.' + resp_suffix), col_pos_img, header)
+                chn_loc_img = np.zeros_like(score_img, dtype=np.int)
+                chn_loc_img[:, bmask] = data['chn_loc']
+                save_brainimg(pjoin(trg_dir, 'chn_location.' + resp_suffix), chn_loc_img, header)
+                row_loc_img = np.zeros_like(score_img, dtype=np.int)
+                row_loc_img[:, bmask] = data['row_loc']
+                save_brainimg(pjoin(trg_dir, 'row_location.' + resp_suffix), row_loc_img, header)
+                col_loc_img = np.zeros_like(score_img, dtype=np.int)
+                col_loc_img[:, bmask] = data['col_loc']
+                save_brainimg(pjoin(trg_dir, 'col_location.' + resp_suffix), col_loc_img, header)
 
-        np.save(pjoin(trg_dir, f'model_{args.anal}.npy'), data['model'], allow_pickle=True)
+        np.save(pjoin(trg_dir, 'model.npy'), data['model'], allow_pickle=True)
         print(f'Finish save {layer}.')
     # -save out end-
 
