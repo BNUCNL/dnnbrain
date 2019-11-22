@@ -74,13 +74,13 @@ class OccluderDiscrepancyMapping():
     using slide Occluder
     """
 
-    def set_params(self, osize=(11, 11), stride=(2, 2), oc_metric='max'):
+    def set_params(self, window=(11, 11), stride=(2, 2), metric='max'):
         """
         Set necessary parameters for the estimator
 
         Parameter:
         ---------
-        osize[list]: The size of sliding window, which form should be [int, int].
+        window[list]: The size of sliding window, which form should be [int, int].
         The window will start from top-left and slides from left to right,
         and then from top to bottom.
 
@@ -88,12 +88,12 @@ class OccluderDiscrepancyMapping():
         The first element of stride is the step for rows, while the second element of
         stride is the step for column.
 
-        oc_metric[str]: The way to measure discrepancy map.
+        metric[str]: The metric to measure how feature map change, max or mean.
         """
 
-        self.osize = osize
+        self.window = window
         self.stride = stride
-        self.oc_metric = oc_metric
+        self.metric = metric
 
     def compute(self, image):
 
@@ -104,8 +104,8 @@ class OccluderDiscrepancyMapping():
         img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
         img = np.einsum('abc->cab', img)[np.newaxis, :]
 
-        widenum = int((img.shape[2] - self.osize[0]) / self.stride[0] + 1)
-        heightnum = int((img.shape[3] - self.osize[1]) / self.stride[0] + 1)
+        widenum = int((img.shape[2] - self.window[0]) / self.stride[0] + 1)
+        heightnum = int((img.shape[3] - self.window[1]) / self.stride[0] + 1)
 
         dmap = np.zeros((widenum, heightnum))
         dmap0 = np.max(self.model.compute_activation(img, self.mask).get(self.channel))
@@ -115,9 +115,9 @@ class OccluderDiscrepancyMapping():
         for i in range(0, widenum):
             for j in range(0, heightnum):
                 tmpoc = copy.deepcopy(img)
-                tmpzeros = np.zeros((self.osize[0], self.osize[1], 3))
-                tmpoc[self.stride[0] * i:self.stride[0] * i + self.osize[0],
-                      self.stride[1] * j:self.stride[1] * j + self.osize[1], :] = tmpzeros
+                tmpzeros = np.zeros((self.window[0], self.window[1], 3))
+                tmpoc[self.stride[0] * i:self.stride[0] * i + self.window[0],
+                      self.stride[1] * j:self.stride[1] * j + self.window[1], :] = tmpzeros
                 tmpoc = np.einsum('abc->cab', tmpoc)[np.newaxis, :]
                 tmpmax = np.max(self.model.compute_activation(tmpoc, self.mask).get(self.channel))
                 dmap[i, j] = dmap0 - tmpmax
@@ -129,7 +129,6 @@ class OccluderDiscrepancyMapping():
         return dmap
 
 class EmpiricalReceptiveField(Algorithm):
-
     """
     A class to estimate empiral receptive field of a DNN model.
     """
@@ -137,20 +136,18 @@ class EmpiricalReceptiveField(Algorithm):
         super(EmpiricalReceptiveField, self).__init__(dnn, layer, channel)
         self.mapping = None
        
-    def set_params(self, rf_thres=100):
+    def set_params(self, threshold=0.95):
 
         """
         Set necessary parameters for upsampling estimator.
 
         Parameter:
         ---------
-        rf_thres[int]: The threshold to filter the synthesized
+        threshold[int]: The threshold to filter the synthesized
                       receptive field, which you should assign
-                      between 0-99.
+                      between 0-1.
         """
-
-        # self.activation_estimator.set_params(rf_thres)
-        self.rf_thres = rf_thres
+        self.threshold = threshold
 
     def upsampling_mapping(self, image, interp_meth='bicubic', interp_threshold=95):
         """
@@ -160,14 +157,14 @@ class EmpiricalReceptiveField(Algorithm):
         self.mapping = UpsamplingActivationMappingz(interp_meth, interp_threshold)
         self.activation_map=self.maping(image)
 
-    def occluder_mapping(self, image, window=(11, 11), stride=(2, 2), oc_metric='max'):
+    def occluder_mapping(self, image, window=(11, 11), stride=(2, 2), metric='max'):
         """
         Compute activation for each pixel from an image using sliding occluder window
         """
-        self.mapping = OccluderDiscrepancyMapping(window, stride=(2, 2), oc_metric)
+        self.mapping = OccluderDiscrepancyMapping(window, stride=(2, 2), metric)
         self.activation_map=self.maping(image)
       
-    def generate_erf(self):
+    def generate_rf(self):
 
         """
         Compute ERF  on provided image for target layer and channel.
@@ -175,7 +172,7 @@ class EmpiricalReceptiveField(Algorithm):
         Note: before call this method, you should call xx_mapping method to 
         derive activation map in the image space. 
         """
-        if self.parcel is None: 
+        if self.activation_map is None: 
             raise AssertionError('Please first call upsampling_mapping or occluder_mappin to '
                                  'map activiton to image space')
 
@@ -190,7 +187,7 @@ class EmpiricalReceptiveField(Algorithm):
         rf = cv2.imread('tmp.png', cv2.IMREAD_GRAYSCALE)
         remove('tmp.png')
         rf = cv2.medianBlur(rf, 31)
-        _, th = cv2.threshold(rf, self.rf_thres, 255, cv2.THRESH_BINARY)
+        _, th = cv2.threshold(rf, self.threshold, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         rf = cv2.ellipse(rf, cv2.fitEllipse(contours[0]), (255, 255, 255), 1, 300)
 
@@ -257,3 +254,4 @@ class TheoreticalReceptiveField(Algorithm):
             fsize, stride, padding = self.net_struct['net'][layer]
             rf_size = ((rf_size - 1) * stride) + fsize
         return rf_size
+    # we better return a RF rather than RF size

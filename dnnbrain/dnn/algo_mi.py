@@ -30,9 +30,13 @@ class MinmalParcelImage(Algorithm):
        self.parcel = None
        
     
-    def set_params(self, criterion='max'):
-        """Set parameter for searching minmal image"""
-        self.criterion = criterion
+    def set_params(self, activiton_criterion, search_criterion='max'):
+        """
+        Set parameter for searching minmal image
+        criterion: criterion to 
+        """
+        self.activation_criterion = activation_criterion
+        self.search_criterion = search_criterion
 
 
     def felzenszwalb_decompose(self, image, scale=100, sigma=0.5, min_size=50):
