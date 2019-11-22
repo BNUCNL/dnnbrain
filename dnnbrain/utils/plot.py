@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
-                  figsize=[10, 6], cmap='coolwarm', frame_on=True,
+                  figsize=(10, 6), cmap='coolwarm', frame_on=True,
                   show=True, save_path=None):
     """
     create a figure showing multiple images.
@@ -32,11 +33,10 @@ def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
         if np.mod(i, ncols) == 0:
             ax.set_ylabel(row_label[i//ncols])
         ax.imshow(x[i], cmap=cmap, vmin=vmin, vmax=vmax)
-
     plt.tight_layout()
-    if show is True:
-        plt.show()
     
     if save_path is not None:
         plt.savefig(save_path)
-        
+
+    if show is True:
+        plt.show()

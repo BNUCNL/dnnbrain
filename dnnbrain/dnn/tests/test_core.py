@@ -101,6 +101,13 @@ class TestStimulus:
         for k, v in data.items():
             assert np.all(v == stimuli._data[k])
 
+    def test_len(self):
+
+        stimuli = dcore.Stimulus()
+        stimuli.meta = self.meta_true
+        stimuli._data = self.data_true
+        assert len(stimuli) == len(self.data_true['stimID'])
+
     def test_getitem(self):
 
         # prepare
@@ -411,112 +418,39 @@ class TestMask:
             assert dmask.get(layer) == dmask_dict[layer]
 
 
-class TestEncoder:
+class TestDnnProbe:
 
-    # Prepare some simulation data
-    activation = dcore.Activation()
-    activation.set('conv5', np.random.randn(10, 2, 3, 3))
-    activation.set('fc3', np.random.randn(10, 10, 1, 1))
-    response = np.random.randn(10, 2)
+    # Prepare DNN activation
+    dnn_activ = dcore.Activation()
+    dnn_activ.set('conv5', np.random.randn(10, 2, 3, 3))
+    dnn_activ.set('fc3', np.random.randn(10, 10, 1, 1))
 
-    def test_uva(self):
+    def test_probe(self):
 
-        v1_keys = sorted(['score', 'channel', 'row', 'column', 'model'])
-        # assert when iter_axis is None
-        encoder = dcore.Encoder('glm')
-        pred_dict = encoder.uva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for v1 in pred_dict.values():
-            assert sorted(v1.keys()) == v1_keys
-            for v2 in v1.values():
-                assert v2.shape == (1, self.response.shape[1])
+        # prepare behavior data
+        beh_data = np.random.randint(1, 3, (10, 1))
 
-        # assert when iter_axis is channel
-        encoder.set(iter_axis='channel')
-        pred_dict = encoder.uva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
+        # test uv and iter_axis=None
+        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'lrc')
+        pred_dict = probe.probe(beh_data)
+        assert list(pred_dict.keys()) == self.dnn_activ.layers
+        v1_keys = sorted(['score', 'model', 'chn_loc', 'row_loc', 'col_loc'])
         for k1, v1 in pred_dict.items():
             assert sorted(v1.keys()) == v1_keys
-            n_chn = self.activation.get(k1).shape[1]
+            assert np.all(v1['chn_loc'] == 1)
             for v2 in v1.values():
-                assert v2.shape == (n_chn, self.response.shape[1])
+                assert v2.shape == (1, beh_data.shape[1])
 
-        # assert when iter_axis is row_col
-        encoder.set(iter_axis='row_col')
-        pred_dict = encoder.uva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for k1, v1 in pred_dict.items():
-            assert sorted(v1.keys()) == v1_keys
-            n_row, n_col = self.activation.get(k1).shape[2:]
-            n_row_col = n_row * n_col
-            for v2 in v1.values():
-                assert v2.shape == (n_row_col, self.response.shape[1])
-
-    def test_mva(self):
-
+        # test mv and iter_axis=channel
+        probe.set(model_type='mv', model_name='lrc')
+        pred_dict = probe.probe(beh_data, 'channel')
+        assert list(pred_dict.keys()) == self.dnn_activ.layers
         v1_keys = sorted(['score', 'model'])
-        # assert when iter_axis is None
-        encoder = dcore.Encoder('glm')
-        pred_dict = encoder.mva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for v1 in pred_dict.values():
-            assert sorted(v1.keys()) == v1_keys
-            for v2 in v1.values():
-                assert v2.shape == (1, self.response.shape[1])
-
-        # assert when iter_axis is channel
-        encoder.set(iter_axis='channel')
-        pred_dict = encoder.mva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
         for k1, v1 in pred_dict.items():
             assert sorted(v1.keys()) == v1_keys
-            n_chn = self.activation.get(k1).shape[1]
+            n_chn = self.dnn_activ.get(k1).shape[1]
             for v2 in v1.values():
-                assert v2.shape == (n_chn, self.response.shape[1])
-
-        # assert when iter_axis is row_col
-        encoder.set(iter_axis='row_col')
-        pred_dict = encoder.mva(self.activation, self.response)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for k1, v1 in pred_dict.items():
-            assert sorted(v1.keys()) == v1_keys
-            n_row, n_col = self.activation.get(k1).shape[2:]
-            n_row_col = n_row * n_col
-            for v2 in v1.values():
-                assert v2.shape == (n_row_col, self.response.shape[1])
-
-
-class TestDecoder:
-
-    # Prepare some simulation data
-    activation = dcore.Activation()
-    activation.set('conv5', np.random.randn(10, 2, 3, 3))
-    activation.set('fc3', np.random.randn(10, 10, 1, 1))
-    response = np.random.randn(10, 2)
-
-    def test_uva(self):
-
-        v1_keys = sorted(['score', 'measurement', 'model'])
-        decoder = dcore.Decoder('glm')
-        pred_dict = decoder.uva(self.response, self.activation)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for k1, v1 in pred_dict.items():
-            assert sorted(v1.keys()) == v1_keys
-            _, n_chn, n_row, n_col = self.activation.get(k1).shape
-            for v2 in v1.values():
-                assert v2.shape == (n_chn, n_row, n_col)
-
-    def test_mva(self):
-
-        v1_keys = sorted(['score', 'model'])
-        decoder = dcore.Decoder('glm')
-        pred_dict = decoder.mva(self.response, self.activation)
-        assert list(pred_dict.keys()) == self.activation.layers
-        for k1, v1 in pred_dict.items():
-            assert sorted(v1.keys()) == v1_keys
-            _, n_chn, n_row, n_col = self.activation.get(k1).shape
-            for v2 in v1.values():
-                assert v2.shape == (n_chn, n_row, n_col)
+                assert v2.shape == (n_chn, beh_data.shape[1])
 
 
 if __name__ == '__main__':
