@@ -11,11 +11,11 @@ class Algorithm():
 
     """
     An abstract method to contain some necessary parameters to be used for
-    calculate upsampling activation map / upsampling empirical feceptive field /
-    occluder discrepancy map / occluder empirical receptive field
+    calculating upsampling activation map / upsampling empirical feceptive field /
+    occluder discrepancy map / occluder empirical receptive field.
     """
 
-    def __init__(self, dnn, layer, channel):
+    def __init__(self, dnn, layer, channel, output_dir):
 
         """
         Parameter:
@@ -32,6 +32,7 @@ class Algorithm():
         self.channel = channel
         self.dmask = Mask()
         self.dmask.set(self.layer, [self.channel, ])
+        self.output_dir = output_dir
 
     def set_layer(self, layer, channel):
 
@@ -51,8 +52,8 @@ class Algorithm():
 class UpsamplingActivationMap(Algorithm):
 
     """
-    A class to compute activation for each pixel from an image by upsampling
-    activation map, with specific method assigned.
+        A class to compute activation for each pixel from an image by upsampling
+        activation map, with specific method assigned.
     """
 
     def set_params(self, ip_metric='bicubic', up_thres=95):
@@ -85,8 +86,8 @@ class UpsamplingActivationMap(Algorithm):
         img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
         self.img = np.einsum('abc->cab', img)[np.newaxis, :]
         self.act = self.dnn.compute_activation(self.img, self.dmask).get(self.layer).squeeze()
-        A = torch.from_numpy(self.act)[np.newaxis, np.newaxis, ...]
-        ip = interpolate(A, size=self.img.shape[2:4], mode=self.ip_metric, align_corners=True)
+        fm = torch.from_numpy(self.act)[np.newaxis, np.newaxis, ...]
+        ip = interpolate(fm, size=self.img.shape[2:4], mode=self.ip_metric, align_corners=True)
         up_raw_map = np.squeeze(np.asarray(ip))
         up_raw_map = copy.deepcopy(up_raw_map)
         up_raw_map[up_raw_map < np.percentile(up_raw_map, self.up_thres)] = 0
@@ -133,10 +134,10 @@ class UpsamplingEmpiricalReceptiveField(Algorithm):
 
         sum_act = np.sum(sum_act, 0)[112:336, 112:336]
 
-        plt.imsave('rf' + str(self.channel) + '.png', sum_act, cmap='gray')
-        rf = cv2.imread('rf' + str(self.channel) + '.png', cv2.IMREAD_GRAYSCALE)
+        plt.imsave(self.output_dir + 'rf' + str(self.channel) + '.png', sum_act, cmap='gray')
+        rf = cv2.imread(self.output_dir + 'rf' + str(self.channel) + '.png', cv2.IMREAD_GRAYSCALE)
         rf = cv2.medianBlur(rf, 31)
-        _, th = cv2.threshold(rf, 100, 255, cv2.THRESH_BINARY)
+        _, th = cv2.threshold(rf, self.rf_thres, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         rf = cv2.ellipse(rf, cv2.fitEllipse(contours[0]), (255, 255, 255), 1, 300)
 
@@ -148,7 +149,6 @@ class UpsamplingEmpiricalReceptiveField(Algorithm):
         rf = cv2.putText(rf, 'RF\'s Size: ' + str(int(np.sqrt(t))), (0, 22),
                          cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         return rf
-
 
     class TheoreticalReceptiveField(Algorithm):
 
@@ -190,100 +190,123 @@ class UpsamplingEmpiricalReceptiveField(Algorithm):
                                            'conv4_2', 'conv4_3', 'conv4_4', 'pool4',
                                            'conv5_1', 'conv5_2', 'conv5_3', 'conv5_4',
                                            'pool5']
-            RF = 1
-            for self.layer in reversed(range(self.net_struct['name'].index(self.layer) + 1)):
-                fsize, stride, padding = self.net_struct['net'][self.layer]
-                RF = ((RF - 1) * stride) + fsize
-            return RF
+            rf_size = 1
+            for layer in reversed(range(self.net_struct['name'].index(self.layer) + 1)):
+                fsize, stride, padding = self.net_struct['net'][layer]
+                rf_size = ((rf_size - 1) * stride) + fsize
+            return rf_size
 
+    class OccluderDiscrepancyMap(Algorithm):
 
-# —————————————————— S O M E  T E S T S ——————————————————
+        """
+        An class to compute activation for each pixel from an image
+        using slide Occluder
+        """
 
-# ———————————— TEST TheoreticalReceptiveField ————————————
-# th_test = TheoreticalReceptiveField('AlexNet', 'conv5', 125)
-# theoretical_receptive_field_size = th_test.compute()
+        def set_params(self, osize=(11, 11), stride=(2, 2), oc_metric='max'):
+            """
+            Set necessary parameters for the estimator
 
-# ———————————-— TEST UpsamplingActivationMap ———-—————————
-# net = 'AlexNet'
-# layer = 'conv5'
-# chn = 125
-# up_test = UpsamplingActivationMap(net, layer, chn)
-# up_test.set_params(ip_metric='bicubic', up_thres=0)
-# up_activation_map = up.compute('test.jpeg')
+            Parameter:
+            ---------
+            osize[list]: The size of sliding window, which form should be [int, int].
+            The window will start from top-left and slides from left to right,
+            and then from top to bottom.
 
-# ——————-— TEST UpsamplingEmpiricalReceptiveField ———-————
-# net = 'AlexNet'
-# layer = 'conv5'
-# chn = 125
-# rf_test = UpsamplingEmpiricalReceptiveField(net, layer, chn)
-# rf_test.set_params(rf_thres=100)
-# up_activation_maps = np.zeros([20, 224, 224])
-# for i in range(0, 20):
-#    image = cv2.imread(str(i + 1) + '.jpeg').astype('uint8')
-#    up_activation_maps[i, :, :] = up.compute(image)
-# up_activation_receptive_field = rf_test.compute(up_activation_maps)
-# plt.imshow(up_activation_receptive_field, cmap='gray')
+            stride[list]: The move step if sliding window, which form should be [int, int]
+            The first element of stride is the step for rows, while the second element of
+            stride is the step for column.
 
+            oc_metric[str]: The way to measure discrepancy map.
+            """
 
+            self.osize = osize
+            self.stride = stride
+            self.oc_metric = oc_metric
 
-# ————————— U N O R G A N I Z E D    C O D E S————————————
-#    class OccluderDiscrepancyMap(Algorithm):
-#        """
-#        An class to compute activation for each pixel from an image
-#        using slide Occluder
-#        """
-#        def set_params(self, osize=(11, 11), stride=2, metric='max'):
-#            """Set necessary parameters for the estimator"""
-#            self.osize = osize
-#            self.stride = stride
-#            self.metric = metric
-#
-#        def compute(self, image):
-#            """
-#            Please implement the sliding occluder algothrim
-#            for discrepancy map
-#            """
-#
-#            tmpimg = np.asarray(image)
-#            img = np.einsum('abc->cab', tmpimg)[np.newaxis, :]
-#
-#            widenum = int((img.shape[2] - self.osize[0]) / self.stride + 1)
-#            heightnum = int((img.shape[3] - self.osize[1]) / self.stride + 1)
-#
-#            dmap = np.zeros((widenum, heightnum))
-#            dmap0 = np.max(self.dnn.compute_activation(img, self.dmask).get(self.channel))
-#
-#            r = 1
-#
-#            for i in range(0, widenum):
-#                for j in range(0, heightnum):
-#                    tmpoc = copy.deepcopy(tmpimg)
-#                    tmpzeros = np.zeros((self.osize[0], self.osize[1], 3))
-#                    tmpoc[self.stride * i:self.stride * i + self.osize[0],
-#                          self.stride * j:self.stride * j + self.osize[1], :] = tmpzeros
-#                    tmpoc = np.einsum('abc->cab', tmpoc)[np.newaxis, :]
-#                    tmpmax = np.max(self.dnn.compute_activation(tmpoc, self.dmask).get(self.channel))
-#                    dmap[i, j] = dmap0 - tmpmax
-#
-#                    print(r, 'in', widenum * heightnum,
-#                          'finished. Discrepancy: %.1f' % abs(dmap[i, j]))
-#                    r = r + 1
-#
-#            return dmap
+        def compute(self, image):
 
+            """
+            Please implement the sliding occluder algothrim for discrepancy map.
+            """
 
-#    class OccluderEmpiricalReceptiveField(Algorithm):
-#        """
-#        A class to estimate empiral receptive field of a DNN model
-#        """
-#        def __init__(self, dnn, layer, channel):
-#            """ image_pixel_activation_estimator is a Algorithm object """
-#            super(OccluderEmpiricalReceptiveField, self).__init__(dnn, layer, channel)
-#            self.activation_estimator = OccluderDiscrepancyMap(self.dnn, self.layer, self.channel)
-#
-#        def set_params(self, window, stride, metric):
-#            self. activation_estimator.set_params(window, stride, metric)
-#
-#        def compute(self, images):
-#            """Generate RF based on provided image and pixel activation estimator """
-#            pass
+            img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
+            img = np.einsum('abc->cab', img)[np.newaxis, :]
+
+            widenum = int((img.shape[2] - self.osize[0]) / self.stride[0] + 1)
+            heightnum = int((img.shape[3] - self.osize[1]) / self.stride[0] + 1)
+
+            dmap = np.zeros((widenum, heightnum))
+            dmap0 = np.max(self.dnn.compute_activation(img, self.dmask).get(self.channel))
+
+            r = 1
+
+            for i in range(0, widenum):
+                for j in range(0, heightnum):
+                    tmpoc = copy.deepcopy(img)
+                    tmpzeros = np.zeros((self.osize[0], self.osize[1], 3))
+                    tmpoc[self.stride[0] * i:self.stride[0] * i + self.osize[0],
+                          self.stride[1] * j:self.stride[1] * j + self.osize[1], :] = tmpzeros
+                    tmpoc = np.einsum('abc->cab', tmpoc)[np.newaxis, :]
+                    tmpmax = np.max(self.dnn.compute_activation(tmpoc, self.dmask).get(self.channel))
+                    dmap[i, j] = dmap0 - tmpmax
+
+                    print(r, 'in', widenum * heightnum,
+                          'finished. Discrepancy: %.1f' % abs(dmap[i, j]))
+                    r = r + 1
+
+            return dmap
+
+    class OccluderEmpiricalReceptiveField(Algorithm):
+        """
+        A class to estimate empiral receptive field of a DNN model
+        """
+
+        def set_params(self, rf_thres=100):
+
+            """
+            Set necessary parameters for upsampling estimator.
+
+            Parameter:
+            ---------
+            rf_thres[int]: The threshold to filter the synthesized
+                          receptive field, which you should assign
+                          between 0-99.
+            """
+
+            # self.activation_estimator.set_params(rf_thres)
+            self.rf_thres = rf_thres
+
+        def compute(self, oc_maps):
+
+            """
+            Generate RF based on provided image and pixel activation estimator
+
+            Parameter:
+            ---------
+            oc_maps[np-array]: a N x 224 x 224 Numpy Array.
+            """
+
+            sum_act = np.zeros([oc_maps.shape[0], 224 * 2 - 1, 224 * 2 - 1])
+            for i in range(oc_maps.shape[0]):
+                cx = int(np.mean(np.where(oc_maps[i, :, :] == np.max(oc_maps[i, :, :]))[0]))
+                cy = int(np.mean(np.where(oc_maps[i, :, :] == np.max(oc_maps[i, :, :]))[1]))
+                sum_act[i, 223 - cx:447 - cx, 223 - cy:447 - cy] = oc_maps[i, :, :]
+
+            sum_act = np.sum(sum_act, 0)[112:336, 112:336]
+
+            plt.imsave(self.output_dir + 'rf' + str(self.channel) + '.png', sum_act, cmap='gray')
+            rf = cv2.imread(self.output_dir + 'rf' + str(self.channel) + '.png', cv2.IMREAD_GRAYSCALE)
+            rf = cv2.medianBlur(rf, 31)
+            _, th = cv2.threshold(rf, self.rf_thres, 255, cv2.THRESH_BINARY)
+            contours, _ = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            rf = cv2.ellipse(rf, cv2.fitEllipse(contours[0]), (255, 255, 255), 1, 300)
+
+            r = np.array(contours).squeeze()
+            t = 0
+            for i in np.unique(r[:, 0]):
+                t = t + max(r[r[:, 0] == i, 1]) - min(r[r[:, 0] == i, 1])
+
+            rf = cv2.putText(rf, 'RF\'s Size: ' + str(int(np.sqrt(t))), (0, 22),
+                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            return rf
