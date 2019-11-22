@@ -188,7 +188,7 @@ class MinmalComponentImage(Algorithm):
         order[str]: ascending or descending
         """
       
-    def combine_parcel(self, index):
+    def combine_component(self, index):
         """combine the indexed component into a image"""
         pass 
     
