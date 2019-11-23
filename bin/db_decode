@@ -10,8 +10,8 @@ import argparse
 import numpy as np
 
 from os.path import join as pjoin
-from dnnbrain.dnn.core import Activation, Decoder
-from dnnbrain.brain.core import ROI
+from dnnbrain.dnn.core import Activation
+from dnnbrain.brain.core import ROI, BrainDecoder
 from dnnbrain.brain.io import load_brainimg
 from dnnbrain.utils.util import gen_dmask
 
@@ -22,7 +22,7 @@ def main():
                         metavar='Analysis',
                         required=True,
                         type=str,
-                        choices=('uva', 'mva'),
+                        choices=('uv', 'mv'),
                         help="uva: Do univariate analysis. "
                              "mva: Do multivariate analysis.")
     parser.add_argument('-resp',
@@ -123,11 +123,8 @@ def main():
 
     # -prediction start-
     time1 = time.time()
-    decoder = Decoder(args.model, args.cv)
-    if args.anal == 'uva':
-        pred_dict = decoder.uva(Y, activation)
-    else:
-        pred_dict = decoder.mva(Y, activation)
+    decoder = BrainDecoder(Y, args.anal, args.model, args.cv)
+    pred_dict = decoder.decode_dnn(activation)
     print(f'Finish prediction: cost {time.time() - time1} seconds.')
     # -prediction end-
 
@@ -139,10 +136,10 @@ def main():
             os.makedirs(trg_dir)
 
         # save files
-        np.save(pjoin(trg_dir, f'score_{args.anal}.npy'), data['score'])
-        np.save(pjoin(trg_dir, f'model_{args.anal}.npy'), data['model'], allow_pickle=True)
+        np.save(pjoin(trg_dir, 'score.npy'), data['score'])
+        np.save(pjoin(trg_dir, 'model.npy'), data['model'], allow_pickle=True)
         if args.anal == 'uva':
-            np.save(pjoin(trg_dir, 'meas_position.npy'), data['measurement'])
+            np.save(pjoin(trg_dir, 'location.npy'), data['location'])
         print(f'Finish save {layer}.')
     # -save out end-
 

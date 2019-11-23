@@ -18,50 +18,6 @@ from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
-def dnn_truncate(netloader, layer):
-    """
-    Truncate the neural network at the specified convolution layer.
-    Notice that all truncated models were consisted of Sequential, which may differ from the orginal model.
-
-    Parameters:
-    -----------
-    netloader[NetLoader]: a neural network netloader, initialized from NetLoader in io module
-    layer[str]: truncated layer.
-
-    Returns:
-    --------
-    truncated_net[torch.nn.Sequential]: truncated model.
-    """
-    assert netloader.model is not None, "Please define netloader by calling NetLoader from module io"
-    assert netloader.layer2indices is not None, "Please define netloader by calling NetLoader from module io"
-    indices = netloader.layer2indices[layer]
-    prefc_indices = netloader.layer2indices['prefc']
-    model_frame = nn.Sequential(*netloader.model.children())
-    truncate_model = _get_truncate_layers(model_frame, indices)
-    if 'fc' in layer:
-        # Re-define forward method
-        def forward(x):
-            x = truncate_model[:prefc_indices[0]](x)
-            x = torch.flatten(x, 1)
-            x = truncate_model[prefc_indices[0]:](x)
-            return x
-        truncate_model.forward = forward
-    return truncate_model
-
-
-def _get_truncate_layers(model_frame, indices):
-    """
-    Subfunction of dnn_truncate to access truncated model recursively.
-    """
-    if len(indices) > 1:
-        parent_sequential = nn.Sequential(*model_frame[:indices[0]].children())
-        append_sequential = nn.Sequential(*model_frame[indices[0]].children())
-        truncate_model = nn.Sequential(*parent_sequential, _get_truncate_layers(append_sequential, indices[1:]))
-    else:
-        truncate_model = nn.Sequential(*model_frame[:(indices[0]+1)])
-    return truncate_model
-
-
 def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches, train_method='tradition',
                     dataloaders_train_test=None, dataloaders_val_test=None):
     """
@@ -76,9 +32,9 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
     criterion[class]: criterion function
     optimizer[class]: optimizer function
     num_epoches[int]: epoch times.
-    train_method[str]: training method, by default is 'tradition'. 
+    train_method[str]: training method, by default is 'tradition'.
                        For some specific models (e.g. inception), loss needs to be calculated in another way.
-                       
+
     Returns:
     --------
     model[class/nn.Module]: model with trained parameters.
@@ -87,13 +43,13 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
                   {1: (2.144788321990967,     0.2834,         0.8578,        0.2876,       0.8595),
                    2: (1.821894842262268,     0.45592,        0.91876,       0.4659,       0.9199),
                    3: (1.6810704930877685,    0.50844,        0.9434,        0.5012,       0.9431)}
-                  
+
                  If dataloaders_train_test and dataloaders_val_test are None:
                  epoch      loss
                   {1: (2.144788321990967),
                    2: (1.821894842262268),
                    3: (1.6810704930877685)}
-                
+
     """
     warnings.filterwarnings("ignore")
     LOSS = []
@@ -102,19 +58,19 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
     ACC_val_top1 = []
     ACC_val_top5 = []
     EPOCH = []
-    
+
     time0 = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.train()
     model = model.to(device)
-            
+
     for epoch in range(num_epoches):
         EPOCH.append(epoch+1)
         print('Epoch time {}/{}'.format(epoch+1, num_epoches))
         print('-'*10)
         time1 = time.time()
         running_loss = 0.0
-        
+
         for inputs, targets in dataloaders_train:
             inputs.requires_grad_(True)
             inputs = inputs.to(device)
@@ -132,19 +88,19 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
                     loss = loss1 + 0.4*loss2
                 else:
                     raise Exception('Not Support this method yet, please contact authors for implementation.')
-                
+
                 _, pred = torch.max(outputs, 1)
                 loss.backward()
                 optimizer.step()
-                
+
             # Statistics loss in every batch
             running_loss += loss.item() * inputs.size(0)
-        
+
         # Caculate loss in every epoch
         epoch_loss = running_loss / len(dataloaders_train.dataset)
         print('Loss: {}\n'.format(epoch_loss))
         LOSS.append(epoch_loss)
-        
+
         # Caculate ACC_train every epoch
         if dataloaders_train_test:
             model_copy = copy.deepcopy(model)
@@ -153,7 +109,7 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
             print('top5_acc_train: {}\n'.format(train_acc_top5))
             ACC_train_top1.append(train_acc_top1)
             ACC_train_top5.append(train_acc_top5)
-    
+
         # Caculate ACC_val every epoch
         if dataloaders_val_test:
             model_copy = copy.deepcopy(model)
@@ -162,18 +118,18 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
             print('top5_acc_test: {}\n'.format(val_acc_top5))
             ACC_val_top1.append(val_acc_top1)
             ACC_val_top5.append(val_acc_top5)
-        
+
         #print time of a epoch
         time_epoch = time.time() - time1
         print('This epoch training complete in {:.0f}m {:.0f}s'.format(time_epoch // 60, time_epoch % 60))
-    
+
     # store LOSS, ACC_train, ACC_val to a dict
     if dataloaders_train_test and dataloaders_val_test:
         metric = zip(LOSS, ACC_train_top1, ACC_train_top5, ACC_val_top1, ACC_val_top5)
         metric_dict = dict(zip(EPOCH, metric))
     else:
         metric_dict = dict(zip(EPOCH, LOSS))
-    
+
     time_elapsed = time.time() - time0
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     return model, metric_dict
@@ -182,129 +138,51 @@ def dnn_train_model(dataloaders_train, model, criterion, optimizer, num_epoches,
 def dnn_test_model(dataloaders, model):
     """
     Test model accuracy.
-    
+
     Parameters:
     -----------
     dataloaders[dataloader]: dataloader generated from dataloader(PicDataset)
     model[class/nn.Module]: DNN model with pretrained parameters
-    
+
     Returns:
     --------
     model_target[array]: model output
     actual_target [array]: actual target
     test_acc_top1[float]: prediction accuracy of top1
     test_acc_top5[float]: prediction accuracy of top5
-    """ 
+    """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model.eval()
     model = model.to(device)
     model_target = []
     model_target_top5 = []
     actual_target = []
-    
+
     with torch.no_grad():
         for i, (inputs, targets) in enumerate(dataloaders):
             inputs = inputs.to(device)
             outputs = model(inputs)
             _, outputs_label = torch.max(outputs, 1)
             outputs_label_top5 = torch.topk(outputs, 5)
-            
+
             model_target.extend(outputs_label.cpu().numpy())
             model_target_top5.extend(outputs_label_top5[1].cpu().numpy())
             actual_target.extend(targets.numpy())
-            
+
     model_target = np.array(model_target)
     model_target_top5 = np.array(model_target_top5)
     actual_target = np.array(actual_target)
-    
+
     # Caculate the top1 acc and top5 acc
     test_acc_top1 = 1.0*np.sum(model_target == actual_target)/len(actual_target)
-    
+
     test_acc_top5 = 0.0
     for i in [0,1,2,3,4]:
         test_acc_top5 += 1.0*np.sum(model_target_top5.T[i]==actual_target)
     test_acc_top5 = test_acc_top5/len(actual_target)
-    
+
     return model_target, actual_target, test_acc_top1, test_acc_top5
 
-
-class GraftLayer(nn.Module):
-    def __init__(self, netloader, layer, fc_out_num, channel=None, feature_extract=True):
-        """
-        Connect the truncated_net to a full connection layer.
-
-        Parameters:
-        -----------
-        netloader[NetLoader]: a neural network netloader, initialized from NetLoader in io module.
-        layer[str]: truncated layer
-        fc_out_num[int]: the number of the out_features of the full connection layer
-        channel[iterator]: The indices of out_channels of the selected convolution layer
-        feature_extract[bool]: If feature_extract = False, the model is finetuned and all model parameters are updated.
-            If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
-            https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
-        """
-        super(GraftLayer, self).__init__()
-        self.truncate_net = dnn_truncate(netloader, layer)
-        if feature_extract:
-            for param in self.truncate_net.parameters():
-                param.requires_grad = False
-
-        # Set a test data to get output size of the truncate_net
-        indicator_val = torch.randn((1,3,netloader.img_size[0],netloader.img_size[1]))
-        indicator_output = self.truncate_net(indicator_val)
-        
-        if channel is not None:
-            assert 'conv' in layer, "Selected channel only happened in convolution layer."
-        self.channel = channel
-        # fc input number
-        fc_in_num = indicator_output.view(indicator_output.size(0),-1).shape[-1]
-        self.fc = nn.Linear(fc_in_num, fc_out_num)
-    
-    def forward(self, x):
-        x = self.truncate_net(x)
-        # if self.channel is not None :
-        # I'm not quite sure how to trained a model with some channels but not all.
-        # Therefore channel is not be finished.
-        # The original one is
-        # if self.channel is not None:
-        #   x = x[:, self.channel]
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
-
-
-class TransferredNet(nn.Module):
-    def __init__(self, truncated_net, fc_in_num, fc_out_num, channel=None, feature_extract=True):
-        """
-        Connect the truncated_net to a full connection layer.
-
-        Parameters:
-        -----------
-        truncated_net[torch.nn.Module]: a truncated neural network from the pretrained network
-        fc_in_num[int]: the number of the in_features of the full connection layer
-        fc_out_num[int]: the number of the out_features of the full connection layer
-        channel[iterator]: The indices of out_channels of the selected convolution layer
-        feature_extract[bool]: If feature_extract = False, the model is finetuned and all model parameters are updated.
-            If feature_extract = True, only the last layer parameters are updated, the others remain fixed.
-            https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
-        """
-        super(TransferredNet, self).__init__()
-        self.truncated_net = truncated_net
-        if feature_extract:
-            for param in self.truncated_net.parameters():
-                param.requires_grad = False
-        self.fc = nn.Linear(fc_in_num, fc_out_num)
-        self.channel = channel
-
-    def forward(self, x):
-        x = self.truncated_net(x)
-        if self.channel is not None:
-            # extract the specified channel's output
-            x = x[:, self.channel]
-        x = x.view(x.size(0), -1)  # (batch_num, unit_num)
-        x = self.fc(x)
-        return x
-        
 
 class VggFaceModel(nn.Module):
     """Vgg_face's model architecture"""
@@ -866,8 +744,48 @@ class VggFace(DNN):
         self.model = VggFaceModel()
         self.model.load_state_dict(torch.load(
             pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
-        self.layer2loc = None
+        self.layer2loc = {'conv1_1': ('features', '0'), 'conv1_1_relu': ('features', '1'),
+                          'conv1_2': ('features', '2'), 'conv1_2_relu': ('features', '3'),
+                          'conv1_maxpool': ('features', '4'), 'conv2_1': ('features', '5'),
+                          'conv2_1_relu': ('features', '6'), 'conv2_2': ('features', '7'),
+                          'conv2_2_relu': ('features', '8'), 'conv2_maxpool': ('features', '9'),
+                          'conv3_1': ('features', '10'), 'conv3_1_relu': ('features', '11'),
+                          'conv3_2': ('features', '12'), 'conv3_2_relu': ('features', '13'),
+                          'conv3_3': ('features', '14'), 'conv3_3_relu': ('features', '15'),
+                          'conv3_maxpool': ('features', '16'), 'conv4_1': ('features', '17'),
+                          'conv4_1_relu': ('features', '18'), 'conv4_2': ('features', '19'),
+                          'conv4_2_relu': ('features', '20'), 'conv4_3': ('features', '21'),
+                          'conv4_3_relu': ('features', '22'), 'conv4_maxpool': ('features', '23'),
+                          'conv5_1': ('features', '24'), 'conv5_1_relu': ('features', '25'),
+                          'conv5_2': ('features', '26'), 'conv5_2_relu': ('features', '27'),
+                          'conv5_3': ('features', '28'), 'conv5_3_relu': ('features', '29'),
+                          'conv5_maxpool': ('features', '30'), 'fc6': ('classifier', '0'),
+                          'relu6': ('classifier', '1'), 'fc7': ('classifier', '3'),
+                          'relu7': ('classifier', '4'), 'fc8': ('classifier', '6'), }
         self.img_size = (224, 224)
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        super(VggFace, self).layer2module(layer)
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
 
 
 class Vgg11(DNN):
@@ -878,5 +796,40 @@ class Vgg11(DNN):
         self.model = tv_models.vgg11()
         self.model.load_state_dict(torch.load(
             pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
-        self.layer2loc = None
+        self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
+                          'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
+                          'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
+                          'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
+                          'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
+                          'conv4_maxpool': ('features', '10'), 'conv5': ('features', '11'),
+                          'conv5_relu': ('features', '12'), 'conv6': ('features', '13'),
+                          'conv6_relu': ('features', '14'), 'conv6_maxpool': ('features', '15'),
+                          'conv7': ('features', '16'), 'conv7_relu': ('features', '17'),
+                          'conv8': ('features', '18'), 'conv8_relu': ('features', '19'),
+                          'conv8_maxpool': ('features', '20'), 'fc1': ('classifier', '0'),
+                          'fc1_relu': ('classifier', '1'), 'fc2': ('classifier', '3'),
+                          'fc2_relu': ('classifier', '4'), 'fc3': ('classifier', '6'), }
         self.img_size = (224, 224)
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        super(Vgg11, self).layer2module(layer)
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
