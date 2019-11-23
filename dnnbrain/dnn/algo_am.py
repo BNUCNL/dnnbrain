@@ -8,36 +8,24 @@ from torch.autograd import Variable
 from PIL import Image
 import matplotlib.pyplot as plt
 
-class Algorithm(ABC):
-    """ 
-    An Abstract Base Classes class to define interface for dnn algorithm 
-    """
-    def __init__(self, dnn, layer=None, channel=None):
-        self.dnn = dnn
-        self.layer = layer
-        self.channel = channel
-        
-    def set_layer(self, layer, channel):
-        self.layer = layer
-        self.channel = channel
-
-
-class SynthesisImage(Algorithm):
+class SynthesisImage(ABC):
     """ 
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn, layer=None, channel=None):
+    def __init__(self, dnn=None):
         """
         Parameter:
         ---------
         dnn[DNN]: dnnbrain's DNN object
         """
-        super(SynthesisImage, self).__init__(dnn, layer, channel)
+        self.dnn = dnn
         self.dnn.eval()
+        self.image_size = (3,) + self.dnn.img_size
         self.activation = None
+        self.channel = None
+        self.layer = None
         self.n_iter = None
-
 
         #prepare for save path
         self.im_path = None
@@ -47,7 +35,6 @@ class SynthesisImage(Algorithm):
         self.activ = [] # - activation
         self.regular = [] # regularization
     def set(self, layer, channel, im_path):
-
         """
         Set the target
 
@@ -56,7 +43,6 @@ class SynthesisImage(Algorithm):
         layer[str]: layer name
         channel[int]: channel number
         """
-
         self.layer = layer
         self.channel = channel
         self.im_path = im_path
@@ -69,7 +55,6 @@ class SynthesisImage(Algorithm):
         ---------
         n_iter[int]: the number of iteration
         """
-
         self.n_iter = n_iter
         
     def register_hooks(self):
@@ -216,7 +201,6 @@ class L1SynthesisImage(SynthesisImage):
         self.register_hooks()
 
         # Generate a random image
-
         random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
         # Process image and return variable
         optimal_image = self.preprocess_image(random_image, False)
@@ -224,7 +208,6 @@ class L1SynthesisImage(SynthesisImage):
         # optimal_image = torch.randn(1, *self.image_size)
         # optimal_image.requires_grad_(True)
         # optimal_image = Variable(optimal_image, requires_grad=True)  #
-
 
 
         # Define optimizer for the image
