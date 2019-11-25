@@ -119,7 +119,7 @@ class SaliencyImage(Algorithm):
 
         return gradient
 
-    def backprop_smooth(self, image, n_iter, sigma_multiplier=1, to_layer=None):
+    def backprop_smooth(self, image, n_iter, sigma_multiplier=0.1, to_layer=None):
         """
         Compute smoothed gradient.
         It will use the gradient method to compute the gradient and then smooth it
@@ -147,7 +147,7 @@ class SaliencyImage(Algorithm):
 
         self.register_hooks()
         gradient = 0
-        sigma = sigma_multiplier / (image.max() - image.min()).item()
+        sigma = sigma_multiplier * (image.max() - image.min()).item()
         for iter_idx in range(1, n_iter+1):
             # prepare image
             image_noisy = image + image.normal_(0, sigma**2)
