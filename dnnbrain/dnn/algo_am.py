@@ -7,20 +7,21 @@ from abc import ABC, abstractmethod
 from torch.autograd import Variable
 from PIL import Image
 import matplotlib.pyplot as plt
+from dnnbrain.dnn.core import Algorithm
 
-class SynthesisImage(ABC):
+
+class SynthesisImage(Algorithm):
     """ 
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn=None):
+    def __init__(self, dnn, layer, channel):
         """
         Parameter:
         ---------
         dnn[DNN]: dnnbrain's DNN object
-        """
-        self.dnn = dnn
-        self.dnn.eval()
+        """        
+        super(SynthesisImage,self).__init__(dnn, layer, channel)
         self.image_size = (3,) + self.dnn.img_size
         self.activation = None
         self.channel = None
@@ -34,6 +35,7 @@ class SynthesisImage(ABC):
         self.loss = [] # total loss
         self.activ = [] # - activation
         self.regular = [] # regularization
+        
     def set(self, layer, channel, im_path):
         """
         Set the target
@@ -176,27 +178,13 @@ class SynthesisImage(ABC):
         plt.legend()
         save_path = path + '/no_R_learningcurve_relu/' + Title +'.png'
         fig.savefig(save_path)
-
-
-    @abstractmethod
-    def synthesize(self):
-        """
-        Synthesize the image which maximally activates target layer and channel.         
-        As this a abstract method, it is needed to be override in every subclass
-        """
-
-
-class L1SynthesisImage(SynthesisImage):
-    """Use L1 regularization to estimate internal representation."""
-    
-    def synthesize(self):
+        
+    def L1synthesize(self):
         """
         Synthesize the image which maximally activates target layer and channel
         using L1 regularization.
         """
-        #method name
-        Method = 'L1'
-
+        
         # Hook the selected layer
         self.register_hooks()
 
@@ -227,8 +215,6 @@ class L1SynthesisImage(SynthesisImage):
             self.loss.append(loss)
             self.activ.append(-torch.mean(self.activation).detach().numpy())
             # self.regular.append(regulation_lamda * np.abs((optimal_image[0]).detach().numpy()).sum())
-            if i == 30:
-                print('Iteration:', i, 'Loss:', "{0:.4f}".format(loss.data.numpy()))
 
             # Backward
             loss.backward()
@@ -236,19 +222,17 @@ class L1SynthesisImage(SynthesisImage):
             optimizer.step()
             # Recreate image
             self.created_image = self.recreate_image(optimal_image)
-            # Save image
-            if i == 30:
-                im_path = self.im_path + '/optimal_relu/' + str(self.layer) + '_' + str(self.channel) + '_' + \
-                     Method + '_iter' + str(i) + '.png'
-                self.save_image(self.created_image, im_path)
-        # draw & save learning curves
-        self.plot_and_save_learning_curve(self.im_path)
-
-
 
         # Return the optimized image
         return np.uint8(optimal_image[0].detach().numpy())
-
+        
+    def L2synthesize(self):
+        """
+        Synthesize the image which maximally activates target layer and channel
+        using L1 regularization.
+        """
+        #method name
+        Method = 'L1'
 
 
 
