@@ -1,5 +1,4 @@
 import os
-import abc
 import copy
 import time
 import torch
@@ -10,7 +9,7 @@ from scipy.stats import pearsonr
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, Resize, ToTensor
+from torchvision import transforms
 from torchvision import models as tv_models
 from dnnbrain.dnn.core import Stimulus, Activation
 from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
@@ -282,6 +281,8 @@ class DNN:
         self.model = None
         self.layer2loc = None
         self.img_size = None
+        self.train_transform = None
+        self.test_transform = None
 
     @property
     def layers(self):
@@ -298,9 +299,9 @@ class DNN:
         assert fname.endswith('.pth'), 'File suffix must be .pth'
         torch.save(self.model.state_dict(), fname)
 
-    def set(self, model, parameters=None, layer2loc=None, img_size=None):
+    def set_model(self, model, parameters=None, layer2loc=None, img_size=None):
         """
-        Load DNN model, parameters, layer2loc and img_size manually
+        Set DNN model, parameters, layer2loc and img_size manually
 
         Parameters:
         ----------
@@ -314,6 +315,22 @@ class DNN:
             self.model.load_state_dict(parameters)
         self.layer2loc = layer2loc
         self.img_size = img_size
+
+    def set_transform(self, train_transform=None, test_transform=None):
+        """
+        Set transform
+
+        Parameters:
+        ----------
+        train_transform[torchvision.transform]:
+            the transform used in training state
+        test_transform[torchvision.transform]:
+            the transform used in testing state
+        """
+        if train_transform is not None:
+            self.train_transform = train_transform
+        if test_transform is not None:
+            self.test_transform = test_transform
 
     def eval(self):
         """
@@ -339,7 +356,7 @@ class DNN:
         ------
         module[Module]: PyTorch Module object
         """
-        pass
+        raise NotImplementedError('This method should be implemented in subclasses.')
 
     def compute_activation(self, stimuli, dmask, pool_method=None):
         """
@@ -358,15 +375,16 @@ class DNN:
         activation[Activation]: DNN activation
         """
         # prepare stimuli loader
-        transform = Compose([Resize(self.img_size), ToTensor()])
         if isinstance(stimuli, np.ndarray):
             stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
-            stim_set = [(transform(img), 0) for img in stim_set]
+            stim_set = [(self.test_transform(img), 0) for img in stim_set]
         elif isinstance(stimuli, Stimulus):
             if stimuli.meta['type'] == 'image':
-                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'),
+                                    transform=self.test_transform)
             elif stimuli.meta['type'] == 'video':
-                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'), transform=transform)
+                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'),
+                                    transform=self.test_transform)
             else:
                 raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
         else:
@@ -489,17 +507,16 @@ class DNN:
                 Note, n_feat is the number of features of the last layer.
         """
         # prepare data loader
-        transform = Compose([Resize(self.img_size), ToTensor()])
         if isinstance(data, np.ndarray):
             stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
-            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+            stim_set = [(self.train_transform(img), trg) for img, trg in zip(stim_set, target)]
         elif isinstance(data, Stimulus):
             if data.meta['type'] == 'image':
                 stim_set = ImageSet(data.meta['path'], data.get('stimID'),
-                                    data.get('label'), transform=transform)
+                                    data.get('label'), transform=self.train_transform)
             elif data.meta['type'] == 'video':
                 stim_set = VideoSet(data.meta['path'], data.get('stimID'),
-                                    data.get('label'), transform=transform)
+                                    data.get('label'), transform=self.train_transform)
             else:
                 raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
 
@@ -600,17 +617,16 @@ class DNN:
                 r_square[float]: R square between pred_values and true_values
         """
         # prepare data loader
-        transform = Compose([Resize(self.img_size), ToTensor()])
         if isinstance(data, np.ndarray):
             stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
-            stim_set = [(transform(img), trg) for img, trg in zip(stim_set, target)]
+            stim_set = [(self.test_transform(img), trg) for img, trg in zip(stim_set, target)]
         elif isinstance(data, Stimulus):
             if data.meta['type'] == 'image':
                 stim_set = ImageSet(data.meta['path'], data.get('stimID'),
-                                    data.get('label'), transform=transform)
+                                    data.get('label'), transform=self.test_transform)
             elif data.meta['type'] == 'video':
                 stim_set = VideoSet(data.meta['path'], data.get('stimID'),
-                                    data.get('label'), transform=transform)
+                                    data.get('label'), transform=self.test_transform)
             else:
                 raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
 
@@ -711,6 +727,19 @@ class AlexNet(DNN):
                           'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
                           'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
         self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            normalize
+        ])
 
     @property
     def layers(self):
@@ -728,7 +757,6 @@ class AlexNet(DNN):
         ------
         module[Module]: PyTorch Module object
         """
-        super(AlexNet, self).layer2module(layer)
         module = self.model
         for k in self.layer2loc[layer]:
             module = module._modules[k]
@@ -763,6 +791,15 @@ class VggFace(DNN):
                           'relu6': ('classifier', '1'), 'fc7': ('classifier', '3'),
                           'relu7': ('classifier', '4'), 'fc8': ('classifier', '6'), }
         self.img_size = (224, 224)
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor()
+        ])
 
     @property
     def layers(self):
@@ -780,7 +817,6 @@ class VggFace(DNN):
         ------
         module[Module]: PyTorch Module object
         """
-        super(VggFace, self).layer2module(layer)
         module = self.model
         for k in self.layer2loc[layer]:
             module = module._modules[k]
@@ -810,6 +846,19 @@ class Vgg11(DNN):
                           'fc1_relu': ('classifier', '1'), 'fc2': ('classifier', '3'),
                           'fc2_relu': ('classifier', '4'), 'fc3': ('classifier', '6'), }
         self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(224),
+            transforms.ToTensor(),
+            normalize
+        ])
 
     @property
     def layers(self):
@@ -827,7 +876,6 @@ class Vgg11(DNN):
         ------
         module[Module]: PyTorch Module object
         """
-        super(Vgg11, self).layer2module(layer)
         module = self.model
         for k in self.layer2loc[layer]:
             module = module._modules[k]
