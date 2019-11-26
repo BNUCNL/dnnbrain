@@ -3,7 +3,6 @@ import copy
 import numpy as np
 
 from torch.optim import Adam, Adamax, SGD, Adagrad,Adadelta
-from abc import ABC, abstractmethod
 from torch.autograd import Variable
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -15,7 +14,7 @@ class SynthesisImage(Algorithm):
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn, layer, channel):
+    def __init__(self, dnn, layer, channel, activation_metric, regularization_metric):
         """
         Parameter:
         ---------
@@ -27,27 +26,65 @@ class SynthesisImage(Algorithm):
         self.channel = None
         self.layer = None
         self.n_iter = None
-
+        
+        # Generate a random image
+        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+        # Process image and return variable
+        self.optimal_image = self.preprocess_image(random_image, False)
+        
+        
         #prepare for save path
         self.im_path = None
 
         # prepare for drawing learning curves
         self.loss = [] # total loss
-        self.activ = [] # - activation
-        self.regular = [] # regularization
-        
-    def set(self, layer, channel, im_path):
-        """
-        Set the target
+        self.activation_loss = [] # - activation
+        self.regularization_loss = [] # regularization    
 
-        Parameters:
-        ----------
-        layer[str]: layer name
-        channel[int]: channel number
-        """
-        self.layer = layer
-        self.channel = channel
-        self.im_path = im_path
+        if activation_metric == 'max':
+            self.activation_metric = self.max_activation
+        elif activation_metric == 'mean':
+            self.activation_metric = self.mean_activation
+        else:
+            raise AssertionError('Only max and mean metic is supported')
+            
+            
+                
+        if regularization_metric == 'L1':
+            self.regularization_metric = self.L1_norm
+        elif regularization_metric == 'TV':
+            self.regularization_metric = self.total_variation
+        else:
+            raise AssertionError('Only L2, Total variation is supported')
+        
+
+        
+    def mean_activation(self):
+        activ = -torch.mean(self.activation)
+        self.activation_loss.append(activ)
+        return activ
+    
+    def max_activation(self):
+        activ = -torch.max(self.activation)
+        self.activation_loss.append(activ)
+        return activ
+    
+    def L2_norm(self):
+        reg = np.abs((self.optimal_image[0]).detach().numpy()).sum()
+        self.regularization_loss.append(reg) 
+
+    def total_variation(self):
+        pass 
+    
+    def gaussian_blur(self):
+        pass
+    
+    def mean_image(self):
+        pass
+    
+    def center_bias(self):
+        pass
+
 
     def set_n_iter(self, n_iter=31):
         """
@@ -146,38 +183,6 @@ class SynthesisImage(Algorithm):
 
         recreated_im = np.uint8(recreated_im).transpose(1, 2, 0)
         return recreated_im
-
-    def save_image(self, im, path):
-        """
-            Saves a numpy matrix or PIL image as an image
-        Args:
-            im_as_arr (Numpy array): Matrix of shape DxWxH
-            path (str): Path to the image
-        """
-        if isinstance(im, (np.ndarray, np.generic)):
-            im = self.format_np_output(im)
-            im = Image.fromarray(im)
-        im.save(path)
-
-    def plot_and_save_learning_curve(self,path):
-        """
-         Plots and saves learning curve
-
-         """
-        x_arr = list(range(1,self.n_iter+1))
-        y_arr1 = self.loss
-        y_arr2 = self.activ
-        y_arr3 = self.regular
-        Title = 'leaning curve of_'+ self.layer + '_' + str(self.channel) + '_iter=' + str(self.n_iter)
-        fig = plt.figure()
-        plt.title(Title)
-        plt.plot(x_arr, y_arr1, label='Loss', color='r', linewidth=3.5)
-        plt.plot(x_arr, y_arr2, label='-actvation', color='b', linewidth=1.5)
-        # plt.plot(x_arr, y_arr3, label='+regularization', color='g', linewidth=1.5)
-        plt.grid()
-        plt.legend()
-        save_path = path + '/no_R_learningcurve_relu/' + Title +'.png'
-        fig.savefig(save_path)
         
     def L1synthesize(self):
         """
@@ -188,10 +193,7 @@ class SynthesisImage(Algorithm):
         # Hook the selected layer
         self.register_hooks()
 
-        # Generate a random image
-        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
-        # Process image and return variable
-        optimal_image = self.preprocess_image(random_image, False)
+     
 
         # optimal_image = torch.randn(1, *self.image_size)
         # optimal_image.requires_grad_(True)
@@ -199,40 +201,28 @@ class SynthesisImage(Algorithm):
 
 
         # Define optimizer for the image
-        optimizer = Adam([optimal_image], lr=0.1, betas=(0.9,0.99))
+        optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9,0.99))
         for i in range(1, self.n_iter+1):
             # clear gradients for next train
             optimizer.zero_grad()
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
 
-            self.dnn.model(optimal_image)
+            self.dnn.model(self.optimal_image)
             regulation_lamda = 0.0001
             # Loss function is the mean of the output of the selected filter
             # We try to maximize the mean of the output of that specific filter
-            loss =  - torch.mean(self.activation) \
-                    # + regulation_lamda * np.abs((optimal_image[0]).detach().numpy()).sum()
-            self.loss.append(loss)
-            self.activ.append(-torch.mean(self.activation).detach().numpy())
-            # self.regular.append(regulation_lamda * np.abs((optimal_image[0]).detach().numpy()).sum())
+            loss =  self.activation_metric() + self.regularization_metric()
 
+        
             # Backward
             loss.backward()
             # Update image
             optimizer.step()
             # Recreate image
-            self.created_image = self.recreate_image(optimal_image)
-
+            self.optimal_image = self.recreate_image(self.optimal_image)
         # Return the optimized image
         return np.uint8(optimal_image[0].detach().numpy())
-        
-    def L2synthesize(self):
-        """
-        Synthesize the image which maximally activates target layer and channel
-        using L1 regularization.
-        """
-        #method name
-        Method = 'L1'
 
 
 
