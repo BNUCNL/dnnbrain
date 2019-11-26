@@ -2,10 +2,8 @@ import torch
 import copy
 import numpy as np
 
-from torch.optim import Adam, Adamax, SGD, Adagrad,Adadelta
+from torch.optim import Adam
 from torch.autograd import Variable
-from PIL import Image
-import matplotlib.pyplot as plt
 from dnnbrain.dnn.core import Algorithm
 
 
@@ -14,33 +12,18 @@ class SynthesisImage(Algorithm):
     An Abstract Base Classes class to generate a synthetic image 
     that maximally activates a neuron
     """
-    def __init__(self, dnn, layer, channel, activation_metric, regularization_metric):
+    def __init__(self, dnn, layer, channel, 
+                 activation_metric='mean', regularization_metric='L2', n_iter=30):
         """
         Parameter:
         ---------
         dnn[DNN]: dnnbrain's DNN object
         """        
         super(SynthesisImage,self).__init__(dnn, layer, channel)
-        self.image_size = (3,) + self.dnn.img_size
         self.activation = None
-        self.channel = None
-        self.layer = None
-        self.n_iter = None
-        
-        # Generate a random image
-        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
-        # Process image and return variable
-        self.optimal_image = self.preprocess_image(random_image, False)
-        
-        
-        #prepare for save path
-        self.im_path = None
+        self.n_iter = n_iter
 
-        # prepare for drawing learning curves
-        self.loss = [] # total loss
-        self.activation_loss = [] # - activation
-        self.regularization_loss = [] # regularization    
-
+        # activation metric setting
         if activation_metric == 'max':
             self.activation_metric = self.max_activation
         elif activation_metric == 'mean':
@@ -48,16 +31,25 @@ class SynthesisImage(Algorithm):
         else:
             raise AssertionError('Only max and mean metic is supported')
             
-            
-                
+        # regularization metric setting 
         if regularization_metric == 'L1':
             self.regularization_metric = self.L1_norm
         elif regularization_metric == 'TV':
             self.regularization_metric = self.total_variation
         else:
-            raise AssertionError('Only L2, Total variation is supported')
-        
+            raise AssertionError('Only L2, Total variation is supported')       
 
+
+    
+        # loss setting
+        self.activation_loss = [] 
+        self.regularization_loss = []
+
+        # Generate a random image
+        self.image_size = (3,) + self.dnn.img_size
+        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
+        # Process image and return variable
+        self.optimal_image = self.preprocess_image(random_image, False)
         
     def mean_activation(self):
         activ = -torch.mean(self.activation)
@@ -86,7 +78,7 @@ class SynthesisImage(Algorithm):
         pass
 
 
-    def set_n_iter(self, n_iter=31):
+    def set_params(self, activation_metric, regularization_metric, n_iter=30):
         """
         Set the number of iteration
 
@@ -94,8 +86,26 @@ class SynthesisImage(Algorithm):
         ---------
         n_iter[int]: the number of iteration
         """
+        # activation metric setting
+        if activation_metric == 'max':
+            self.activation_metric = self.max_activation
+        elif activation_metric == 'mean':
+            self.activation_metric = self.mean_activation
+        else:
+            raise AssertionError('Only max and mean metic is supported')
+            
+        # regularization metric setting 
+        if regularization_metric == 'L1':
+            self.regularization_metric = self.L1_norm
+        elif regularization_metric == 'TV':
+            self.regularization_metric = self.total_variation
+        else:
+            raise AssertionError('Only L2, Total variation is supported')
+            
+        # time for iter
         self.n_iter = n_iter
-        
+
+            
     def register_hooks(self):
         """
         Define register hook and register them to specific layer and channel.
@@ -209,10 +219,10 @@ class SynthesisImage(Algorithm):
             # to triger the hook funciton.
 
             self.dnn.model(self.optimal_image)
-            regulation_lamda = 0.0001
+            alpha = 0.1
             # Loss function is the mean of the output of the selected filter
             # We try to maximize the mean of the output of that specific filter
-            loss =  self.activation_metric() + self.regularization_metric()
+            loss =  self.activation_metric() + alpha * self.regularization_metric()
 
         
             # Backward
@@ -222,7 +232,7 @@ class SynthesisImage(Algorithm):
             # Recreate image
             self.optimal_image = self.recreate_image(self.optimal_image)
         # Return the optimized image
-        return np.uint8(optimal_image[0].detach().numpy())
+        return np.uint8(self.optimal_image[0].detach().numpy())
 
 
 
