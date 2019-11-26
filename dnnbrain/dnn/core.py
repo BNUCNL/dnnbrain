@@ -1,8 +1,8 @@
+import PIL
 import torch
 import numpy as np
 
 from copy import deepcopy
-from PIL import Image
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
 from dnnbrain.dnn.base import UnivariatePredictionModel, MultivariatePredictionModel
@@ -623,92 +623,82 @@ class Mask:
         return list(self._dmask.keys())
 
 
-class Images:
+class Image:
     """
-    The Images class contains a list of Image objects, and provides
-    some methods to load/save/operate the Image objects.
+    The Image class encapsulate an PIL.Image object, and provides
+    some methods to load/save/operate the Image object.
     """
 
     def __init__(self, data=None):
         """
         Parameter:
         ---------
-        data[list|ndarray|Tensor]: image data
-            If is list, its elements are PIL.Image objects.
-                All elements will be converted to RGB mode. As a result,
-                nothing is changed in objects with 'RGB' mode, while pixel
-                value's type in objects with 'F' mode is converted to unsigned int8.
+        data[PIL.Image|ndarray|Tensor]: image data
+            If is PIL.Image, it will be converted to RGB mode.
+                As a result, nothing is changed if it is 'RGB' mode originally, while pixel
+                value's type is converted to unsigned int8 when it is 'F' mode.
                 Note: The two newly increased channels when convert 'L'/'F' to 'RGB'
                     mode is just two copies of the original channel.
-            If is ndarray|Tensor, its shape must be (n_img, [3, ]height, width).
-                If the shape is (n_img, height, width), it means n_img gray images with
-                size as (height, width). For each gray image, we expand two copies of itself
-                to match the shape with 'RGB' mode, i.e. (3, height, width).
-                If the shape is (n_img, 3, height, width), it means n_img color images with
-                size as (3, height, width).
+            If is ndarray|Tensor, its shape must be ([3, ]height, width).
+                If the shape is (height, width), it is a gray image.
+                    And we will expand two copies of itself to match
+                    the shape with 'RGB' mode, i.e. (3, height, width).
+                If the shape is (3, height, width), it is a color image.
         """
-        self.data = []
+        self.data = None
         if data is not None:
-            self.set_data(data)
+            self.set(data)
 
-    def load(self, fnames):
+    def load(self, fname):
         """
-        Load list of Images from files.
-
-        Parameter:
-        ---------
-        fnames[list]: list of image file names
-        """
-        self.data = []
-        for fname in fnames:
-            img = Image.open(fname).convert('RGB')
-            self.data.append(img)
-
-    def save(self, fnames):
-        """
-        Save list of Images to files.
+        Load Image from file.
 
         Parameter:
         ---------
-        fnames[list]: list of image file names.
+        fname[str]: image file name
         """
-        assert len(self.data) == len(fnames), 'The number of file names must ' \
-                                              'be equal with Images.'
-        for idx, img in enumerate(self.data):
-            img.save(fnames[idx])
+        self.data = PIL.Image.open(fname).convert('RGB')
 
-    def get_data(self):
+    def save(self, fname):
         """
-        Get list of Images
+        Save Image to file.
+
+        Parameter:
+        ---------
+        fname[str]: image file name
+        """
+        self.data.save(fname)
+
+    def get(self):
+        """
+        Get image data as PIL.Image
 
         Return:
         ------
-        data[list]: list of Images
+        data[PIL.Image]: image data
         """
         return self.data
 
-    def set_data(self, data):
+    def set(self, data):
         """
-        Generate image list from data.
+        Set image data from data
 
         Parameter:
         ---------
-        data[list|ndarray|Tensor]: image data
-            If is list, its elements are PIL.Image objects.
-                All elements will be converted to RGB mode. As a result,
-                nothing is changed in objects with 'RGB' mode, while pixel
-                value's type in objects with 'F' mode is converted to unsigned int8.
+        data[PIL.Image|ndarray|Tensor]: image data
+            If is PIL.Image.Image, it will be converted to RGB mode.
+                As a result, nothing is changed if it is 'RGB' mode originally, while pixel
+                value's type is converted to unsigned int8 when it is 'F' mode.
                 Note: The two newly increased channels when convert 'L'/'F' to 'RGB'
                     mode is just two copies of the original channel.
-            If is ndarray|Tensor, its shape must be (n_img, [3, ]height, width).
-                If the shape is (n_img, height, width), it means n_img gray images with
-                size as (height, width). For each gray image, we expand two copies of itself
-                to match the shape with 'RGB' mode, i.e. (3, height, width).
-                If the shape is (n_img, 3, height, width), it means n_img color images with
-                size as (3, height, width).
+            If is ndarray|Tensor, its shape must be ([3, ]height, width).
+                If the shape is (height, width), it is a gray image.
+                    And we will expand two copies of itself to match
+                    the shape with 'RGB' mode, i.e. (3, height, width).
+                If the shape is (3, height, width), it is a color image.
         """
-        if isinstance(data, list):
-            self.data = [img.convert('RGB') for img in data]
+        if isinstance(data, PIL.Image.Image):
+            self.data = data.convert('RGB')
 
         elif isinstance(data, (np.ndarray, torch.Tensor)):
             # deal with data type
@@ -717,31 +707,28 @@ class Images:
             assert data.dtype is np.dtype('uint8'), "Pixel value's dtype must be unsigned int8 in 'RGB' mode!"
 
             # deal with data shape
-            if data.ndim == 3:
-                data = np.expand_dims(data, 1)
-                data = np.repeat(data, 3, 1)
-            elif data.ndim == 4:
-                assert data.shape[1] == 3, 'Color image has and only has 3 channels!'
+            if data.ndim == 2:
+                data = np.expand_dims(data, 0)
+                data = np.repeat(data, 3, 0)
+            elif data.ndim == 3:
+                assert data.shape[0] == 3, 'Color image has and only has 3 channels!'
             else:
-                raise ValueError("The shape of ndarray|Tensor must be (n_img, [3, ]height, width)")
+                raise ValueError("The shape of ndarray|Tensor must be ([3, ]height, width)")
 
-            # generate image list
-            self.data = []
-            for arr in data:
-                arr = arr.transpose((1, 2, 0))
-                self.data.append(Image.fromarray(arr))
+            # set image list
+            self.data = PIL.Image.fromarray(data.transpose((1, 2, 0)))
 
         else:
-            raise TypeError("Only list of Images, ndarray and Tensor are supported!"
+            raise TypeError("Only PIL.Image, ndarray and Tensor are supported!"
                             f"Get {type(data)} instead.")
 
     def to_array(self):
         """
-        Convert data to numpy array
+        Get image data as numpy array
 
         Return:
         ------
-        data[ndarray]: image array with shape as (n_img, 3, height, width)
+        data[ndarray]: image data with shape as (3, height, width)
         """
         data = [np.asarray(img) for img in self.data]
         data = np.asarray(data).transpose((0, 3, 1, 2))
@@ -750,11 +737,11 @@ class Images:
 
     def to_tensor(self):
         """
-        Convert data to torch Tensor
+        Get image data as torch tensor
 
         Return:
         ------
-        data[Tensor]: image tensor with shape as (n_img, 3, height, width)
+        data[Tensor]: image data with shape as (3, height, width)
         """
         data = self.to_array()
         data = torch.tensor(data)
@@ -763,7 +750,7 @@ class Images:
 
     def resize(self, size, resample=0):
         """
-        Resize list of Images
+        Resize Image
 
         Parameters:
         ----------
@@ -774,10 +761,18 @@ class Images:
             Image.BILINEAR == 2
             Image.HAMMING == 5
         """
-        self.data = [img.resize(size, resample) for img in self.data]
+        self.data = self.data.resize(size, resample)
 
-    def __len__(self):
-        return len(self.data)
+    def crop(self, box):
+        """
+        Crop Image with a rectangular region
+
+        Parameter:
+        ---------
+        box[tuple]: the crop rectangle
+            as a (left, upper, right, lower)-tuple
+        """
+        self.data = self.data.crop(box)
 
 
 class DnnProbe:
