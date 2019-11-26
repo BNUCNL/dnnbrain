@@ -61,6 +61,7 @@ def main():
     minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)
     
     for img_id in stim.get('stimID'):
+        #load image
         image = Image.open(pjoin(stim.meta['path'],img_id))    
         image = np.asarray(image)
         #decompose image

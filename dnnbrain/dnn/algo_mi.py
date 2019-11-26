@@ -1,19 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Nov 22 00:51:25 2019
-
-@author: zhenzonglei
-"""
-
-#! /usr/bin/env python
 import numpy as np
 from abc import ABC, abstractmethod
 from skimage import segmentation 
 from dnnbrain.dnn.core import Mask, Algorithm
 
 
-        
 class MinmalParcelImage(Algorithm):
     """
     A class to generate minmal image for target channels from a DNN model 
