@@ -1,6 +1,9 @@
 #! /usr/bin/env python
 import os, argparse,time
 from os.path import exists as pexist
+from os.path import join as pjoin
+from PIL import Image
+import numpy as np
 import matplotlib.pyplot as plt
 from dnnbrain.dnn.core import Stimulus
 from dnnbrain.dnn import models as db_models
@@ -54,16 +57,21 @@ def main():
     if not pexist(args.out):
         os.mkdir(args.out)
         
-    # Create the minimal image class   
-    minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)    
-        
-    # generate the minimal image
-    image_min = minimal_image.compute(stim)
+    # Create the minimal image class
+    minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)
     
-    # save the minimal image
-    order = 1
-    for image in image_min:
-        plt.imsave(args.out+str(args.layer)+'_chn'+str(args.chn)+'_'+str(order)+'.jpg',image)
+    for img_id in stim.get('stimID'):
+        #load image
+        image = Image.open(pjoin(stim.meta['path'],img_id))    
+        image = np.asarray(image)
+        #decompose image
+        minimal_image.felzenszwalb_decompose(image) 
+        # generate the minimal image
+        image_min = minimal_image.generate_minmal_image()
+        image_min.transpose((1,2,0))
+        # save the minimal image
+        order = 1
+        plt.imsave(args.out+str(args.layer)+'_chn'+str(args.chn)+'_'+str(order)+'.jpg',image_min)
         plt.axis('off')
         order+=1
     
