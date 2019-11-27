@@ -774,6 +774,17 @@ class Image:
         """
         self.data = self.data.crop(box)
 
+    def show(self):
+        self.data.show()
+
+    @property
+    def height(self):
+        return self.data.height
+
+    @property
+    def width(self):
+        return self.data.width
+
 
 class DnnProbe:
     """
