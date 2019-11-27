@@ -730,13 +730,13 @@ class AlexNet(DNN):
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         self.train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop(self.img_size),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize
         ])
         self.test_transform = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize(self.img_size),
             transforms.ToTensor(),
             normalize
         ])
@@ -792,12 +792,12 @@ class VggFace(DNN):
                           'relu7': ('classifier', '4'), 'fc8': ('classifier', '6'), }
         self.img_size = (224, 224)
         self.train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop(self.img_size),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor()
         ])
         self.test_transform = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize(self.img_size),
             transforms.ToTensor()
         ])
 
@@ -849,13 +849,13 @@ class Vgg11(DNN):
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         self.train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
+            transforms.RandomResizedCrop(self.img_size),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize
         ])
         self.test_transform = transforms.Compose([
-            transforms.Resize(224),
+            transforms.Resize(self.img_size),
             transforms.ToTensor(),
             normalize
         ])

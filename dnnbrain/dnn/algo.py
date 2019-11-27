@@ -83,23 +83,22 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Tensor]: an input of the model, with shape as (1, n_chn, n_height, n_width)
+        image[Image]: DNNBrain Image
         to_layer[str]: name of the layer where gradients back propagate to
             If is None, get the first layer in the layers recorded in DNN.
 
         Return:
         ------
         gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
-            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
+            If layer is the first layer of the model, its shape is (3, n_height, n_width)
         """
-        # deal with parameters
-        if image.ndim != 4 or image.shape[0] != 1:
-            raise ValueError("The input data must be a tensor with shape as "
-                             "(1, n_chn, n_height, n_width)")
+        # register hooks
         self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
-
         self.register_hooks()
+
         # forward
+        image = self.dnn.test_transform(image.get())
+        image = image.unsqueeze(0)
         image.requires_grad_(True)
         self.dnn(image)
         # zero grads
@@ -127,7 +126,7 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Tensor]: an input of the model, with shape as (1, n_chn, n_height, n_width)
+        image[Image]: DNNBrain Image
         n_iter[int]: the number of noisy images to be generated before average.
         sigma_multiplier[int]: multiply when calculating std of noise
         to_layer[str]: name of the layer where gradients back propagate to
@@ -138,15 +137,15 @@ class SaliencyImage(Algorithm):
         gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
             If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
         """
-        # deal with parameters
-        if image.ndim != 4 or image.shape[0] != 1:
-            raise ValueError("The input data must be a tensor with shape as "
-                             "(1, n_chn, n_height, n_width)")
         assert isinstance(n_iter, int) and n_iter > 0, \
             'The number of iterations must be a positive integer!'
-        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
 
+        # register hooks
+        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
         self.register_hooks()
+
+        image = self.dnn.test_transform(image.get())
+        image = image.unsqueeze(0)
         gradient = 0
         sigma = sigma_multiplier * (image.max() - image.min()).item()
         for iter_idx in range(1, n_iter+1):
