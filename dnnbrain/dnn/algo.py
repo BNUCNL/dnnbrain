@@ -354,6 +354,8 @@ class SynthesisImage(Algorithm):
         self.optimal_image.requires_grad_(True)
 
         # Define optimizer for the image
+        self.activation_loss = []
+        self.regularization_loss = []
         optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9, 0.99))
         for i in range(1, self.n_iter + 1):
             # clear gradients for next train
