@@ -137,6 +137,18 @@ class TestGuidedSaliencyImage:
         plt.show()
 
 
+class TestSynthesisImage:
+
+    def test_synthesize(self):
+
+        dnn = AlexNet()
+        syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276, n_iter=2)
+        img_out = syn_img.synthesize()
+
+        # assert
+        assert img_out.shape == (3, *dnn.img_size)
+
+
 if __name__ == '__main__':
     tmp = TestGuidedSaliencyImage()
     tmp.test_backprop()
