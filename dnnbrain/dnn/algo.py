@@ -16,11 +16,12 @@ class Algorithm(abc.ABC):
         layer[str]: name of the layer where the algorithm performs on
         channel[int]: sequence number of the channel where the algorithm performs on
         """
+        if np.logical_xor(layer is None, channel is None):
+            raise ValueError("layer and channel must be used together!")
+        if layer is not None:
+            self.set_layer(layer, channel)
         self.dnn = dnn
-        self.dnn.eval()        
-        self.mask = Mask()
-        self.mask.set(self.layer, [self.channel, ])
-
+        self.dnn.eval()
 
     def set_layer(self, layer, channel):
         """
@@ -31,8 +32,8 @@ class Algorithm(abc.ABC):
         layer[str]: name of the layer where the algorithm performs on
         channel[int]: sequence number of the channel where the algorithm performs on
         """
-        self.layer = layer
-        self.channel = channel
+        self.mask = Mask()
+        self.mask.set(layer, [channel])
 
     def get_layer(self):
         """
@@ -44,7 +45,7 @@ class Algorithm(abc.ABC):
         channel[int]: sequence number of the channel where the algorithm performs on
         """
         layer = self.mask.layers[0]
-        channel = self.mask.get(layer)[0]
+        channel = self.mask.get(layer)['chn'][0]
         return layer, channel
 
 
@@ -77,7 +78,7 @@ class SaliencyImage(Algorithm):
 
     def backprop(self, image, to_layer=None):
         """
-        Compute gradients of the layer corresponding to the self.layer and self.channel
+        Compute gradients of the to_layer corresponding to the from_layer and from_channel
         by back propagation algorithm.
 
         Parameters:
@@ -186,15 +187,16 @@ class VanillaSaliencyImage(SaliencyImage):
         Override the abstract method from BackPropGradient class to
         define a specific hook for vanila backprop gradient.
         """
+        from_layer, from_chn = self.get_layer()
 
         def from_layer_acti_hook(module, feat_in, feat_out):
-            self.activation = torch.mean(feat_out[0, self.channel-1])
+            self.activation = torch.mean(feat_out[0, from_chn-1])
 
         def to_layer_grad_hook(module, grad_in, grad_out):
             self.gradient = grad_in[0]
 
         # register forward hook to the target layer
-        from_module = self.dnn.layer2module(self.layer)
+        from_module = self.dnn.layer2module(from_layer)
         from_handle = from_module.register_forward_hook(from_layer_acti_hook)
         self.hook_handles.append(from_handle)
 
@@ -214,9 +216,10 @@ class GuidedSaliencyImage(SaliencyImage):
         Override the abstract method from BackPropGradient class to
         define a specific hook for guided backprop gradient.
         """
+        from_layer, from_chn = self.get_layer()
 
         def from_layer_acti_hook(module, feat_in, feat_out):
-            self.activation = torch.mean(feat_out[0, self.channel - 1])
+            self.activation = torch.mean(feat_out[0, from_chn - 1])
 
         def to_layer_grad_hook(module, grad_in, grad_out):
             self.gradient = grad_in[0]
@@ -225,7 +228,7 @@ class GuidedSaliencyImage(SaliencyImage):
             grad_in[0][grad_out[0] <= 0] = 0
 
         # register hook for from_layer
-        from_module = self.dnn.layer2module(self.layer)
+        from_module = self.dnn.layer2module(from_layer)
         handle = from_module.register_forward_hook(from_layer_acti_hook)
         self.hook_handles.append(handle)
 

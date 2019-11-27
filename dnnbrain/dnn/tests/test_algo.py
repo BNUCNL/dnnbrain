@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 from dnnbrain.dnn import algo as d_algo
 from dnnbrain.dnn.models import AlexNet
 from dnnbrain.utils.util import normalize
-from torchvision.transforms import Compose, Resize, ToTensor
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -24,9 +23,8 @@ class TestVanillaSaliencyImage:
         dnn = AlexNet()
 
         # prepare image
-        transform = Compose([Resize(dnn.img_size), ToTensor()])
         self.image.show()
-        image = transform(self.image).unsqueeze(0)
+        image = dnn.test_transform(self.image).unsqueeze(0)
 
         # prepare vanilla
         vanilla = d_algo.VanillaSaliencyImage(dnn)
@@ -52,9 +50,8 @@ class TestVanillaSaliencyImage:
         dnn = AlexNet()
 
         # prepare image
-        transform = Compose([Resize(dnn.img_size), ToTensor()])
         self.image.show()
-        image = transform(self.image).unsqueeze(0)
+        image = dnn.test_transform(self.image).unsqueeze(0)
 
         # prepare vanilla
         vanilla = d_algo.VanillaSaliencyImage(dnn)
@@ -85,9 +82,8 @@ class TestGuidedSaliencyImage:
         dnn = AlexNet()
 
         # prepare image
-        transform = Compose([Resize(dnn.img_size), ToTensor()])
         self.image.show()
-        image = transform(self.image).unsqueeze(0)
+        image = dnn.test_transform(self.image).unsqueeze(0)
 
         # prepare guided
         guided = d_algo.GuidedSaliencyImage(dnn)
@@ -121,9 +117,8 @@ class TestGuidedSaliencyImage:
         dnn = AlexNet()
 
         # prepare image
-        transform = Compose([Resize(dnn.img_size), ToTensor()])
         self.image.show()
-        image = transform(self.image).unsqueeze(0)
+        image = dnn.test_transform(self.image).unsqueeze(0)
 
         # prepare guided
         guided = d_algo.GuidedSaliencyImage(dnn)
@@ -142,3 +137,8 @@ class TestGuidedSaliencyImage:
         plt.imshow(normalize(img_out)[0])
 
         plt.show()
+
+
+if __name__ == '__main__':
+    tmp = TestGuidedSaliencyImage()
+    tmp.test_backprop()
