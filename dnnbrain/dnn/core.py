@@ -13,16 +13,29 @@ class Stimulus:
     """
     Store and handle stimulus-related information
     """
-    def __init__(self, fname=None):
+    def __init__(self, header=None, data=None):
         """
         Parameter:
         ---------
-        fname[str]: file name with suffix as .stim.csv
+        header[dict]: meta-information of stimuli
+        data[dict]: stimulus/behavior data
+            Its values are arrays with shape as (n_stim,).
+            It must have the key 'stimID'.
         """
-        self.meta = dict()
-        self._data = dict()
-        if fname is not None:
-            self.load(fname)
+        if header is None:
+            self.header = dict()
+        else:
+            assert isinstance(header, dict), "header must be dict"
+            self.header = header
+
+        if data is None:
+            self._data = dict()
+        else:
+            n_stim = len(data['stimID'])
+            for v in data.values():
+                assert isinstance(v, np.ndarray), "data's value must be an array."
+                assert v.shape == (n_stim,), "data's value must be an array with shape as (n_stim,)"
+            self._data = data
 
     def load(self, fname):
         """
@@ -35,7 +48,7 @@ class Stimulus:
         stim_file = fio.StimulusFile(fname)
         stimuli = stim_file.read()
         self._data = stimuli.pop('data')
-        self.meta = stimuli
+        self.header = stimuli
 
     def save(self, fname):
         """
@@ -46,9 +59,9 @@ class Stimulus:
         fname[str]: file name with suffix as .stim.csv
         """
         stim_file = fio.StimulusFile(fname)
-        meta = self.meta.copy()
-        stim_file.write(meta.pop('type'), meta.pop('path'),
-                        self._data, **meta)
+        header = self.header.copy()
+        stim_file.write(header.pop('type'), header.pop('path'),
+                        self._data, **header)
 
     def get(self, item):
         """
@@ -182,7 +195,7 @@ class Stimulus:
 
         # get part of self
         stim = Stimulus()
-        stim.meta = self.meta.copy()
+        stim.header = deepcopy(self.header)
         for item in cols:
             stim.set(item, self.get(item)[rows])
 
