@@ -44,7 +44,7 @@ class TestStimulus:
         with pytest.raises(AssertionError):
             dcore.Stimulus(data=data)
         data.pop('stimID')
-        with pytest.raises(AssertionError):
+        with pytest.raises(KeyError):
             dcore.Stimulus(data=data)
         with pytest.raises(AssertionError):
             dcore.Stimulus('header')

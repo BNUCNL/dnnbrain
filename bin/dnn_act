@@ -60,8 +60,13 @@ def main():
     args = parser.parse_args()
 
     dnn = eval('db_models.{}()'.format(args.net))  # load DNN
-    stimuli = Stimulus(args.stim)  # load stimuli
-    dmask = gen_dmask(args.layer, args.chn, args.dmask)  # generate DNN mask
+
+    # load stimuli
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
+
+    # generate DNN mask
+    dmask = gen_dmask(args.layer, args.chn, args.dmask)
 
     # -extract activation-
     activation = dnn.compute_activation(stimuli, dmask, args.pool)

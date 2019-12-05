@@ -64,7 +64,10 @@ def main():
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
-    stimuli = Stimulus(args.stim)  # load stimuli
+    # load stimuli
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
+
     # initialize DNN mask
     if args.layer is None and args.dmask is None:
         dmask = None

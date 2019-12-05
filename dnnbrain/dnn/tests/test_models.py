@@ -38,13 +38,14 @@ class TestAlexNet:
         # -compute activation-
         dnn = db_models.AlexNet()
         # compute with Stimulus
-        stimuli1 = dcore.Stimulus(stim_file)
+        stimuli1 = dcore.Stimulus()
+        stimuli1.load(stim_file)
         activation1 = dnn.compute_activation(stimuli1, dmask)
 
         # compute with ndarray
         stimuli2 = []
         for stim_id in stimuli1.get('stimID'):
-            stim_file = pjoin(stimuli1.meta['path'], stim_id)
+            stim_file = pjoin(stimuli1.header['path'], stim_id)
             img = Image.open(stim_file).convert('RGB')
             stimuli2.append(np.asarray(img).transpose((2, 0, 1)))
         stimuli2 = np.asarray(stimuli2)

@@ -47,7 +47,8 @@ def main():
     model = eval('db_models.{}()'.format(args.model))
 
     # Load Stim Dict (*.stim.csv)
-    stim = Stimulus(args.stim)
+    stim = Stimulus()
+    stim.load(args.stim)
 
     # Load Dmask File (*.dmask.csv)
     dmask = Mask(args.dmask)

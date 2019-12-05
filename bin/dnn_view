@@ -69,8 +69,11 @@ def main():
 
     # load objects
     dnn = eval('db_models.{}()'.format(args.net))  # load DNN
-    stimuli = Stimulus(args.stim)  # load stimuli
-    dmask = gen_dmask([args.layer], args.chn)  # generate DNN mask
+    # load stimuli
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
+    # generate DNN mask
+    dmask = gen_dmask([args.layer], args.chn)
 
     # compute DNN activation batch-wise
     count = 1
