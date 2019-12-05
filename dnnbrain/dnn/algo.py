@@ -35,7 +35,7 @@ class Algorithm(abc.ABC):
         channel[int]: sequence number of the channel where the algorithm performs on
         """
         self.mask = Mask()
-        self.mask.set(layer, [channel])
+        self.mask.set(layer, channels=[channel])
 
     def get_layer(self):
         """

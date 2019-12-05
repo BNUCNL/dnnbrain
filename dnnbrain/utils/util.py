@@ -48,7 +48,7 @@ def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, afte
     return frame_nums, onsets, durations
 
 
-def gen_dmask(layers=None, channels=None, dmask_file=None):
+def gen_dmask(layers=None, channels='all', dmask_file=None):
     """
     Generate DNN mask object by:
     1. combining layers and channels.
@@ -57,7 +57,8 @@ def gen_dmask(layers=None, channels=None, dmask_file=None):
     Parameters:
     ----------
     layers[list]: layer names
-    channels[list]: channel numbers
+    channels[str|list]: channel numbers
+        It will be ignored if layers is None.
     dmask_file[str]: .dmask.csv file
 
     Return:
@@ -67,8 +68,6 @@ def gen_dmask(layers=None, channels=None, dmask_file=None):
     # set some assertions
     assert np.logical_xor(layers is None, dmask_file is None), \
         "Use one and only one of the 'layers' and 'dmask_file'!"
-    if layers is None:
-        assert channels is None, "'channels' can't be used without 'layers'!"
 
     dmask = Mask()
     if layers is None:
@@ -82,19 +81,19 @@ def gen_dmask(layers=None, channels=None, dmask_file=None):
             raise ValueError("'layers' can't be empty!")
         elif n_layer == 1:
             # All channels belong to the single layer
-            dmask.set(layers[0], channels)
+            dmask.set(layers[0], channels=channels)
         else:
-            if channels is None:
+            if channels == 'all':
                 # contain all channels for each layer
                 for layer in layers:
                     dmask.set(layer)
             elif n_layer == len(channels):
                 # one-to-one correspondence between layers and channels
                 for layer, chn in zip(layers, channels):
-                    dmask.set(layer, [chn])
+                    dmask.set(layer, channels=[chn])
             else:
-                raise ValueError("'channels' must be None or a list with same length as 'layers'"
-                                 " when the length of 'layers' is larger than 1.")
+                raise ValueError("channels must be 'all' or a list with same length as layers"
+                                 " when the length of layers is larger than 1.")
     return dmask
 
 

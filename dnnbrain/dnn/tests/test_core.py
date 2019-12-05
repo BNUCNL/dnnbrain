@@ -362,6 +362,12 @@ class TestActivation:
 
 class TestMask:
 
+    dmask_true = {
+        'conv1': {'chn': 'all', 'row': 'all', 'col': [1, 2, 3]},
+        'conv2': {'chn': 'all', 'row': [2, 5, 6], 'col': 'all'},
+        'fc1': {'chn': [2, 4, 6], 'row': 'all', 'col': 'all'}
+    }
+
     def test_get(self):
 
         fname = pjoin(DNNBRAIN_TEST, 'alexnet.dmask.csv')
@@ -370,7 +376,8 @@ class TestMask:
         dmask_dict = fio.MaskFile(fname).read()
 
         # load by Mask.load()
-        dmask = dcore.Mask(fname)
+        dmask = dcore.Mask()
+        dmask.load(fname)
 
         # assert
         assert dmask.layers == list(dmask_dict.keys())
@@ -379,34 +386,22 @@ class TestMask:
 
     def test_set(self):
 
-        # ground truth
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
-
         # set by Mask.set()
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # assert
-        assert dmask.layers == list(dmask_dict.keys())
+        assert dmask.layers == list(self.dmask_true.keys())
         for layer in dmask.layers:
-            assert dmask.get(layer) == dmask_dict[layer]
+            assert dmask.get(layer) == self.dmask_true[layer]
 
     def test_copy(self):
 
         # prepare origin dmask
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # make a copy
         dmask_copy = dmask.copy()
@@ -419,20 +414,16 @@ class TestMask:
     def test_delete(self):
 
         # prepare a dmask
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # delete a layer
         layer_del = 'conv1'
         dmask.delete(layer_del)
 
         # assert
+        dmask_dict = copy.deepcopy(self.dmask_true)
         dmask_dict.pop(layer_del)
         assert dmask.layers == list(dmask_dict.keys())
         for layer in dmask.layers:
