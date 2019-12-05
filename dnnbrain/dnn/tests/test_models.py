@@ -82,14 +82,6 @@ class TestAlexNet:
 
 
 @pytest.mark.skip
-def test_dnn_truncate():
-    """
-    Test dnn_truncate
-    """
-    pass
-    
-
-@pytest.mark.skip
 def test_dnn_train_model():
     """
     Test dnn_train_model

@@ -554,9 +554,8 @@ class Mask:
             If is str, it must be 'all' which means all columns.
             If is list, its elements are serial numbers of columns.
         """
-        if layer is None:
-            self._dmask = dict()
-        else:
+        self._dmask = dict()
+        if layer is not None:
             self.set(layer, channels=channels, rows=rows, columns=columns)
 
     def load(self, fname):

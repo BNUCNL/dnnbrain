@@ -274,7 +274,19 @@ class VggFaceModel(nn.Module):
 
 
 class DNN:
-    """Deep neural network"""
+    """
+    Deep neural network
+
+    Attributes:
+    ----------
+    model[nn.Modules]: DNN model
+    layer2loc[dict]: map layer name to its location in the DNN model
+    img_size[tuple]: the input image size
+    train_transform[torchvision.transform]:
+        the transform used in training state
+    test_transform[torchvision.transform]:
+        the transform used in testing state
+    """
 
     def __init__(self):
 
@@ -298,39 +310,6 @@ class DNN:
         """
         assert fname.endswith('.pth'), 'File suffix must be .pth'
         torch.save(self.model.state_dict(), fname)
-
-    def set_model(self, model, parameters=None, layer2loc=None, img_size=None):
-        """
-        Set DNN model, parameters, layer2loc and img_size manually
-
-        Parameters:
-        ----------
-        model[nn.Modules]: DNN model
-        parameters[state_dict]: Parameters of DNN model
-        layer2loc[dict]: map layer name to its location in the DNN model
-        img_size[tuple]: the input image size
-        """
-        self.model = model
-        if parameters is not None:
-            self.model.load_state_dict(parameters)
-        self.layer2loc = layer2loc
-        self.img_size = img_size
-
-    def set_transform(self, train_transform=None, test_transform=None):
-        """
-        Set transform
-
-        Parameters:
-        ----------
-        train_transform[torchvision.transform]:
-            the transform used in training state
-        test_transform[torchvision.transform]:
-            the transform used in testing state
-        """
-        if train_transform is not None:
-            self.train_transform = train_transform
-        if test_transform is not None:
-            self.test_transform = test_transform
 
     def eval(self):
         """
@@ -376,19 +355,21 @@ class DNN:
         """
         # prepare stimuli loader
         if isinstance(stimuli, np.ndarray):
-            stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in stimuli]
-            stim_set = [(self.test_transform(img), 0) for img in stim_set]
+            stim_set = []
+            for arr in stimuli:
+                img = Image.fromarray(arr.transpose((1, 2, 0)))
+                stim_set.append((self.test_transform(img), 0))
         elif isinstance(stimuli, Stimulus):
-            if stimuli.meta['type'] == 'image':
-                stim_set = ImageSet(stimuli.meta['path'], stimuli.get('stimID'),
+            if stimuli.header['type'] == 'image':
+                stim_set = ImageSet(stimuli.header['path'], stimuli.get('stimID'),
                                     transform=self.test_transform)
-            elif stimuli.meta['type'] == 'video':
-                stim_set = VideoSet(stimuli.meta['path'], stimuli.get('stimID'),
+            elif stimuli.header['type'] == 'video':
+                stim_set = VideoSet(stimuli.header['path'], stimuli.get('stimID'),
                                     transform=self.test_transform)
             else:
-                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.meta['type']))
+                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.header['type']))
         else:
-            raise TypeError('The input stimuli must be an instance of Tensor or Stimulus!')
+            raise TypeError('The input stimuli must be an instance of ndarray or Stimulus!')
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # -extract activation-
@@ -438,28 +419,28 @@ class DNN:
 
         return activation
 
-    def get_kernel(self, layer, kernel_num=None):
+    def get_kernel(self, layer, kernels=None):
         """
-        Get kernel's weights of the layer
+        Get kernels' weights of the layer
 
         Parameters:
         ----------
         layer[str]: layer name
-        kernel_num[int]: the sequence number of the kernel
+        kernels[int|list]: serial numbers of kernels
 
         Return:
         ------
-        kernel[array]: kernel weights
+        weights[array]: kernel weights
         """
         # get the module
         module = self.layer2module(layer)
 
         # get the weights
-        kernel = module.weight
-        if kernel_num is not None:
-            kernel = kernel[kernel_num]
+        weights = module.weight
+        if kernels is not None:
+            weights = weights[kernels]
 
-        return kernel.detach().numpy()
+        return weights.detach().numpy()
 
     def ablate(self, layer, channels=None):
         """
@@ -511,21 +492,21 @@ class DNN:
             stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
             stim_set = [(self.train_transform(img), trg) for img, trg in zip(stim_set, target)]
         elif isinstance(data, Stimulus):
-            if data.meta['type'] == 'image':
-                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+            if data.header['type'] == 'image':
+                stim_set = ImageSet(data.header['path'], data.get('stimID'),
                                     data.get('label'), transform=self.train_transform)
-            elif data.meta['type'] == 'video':
-                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+            elif data.header['type'] == 'video':
+                stim_set = VideoSet(data.header['path'], data.get('stimID'),
                                     data.get('label'), transform=self.train_transform)
             else:
-                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+                raise TypeError(f"{data.header['type']} is not a supported stimulus type.")
 
             if target is not None:
                 # We presume small quantity stimuli will be used in this way.
                 # Usually hundreds or thousands such as fMRI stimuli.
                 stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
         else:
-            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+            raise TypeError('The input data must be an instance of ndarray or Stimulus!')
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # prepare criterion
@@ -621,21 +602,21 @@ class DNN:
             stim_set = [Image.fromarray(arr.transpose((1, 2, 0))) for arr in data]
             stim_set = [(self.test_transform(img), trg) for img, trg in zip(stim_set, target)]
         elif isinstance(data, Stimulus):
-            if data.meta['type'] == 'image':
-                stim_set = ImageSet(data.meta['path'], data.get('stimID'),
+            if data.header['type'] == 'image':
+                stim_set = ImageSet(data.header['path'], data.get('stimID'),
                                     data.get('label'), transform=self.test_transform)
-            elif data.meta['type'] == 'video':
-                stim_set = VideoSet(data.meta['path'], data.get('stimID'),
+            elif data.header['type'] == 'video':
+                stim_set = VideoSet(data.header['path'], data.get('stimID'),
                                     data.get('label'), transform=self.test_transform)
             else:
-                raise TypeError(f"{data.meta['type']} is not a supported stimulus type.")
+                raise TypeError(f"{data.header['type']} is not a supported stimulus type.")
 
             if target is not None:
                 # We presume small quantity stimuli will be used in this way.
                 # Usually hundreds or thousands such as fMRI stimuli.
                 stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
         else:
-            raise TypeError('The input data must be an instance of Tensor or Stimulus!')
+            raise TypeError('The input data must be an instance of ndarray or Stimulus!')
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # start test
