@@ -17,7 +17,7 @@ if not os.path.isdir(TMP_DIR):
 
 class TestStimulus:
 
-    meta_true = {
+    header_true = {
         'type': 'video',
         'path': 'test path',
         'title': 'test title'
@@ -28,6 +28,26 @@ class TestStimulus:
         'acc': np.array([0.2, 0.4, 0.1, 0.6]),
         'label': np.array([0, 1, 1, 2])
     }
+
+    def test_init(self):
+
+        # test normal
+        stimuli = dcore.Stimulus(self.header_true, self.data_true)
+        assert stimuli.header == self.header_true
+        for k, v in self.data_true.items():
+            np.testing.assert_equal(v, stimuli.get(k))
+
+        # test exception
+        data = copy.deepcopy(self.data_true)
+        data['acc'] = data['acc'][:-1]
+        data['label'] = data['label'][:-1]
+        with pytest.raises(AssertionError):
+            dcore.Stimulus(data=data)
+        data.pop('stimID')
+        with pytest.raises(AssertionError):
+            dcore.Stimulus(data=data)
+        with pytest.raises(AssertionError):
+            dcore.Stimulus('header')
 
     def test_load(self):
 
@@ -44,8 +64,8 @@ class TestStimulus:
         stimuli.load(fname)
 
         # assert
-        assert stimuli.meta['type'] == type
-        assert stimuli.meta['title'] == title
+        assert stimuli.header['type'] == type
+        assert stimuli.header['title'] == title
         assert stimuli.items == items
         assert stimuli._data['stimID'][[0, 2]].tolist() == stim_ids
         assert stimuli._data['RT'][[0, 2]].tolist() == rts
@@ -54,16 +74,17 @@ class TestStimulus:
 
         # save by Stimulus.save()
         stimuli1 = dcore.Stimulus()
-        stimuli1.meta = self.meta_true
+        stimuli1.header = self.header_true
         stimuli1._data = self.data_true
         fname = pjoin(TMP_DIR, 'test.stim.csv')
         stimuli1.save(fname)
 
         # assert
-        stimuli2 = dcore.Stimulus(fname)
-        assert stimuli1.meta == stimuli2.meta
+        stimuli2 = dcore.Stimulus()
+        stimuli2.load(fname)
+        assert stimuli1.header == stimuli2.header
         for k, v in stimuli1._data.items():
-            assert v.tolist() == stimuli2._data[k].tolist()
+            np.testing.assert_equal(v, stimuli2._data[k])
 
     def test_get(self):
 
@@ -104,7 +125,7 @@ class TestStimulus:
     def test_len(self):
 
         stimuli = dcore.Stimulus()
-        stimuli.meta = self.meta_true
+        stimuli.header = self.header_true
         stimuli._data = self.data_true
         assert len(stimuli) == len(self.data_true['stimID'])
 
@@ -112,42 +133,42 @@ class TestStimulus:
 
         # prepare
         stimuli = dcore.Stimulus()
-        stimuli.meta = self.meta_true
+        stimuli.header = self.header_true
         stimuli._data = self.data_true
 
         # -assert int-
         # --assert positive--
         indices = 1
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert v[0] == stimuli._data[k][indices]
 
         # --assert negative--
         indices = -1
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert v[0] == stimuli._data[k][indices]
 
         # -assert list-
         indices = [0, 2]
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert np.all(v == stimuli._data[k][indices])
 
         # -assert slice-
         indices = slice(1, 3)
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert np.all(v == stimuli._data[k][indices])
 
         # -assert (list, list of str)-
         indices = ([0, 2], ['stimID', 'label'])
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k in indices[1]:
             assert np.all(stim_tmp._data[k] == stimuli._data[k][indices[0]])
 
