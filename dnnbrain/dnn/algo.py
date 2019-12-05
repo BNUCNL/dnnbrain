@@ -35,7 +35,7 @@ class Algorithm(abc.ABC):
         channel[int]: sequence number of the channel where the algorithm performs on
         """
         self.mask = Mask()
-        self.mask.set(layer, [channel])
+        self.mask.set(layer, channels=[channel])
 
     def get_layer(self):
         """
@@ -255,16 +255,18 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer, channel,
-                 activ_metric='mean', regular_metric='L1', n_iter=30):
+                 activ_metric='mean', regular_metric=None):
         """
         Parameters:
         ----------
         dnn[DNN]: DNNBrain DNN
         layer[str]: name of the layer where the algorithm performs on
         channel[int]: sequence number of the channel where the algorithm performs on
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_params(activ_metric, regular_metric, n_iter)
+        self.set_metric(activ_metric, regular_metric)
         self.activation = None
         self.optimal_image = None
 
@@ -272,15 +274,14 @@ class SynthesisImage(Algorithm):
         self.activation_loss = []
         self.regularization_loss = []
 
-    def set_params(self, activ_metric, regular_metric, n_iter):
+    def set_metric(self, activ_metric, regular_metric):
         """
-        Set some parameters
+        Set metric methods
 
-        Parameters:
-        ----------
-        activ_metric[str]: activation metric
-        regular_metric[str]: regularization metric
-        n_iter[int]: the number of iteration
+        Parameter:
+        ---------
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -291,13 +292,12 @@ class SynthesisImage(Algorithm):
             raise AssertionError('Only max and mean activation metrics are supported')
 
         # regularization metric setting
-        if regular_metric == 'L1':
+        if regular_metric is None:
+            self.regular_metric = None
+        elif regular_metric == 'L1':
             self.regular_metric = self.L1_norm
         else:
             raise AssertionError('Only L1 is supported')
-
-        # time for iter
-        self.n_iter = n_iter
 
     def mean_activation(self):
         activ = -torch.mean(self.activation)
@@ -340,9 +340,17 @@ class SynthesisImage(Algorithm):
         module = self.dnn.layer2module(layer)
         module.register_forward_hook(forward_hook)
 
-    def synthesize(self):
+    def synthesize(self, n_iter=30):
         """
         Synthesize the image which maximally activates target layer and channel
+
+        Parameter:
+        ---------
+        n_iter[int]: the number of iterations
+
+        Return:
+        ------
+            [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
         # Hook the selected layer
         self.register_hooks()
@@ -357,7 +365,7 @@ class SynthesisImage(Algorithm):
         self.activation_loss = []
         self.regularization_loss = []
         optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9, 0.99))
-        for i in range(1, self.n_iter + 1):
+        for i in range(1, n_iter + 1):
             # clear gradients for next train
             optimizer.zero_grad()
 
@@ -367,13 +375,16 @@ class SynthesisImage(Algorithm):
 
             # computer loss
             alpha = 0.1
-            loss = self.activ_metric() + alpha * self.regular_metric()
+            if self.regular_metric is None:
+                loss = self.activ_metric()
+            else:
+                loss = self.activ_metric() + alpha * self.regular_metric()
 
             # Backward
             loss.backward()
             # Update image
             optimizer.step()
-            print(f'Iteration: {i}/{self.n_iter}')
+            print(f'Iteration: {i}/{n_iter}')
 
         # Return the optimized image
         return self.optimal_image[0].detach().numpy()

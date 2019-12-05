@@ -25,8 +25,6 @@ def test_gen_dmask():
         db_util.gen_dmask()
     with pytest.raises(AssertionError):
         db_util.gen_dmask(layers1, dmask_file=dmask_file)
-    with pytest.raises(AssertionError):
-        db_util.gen_dmask(channels=channels1, dmask_file=dmask_file)
 
     # -assert single layer-
     # assert with channels
@@ -37,7 +35,7 @@ def test_gen_dmask():
     # assert without channels
     dmask = db_util.gen_dmask(layers1)
     assert dmask.layers == layers1
-    assert dmask.get(layers1[0]).get('chn') is None
+    assert dmask.get(layers1[0]).get('chn') == 'all'
 
     # -assert multi layers-
     # assert with channels
@@ -52,7 +50,7 @@ def test_gen_dmask():
     dmask = db_util.gen_dmask(layers2)
     assert dmask.layers == layers2
     for layer in layers2:
-        assert dmask.get(layer).get('chn') is None
+        assert dmask.get(layer).get('chn') == 'all'
 
     # -assert dmask file-
     dmask = db_util.gen_dmask(dmask_file=dmask_file)

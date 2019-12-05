@@ -142,8 +142,8 @@ class TestSynthesisImage:
     def test_synthesize(self):
 
         dnn = AlexNet()
-        syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276, n_iter=2)
-        img_out = syn_img.synthesize()
+        syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276)
+        img_out = syn_img.synthesize(2)
 
         # assert
         assert img_out.shape == (3, *dnn.img_size)

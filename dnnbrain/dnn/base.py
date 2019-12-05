@@ -373,7 +373,7 @@ class MultivariatePredictionModel:
         return pred_dict
 
 
-def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
+def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):
     """
     Extract DNN activation
 
@@ -381,22 +381,28 @@ def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
     ----------
     dnn_acts[array]: DNN activation
         A 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    channels[list]: sequence numbers of channels of interest.
-    rows[list]: sequence numbers of rows of interest.
-    columns[list]: sequence numbers of columns of interest.
+    channels[str|list]: channels of interest.
+        If is str, it must be 'all' which means all channels.
+        If is list, its elements are serial numbers of channels.
+    rows[str|list]: rows of interest.
+        If is str, it must be 'all' which means all rows.
+        If is list, its elements are serial numbers of rows.
+    columns[str|list]: columns of interest.
+        If is str, it must be 'all' which means all columns.
+        If is list, its elements are serial numbers of columns.
 
     Return:
     ------
     dnn_acts[array]: DNN activation after mask
         a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
     """
-    if channels is not None:
+    if isinstance(channels, list):
         channels = [chn-1 for chn in channels]
         dnn_acts = dnn_acts[:, channels, :, :]
-    if rows is not None:
+    if isinstance(rows, list):
         rows = [row-1 for row in rows]
         dnn_acts = dnn_acts[:, :, rows, :]
-    if columns is not None:
+    if isinstance(columns, list):
         columns = [col-1 for col in columns]
         dnn_acts = dnn_acts[:, :, :, columns]
 

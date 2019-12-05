@@ -60,8 +60,9 @@ def main():
         dmask = gen_dmask(args.layer, args.chn, args.dmask)
 
     # do pooling
-    activation = Activation(args.act, dmask).pool(args.meth)
-    activation.save(args.out)
+    activation = Activation()
+    activation.load(args.act, dmask)
+    activation.pool(args.meth).save(args.out)
 
 
 if __name__ == '__main__':

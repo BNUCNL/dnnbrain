@@ -205,16 +205,19 @@ class Stimulus:
 class Activation:
     """DNN activation"""
 
-    def __init__(self, fname=None, dmask=None):
+    def __init__(self, layer=None, value=None):
         """
         Parameters:
         ----------
-        fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        layer[str]: layer name
+        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+            It will be ignored if layer is None.
         """
-        self._activation = dict()
-        if fname is not None:
-            self.load(fname, dmask)
+        if layer is None:
+            self._activation = dict()
+        else:
+            assert value is not None, "value can't be None if layer is not None."
+            self.set(layer, value)
 
     def load(self, fname, dmask=None):
         """
@@ -258,16 +261,16 @@ class Activation:
         """
         return self._activation[layer]
 
-    def set(self, layer, data):
+    def set(self, layer, value):
         """
         Set DNN activation
 
         Parameters:
         ----------
         layer[str]: layer name
-        data[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
         """
-        self._activation[layer] = data
+        self._activation[layer] = value
 
     def delete(self, layer):
         """
@@ -535,15 +538,25 @@ class Activation:
 class Mask:
     """DNN mask"""
 
-    def __init__(self, fname=None):
+    def __init__(self, layer=None, channels='all', rows='all', columns='all'):
         """
         Parameter:
         ---------
-        fname[str]: DNN mask file
+        layer[str]: layer name
+            If layer is None, other parameters will be ignored.
+        channels[str|list]: channels of interest.
+            If is str, it must be 'all' which means all channels.
+            If is list, its elements are serial numbers of channels.
+        rows[str|list]: rows of interest.
+            If is str, it must be 'all' which means all rows.
+            If is list, its elements are serial numbers of rows.
+        columns[str|list]: columns of interest.
+            If is str, it must be 'all' which means all columns.
+            If is list, its elements are serial numbers of columns.
         """
         self._dmask = dict()
-        if fname is not None:
-            self.load(fname)
+        if layer is not None:
+            self.set(layer, channels=channels, rows=rows, columns=columns)
 
     def load(self, fname):
         """
@@ -579,28 +592,41 @@ class Mask:
         """
         return self._dmask[layer]
 
-    def set(self, layer, channels=None, rows=None, columns=None):
+    def set(self, layer, **kwargs):
         """
-        Set DNN mask.
+        Set DNN mask
 
         Parameters:
         ----------
         layer[str]: layer name
-        channels[list]: sequence numbers of channels of interest.
-        rows[list]: sequence numbers of rows of interest.
-        columns[list]: sequence numbers of columns of interest.
+            If layer is new, its corresponding mask value will be initialized as 'all'.
+        kwargs[dict]: keyword arguments
+            Only three keywords ('channels', 'rows', 'columns') are valid.
+            channels[str|list]: channels of interest.
+                If is str, it must be 'all' which means all channels.
+                If is list, its elements are serial numbers of channels.
+            rows[str|list]: rows of interest.
+                If is str, it must be 'all' which means all rows.
+                If is list, its elements are serial numbers of rows.
+            columns[str|list]: columns of interest.
+                If is str, it must be 'all' which means all columns.
+                If is list, its elements are serial numbers of columns.
         """
+        # assertion
+        for k, v in kwargs.items():
+            assert k in ('channels', 'rows', 'columns'), \
+                "keyword must be one of ('channels', 'rows', 'columns')"
+            assert v == 'all' or isinstance(v, list), \
+                f"{k} must be 'all' or list of non-negative integers"
+
         if layer not in self._dmask:
-            self._dmask[layer] = dict()
-        if channels is not None:
-            assert isinstance(channels, list), "'channels' must be a list!"
-            self._dmask[layer]['chn'] = channels
-        if rows is not None:
-            assert isinstance(rows, list), "'rows' must be a list!"
-            self._dmask[layer]['row'] = rows
-        if columns is not None:
-            assert isinstance(columns, list), "'columns' must be a list!"
-            self._dmask[layer]['col'] = columns
+            self._dmask[layer] = {'chn': 'all', 'row': 'all', 'col': 'all'}
+        if 'channels' in kwargs:
+            self._dmask[layer]['chn'] = kwargs['channels']
+        if 'rows' in kwargs:
+            self._dmask[layer]['row'] = kwargs['rows']
+        if 'columns' in kwargs:
+            self._dmask[layer]['col'] = kwargs['columns']
 
     def copy(self):
         """
