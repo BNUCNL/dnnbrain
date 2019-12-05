@@ -145,20 +145,20 @@ class ActivationFile:
         if dmask is None:
             dmask = dict()
             for layer in rf.keys():
-                dmask[layer] = dict()
+                dmask[layer] = {'chn': 'all', 'row': 'all', 'col': 'all'}
 
         # read activation
         activation = dict()
         for k, v in dmask.items():
             activation[k] = dict()
             ds = rf[k]
-            if v.get('chn') is not None:
+            if v['chn'] != 'all':
                 channels = [chn-1 for chn in v['chn']]
                 ds = ds[:, channels, :, :]
-            if v.get('row') is not None:
+            if v['row'] != 'all':
                 rows = [row-1 for row in v['row']]
                 ds = ds[:, :, rows, :]
-            if v.get('col') is not None:
+            if v['col'] != 'all':
                 columns = [col-1 for col in v['col']]
                 ds = ds[:, :, :, columns]
 

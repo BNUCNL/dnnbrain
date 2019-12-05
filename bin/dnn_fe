@@ -77,7 +77,8 @@ def main():
         dmask = gen_dmask(args.layer, args.chn, args.dmask)
 
     # do feature extraction
-    activation = Activation(args.act, dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
     activation = activation.fe(args.meth.method, args.meth.n_feat, args.axis)
     activation.save(args.out)
 

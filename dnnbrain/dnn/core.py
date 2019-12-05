@@ -205,16 +205,19 @@ class Stimulus:
 class Activation:
     """DNN activation"""
 
-    def __init__(self, fname=None, dmask=None):
+    def __init__(self, layer=None, value=None):
         """
         Parameters:
         ----------
-        fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        layer[str]: layer name
+        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+            It will be ignored if layer is None.
         """
-        self._activation = dict()
-        if fname is not None:
-            self.load(fname, dmask)
+        if layer is None:
+            self._activation = dict()
+        else:
+            assert value is not None, "value can't be None if layer is not None."
+            self.set(layer, value)
 
     def load(self, fname, dmask=None):
         """
@@ -258,16 +261,16 @@ class Activation:
         """
         return self._activation[layer]
 
-    def set(self, layer, data):
+    def set(self, layer, value):
         """
         Set DNN activation
 
         Parameters:
         ----------
         layer[str]: layer name
-        data[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
         """
-        self._activation[layer] = data
+        self._activation[layer] = value
 
     def delete(self, layer):
         """

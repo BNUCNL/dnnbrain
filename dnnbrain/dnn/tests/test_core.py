@@ -212,7 +212,8 @@ class TestActivation:
         dmask.set('fc3', channels=[1, 2, 3])
 
         # assert without dmask
-        activation = dcore.Activation(fname)
+        activation = dcore.Activation()
+        activation.load(fname)
         for layer in rf.keys():
             np.testing.assert_array_equal(np.asarray(rf[layer]),
                                           activation._activation[layer])
@@ -221,10 +222,9 @@ class TestActivation:
         activation.load(fname, dmask)
         for layer in rf.keys():
             mask = dmask.get(layer)
-            data_true = dnn_mask(np.asarray(rf[layer]), mask.get('chn'),
-                                 mask.get('row'), mask.get('col'))
-            np.testing.assert_array_equal(data_true,
-                                          activation._activation[layer])
+            data_true = dnn_mask(np.asarray(rf[layer]), mask['chn'],
+                                 mask['row'], mask['col'])
+            np.testing.assert_equal(data_true, activation._activation[layer])
         rf.close()
 
     def test_save(self):
@@ -238,8 +238,7 @@ class TestActivation:
         # assert
         rf = h5py.File(fname, 'r')
         for layer, data in self.activation_true.items():
-            np.testing.assert_array_equal(data,
-                                          np.asarray(rf[layer]))
+            np.testing.assert_equal(data, np.asarray(rf[layer]))
         rf.close()
 
     def test_get(self):
@@ -263,8 +262,7 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = np.concatenate([data, data])
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_mask(self):
 
@@ -280,10 +278,8 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             mask = dmask.get(layer)
-            data = dnn_mask(data, mask.get('chn'),
-                                 mask.get('row'), mask.get('col'))
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            data = dnn_mask(data, mask['chn'], mask['row'], mask['col'])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_pool(self):
 
