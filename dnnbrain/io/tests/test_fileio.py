@@ -99,7 +99,6 @@ class TestMaskFile:
         conv5_row = [4, 5]
         conv5_col = [6, 7, 8]
         fc3_chn = [1, 2, 3]
-        fc3_keys = ['chn']
 
         # load by MaskFile.read()
         fname = pjoin(DNNBRAIN_TEST, 'alexnet.dmask.csv')
@@ -110,15 +109,16 @@ class TestMaskFile:
         assert dmask['conv5']['row'] == conv5_row
         assert dmask['conv5']['col'] == conv5_col
         assert dmask['fc3']['chn'] == fc3_chn
-        assert list(dmask['fc3'].keys()) == fc3_keys
+        assert dmask['fc3']['row'] == 'all'
+        assert dmask['fc3']['col'] == 'all'
 
     def test_write(self):
 
         # ground truth
         dmask1 = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
+            'conv1': {'chn': 'all', 'row': 'all', 'col': [1, 2, 3]},
+            'conv2': {'chn': 'all', 'row': [2, 5, 6], 'col': 'all'},
+            'fc1': {'chn': [2, 4, 6], 'row': 'all', 'col': 'all'}
         }
 
         # save by MaskFile.write()
@@ -128,10 +128,8 @@ class TestMaskFile:
         # assert
         dmask2 = fio.MaskFile(fname).read()
         assert dmask1.keys() == dmask2.keys()
-        assert dmask1['conv1']['col'] == dmask2['conv1']['col']
-        assert dmask1['conv2']['row'] == dmask2['conv2']['row']
-        assert dmask1['fc1']['chn'] == dmask2['fc1']['chn']
-        assert dmask1['fc1'].keys() == dmask2['fc1'].keys()
+        for k, v in dmask1.items():
+            assert v == dmask2[k]
 
 
 class TestRoiFile:

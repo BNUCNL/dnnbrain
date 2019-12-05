@@ -212,7 +212,7 @@ class MaskFile:
             if '=' in line:
                 # layer
                 layer, axes = line.split('=')
-                dmask[layer] = dict()
+                dmask[layer] = {'chn': 'all', 'row': 'all', 'col': 'all'}
 
                 # channels, rows, and columns
                 axes = axes.split(',')
@@ -245,9 +245,10 @@ class MaskFile:
                 for axis, numbers in axes_dict.items():
                     assert axis in ('chn', 'row', 'col'), \
                         'Axis must be from (chn, row, col).'
-                    axes.append(axis)
-                    num_line = ','.join(map(str, numbers))
-                    num_lines.append(num_line)
+                    if numbers != 'all':
+                        axes.append(axis)
+                        num_line = ','.join(map(str, numbers))
+                        num_lines.append(num_line)
 
                 wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
                 for num_line in num_lines:
