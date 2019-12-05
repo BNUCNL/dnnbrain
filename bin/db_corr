@@ -77,7 +77,8 @@ def main():
 
     # -Load response start-
     if args.resp.endswith('.roi.h5'):
-        roi = ROI(args.resp, args.roi)
+        roi = ROI()
+        roi.load(args.resp, args.roi)
         Y = roi.data
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
