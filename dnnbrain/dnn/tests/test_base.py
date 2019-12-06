@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 from os.path import join as pjoin
 from torchvision import transforms
-from dnnbrain.dnn.base import ImageSet, VideoSet
+from dnnbrain.dnn.base import ImageSet, VideoSet, ImageProcessor
 
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
@@ -157,6 +157,213 @@ class TestVideoSet:
             frame = Image.fromarray(cv2.cvtColor(tmp, cv2.COLOR_BGR2RGB))
             tmp = transform(frame)
             assert torch.equal(tmp, tmpvi[ii])
+
+
+class TestImageProcessor:
+
+    image = np.random.randint(0, 256, (3, 5, 5), np.uint8)
+    ip = ImageProcessor()
+
+    def test_to_array(self):
+
+        # test RGB array
+        image_out = self.ip.to_array(self.image)
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray array
+        image_out = self.ip.to_array(self.image[0])
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB tensor
+        tensor = torch.from_numpy(self.image)
+        image_out = self.ip.to_array(tensor)
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray tensor
+        tensor = torch.from_numpy(self.image[0])
+        image_out = self.ip.to_array(tensor)
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB PIL.Image
+        pil = Image.fromarray(self.image.transpose((1, 2, 0)))
+        image_out = self.ip.to_array(pil)
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray PIL.Image
+        pil = Image.fromarray(self.image[0])
+        image_out = self.ip.to_array(pil)
+        assert isinstance(image_out, np.ndarray)
+        np.testing.assert_equal(self.image[0], image_out)
+
+    def test_to_tensor(self):
+
+        # test RGB array
+        image_out = self.ip.to_tensor(self.image)
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray array
+        image_out = self.ip.to_tensor(self.image[0])
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB tensor
+        tensor = torch.from_numpy(self.image)
+        image_out = self.ip.to_tensor(tensor)
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray tensor
+        tensor = torch.from_numpy(self.image[0])
+        image_out = self.ip.to_tensor(tensor)
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB PIL.Image
+        pil = Image.fromarray(self.image.transpose((1, 2, 0)))
+        image_out = self.ip.to_tensor(pil)
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image, image_out)
+
+        # test gray PIL.Image
+        pil = Image.fromarray(self.image[0])
+        image_out = self.ip.to_tensor(pil)
+        assert isinstance(image_out, torch.Tensor)
+        np.testing.assert_equal(self.image[0], image_out)
+
+    def test_to_pil(self):
+
+        # test RGB array
+        image_out = self.ip.to_pil(self.image)
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image.transpose((1, 2, 0)), image_out)
+
+        # test gray array
+        image_out = self.ip.to_pil(self.image[0])
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB tensor
+        tensor = torch.from_numpy(self.image)
+        image_out = self.ip.to_pil(tensor)
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image.transpose((1, 2, 0)), image_out)
+
+        # test gray tensor
+        tensor = torch.from_numpy(self.image[0])
+        image_out = self.ip.to_pil(tensor)
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image[0], image_out)
+
+        # test RGB PIL.Image
+        pil = Image.fromarray(self.image.transpose((1, 2, 0)))
+        image_out = self.ip.to_pil(pil)
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image.transpose((1, 2, 0)), image_out)
+
+        # test gray PIL.Image
+        pil = Image.fromarray(self.image[0])
+        image_out = self.ip.to_pil(pil)
+        assert isinstance(image_out, Image.Image)
+        np.testing.assert_equal(self.image[0], image_out)
+
+    def test_resize(self):
+
+        size = (10, 12)
+        interpolation = 'nearest'
+
+        # test RGB array
+        arr1 = self.ip.resize(self.image, size, interpolation)
+        arr2 = cv2.resize(self.image.transpose((1, 2, 0)), size[::-1],
+                          interpolation=self.ip.str2cv2_interp[interpolation])
+        assert isinstance(arr1, np.ndarray)
+        np.testing.assert_equal(arr1.transpose((1, 2, 0)), arr2)
+
+        # test gray array
+        arr1 = self.ip.resize(self.image[0], size, interpolation)
+        arr2 = cv2.resize(self.image[0], size[::-1],
+                          interpolation=self.ip.str2cv2_interp[interpolation])
+        assert isinstance(arr1, np.ndarray)
+        np.testing.assert_equal(arr1, arr2)
+
+        # test RGB tensor
+        tensor = torch.from_numpy(self.image)
+        tensor1 = self.ip.resize(tensor, size, interpolation)
+        tensor2 = cv2.resize(self.image.transpose((1, 2, 0)), size[::-1],
+                             interpolation=self.ip.str2cv2_interp[interpolation])
+        assert isinstance(tensor1, torch.Tensor)
+        np.testing.assert_equal(tensor1, tensor2.transpose((2, 0, 1)))
+
+        # test gray tensor
+        tensor = torch.from_numpy(self.image[0])
+        tensor1 = self.ip.resize(tensor, size, interpolation)
+        tensor2 = cv2.resize(self.image[0], size[::-1],
+                             interpolation=self.ip.str2cv2_interp[interpolation])
+        assert isinstance(tensor1, torch.Tensor)
+        np.testing.assert_equal(tensor1, tensor2)
+
+        # test RGB PIL.Image
+        pil = Image.fromarray(self.image.transpose((1, 2, 0)))
+        pil1 = self.ip.resize(pil, size, interpolation)
+        pil2 = pil.resize(size[::-1], self.ip.str2pil_interp[interpolation])
+        assert isinstance(pil1, Image.Image)
+        np.testing.assert_equal(pil1, pil2)
+
+        # test gray PIL.Image
+        pil = Image.fromarray(self.image[0])
+        pil1 = self.ip.resize(pil, size, interpolation)
+        pil2 = pil.resize(size[::-1], self.ip.str2pil_interp[interpolation])
+        assert isinstance(pil1, Image.Image)
+        np.testing.assert_equal(pil1, pil2)
+
+    def test_crop(self):
+
+        box = (0, 0, 2, 4)
+
+        # test RGB array
+        arr1 = self.ip.crop(self.image, box)
+        arr2 = self.image[:, box[1]:box[3], box[0]:box[2]]
+        assert isinstance(arr1, np.ndarray)
+        np.testing.assert_equal(arr1, arr2)
+
+        # test gray array
+        arr1 = self.ip.crop(self.image[0], box)
+        arr2 = self.image[0][box[1]:box[3], box[0]:box[2]]
+        assert isinstance(arr1, np.ndarray)
+        np.testing.assert_equal(arr1, arr2)
+
+        # test RGB tensor
+        tensor = torch.from_numpy(self.image)
+        tensor1 = self.ip.crop(tensor, box)
+        tensor2 = tensor[:, box[1]:box[3], box[0]:box[2]]
+        assert isinstance(tensor1, torch.Tensor)
+        torch.equal(tensor1, tensor2)
+
+        # test gray tensor
+        tensor = torch.from_numpy(self.image[0])
+        tensor1 = self.ip.crop(tensor, box)
+        tensor2 = tensor[box[1]:box[3], box[0]:box[2]]
+        assert isinstance(tensor1, torch.Tensor)
+        torch.equal(tensor1, tensor2)
+
+        # test RGB PIL.Image
+        pil = Image.fromarray(self.image.transpose((1, 2, 0)))
+        pil1 = self.ip.crop(pil, box)
+        pil2 = pil.crop(box)
+        assert isinstance(pil1, Image.Image)
+        np.testing.assert_equal(pil1, pil2)
+
+        # test gray PIL.Image
+        pil = Image.fromarray(self.image[0])
+        pil1 = self.ip.crop(pil, box)
+        pil2 = pil.crop(box)
+        assert isinstance(pil1, Image.Image)
+        np.testing.assert_equal(pil1, pil2)
 
 
 if __name__ == '__main__':

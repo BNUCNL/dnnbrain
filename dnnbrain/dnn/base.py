@@ -17,6 +17,26 @@ from torchvision import transforms
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
+def normalize(array):
+    """
+    Normalize an array's value domain to [0, 1]
+    Note: the original normalize function is at dnnbrain/utils/util.py
+        but 'from dnnbrain.dnn.core import Mask' in the file causes import conflicts.
+        Fix the conflicts in future.
+
+    Parameter:
+    ---------
+    array[ndarray]: a numpy array
+
+    Return:
+    ------
+    array[ndarray]: a numpy array after normalization
+    """
+    array = (array - array.min()) / (array.max() - array.min())
+
+    return array
+
+
 def array_statistic(arr, method, axis=None, keepdims=False):
     """
     extract statistic of an array
@@ -48,6 +68,197 @@ def array_statistic(arr, method, axis=None, keepdims=False):
         raise ValueError('Not supported method:', method)
 
     return arr
+
+
+class ImageProcessor:
+
+    def __init__(self):
+        self.str2pil_interp = {
+            'nearest': Image.NEAREST,
+            'bilinear': Image.BILINEAR,
+            'bicubic': Image.BICUBIC,
+            'lanczos': Image.LANCZOS
+        }
+
+        self.str2cv2_interp = {
+            'nearest': cv2.INTER_NEAREST,
+            'bilinear': cv2.INTER_LINEAR,
+            'bicubic': cv2.INTER_CUBIC,
+            'lanczos': cv2.INTER_LANCZOS4
+        }
+
+    def _check_image(self, image):
+        """
+        Check if the image is valid.
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+            If is ndarray or Tensor, its shape is (height, width) or (3, height, width)
+        """
+        if isinstance(image, (np.ndarray, torch.Tensor)):
+            if image.ndim == 2:
+                pass
+            elif image.ndim == 3:
+                assert image.shape[0] == 3, "RGB channel must be the first axis."
+            else:
+                raise ValueError("Only two shapes are valid: "
+                                 "(height, width) and (3, height, width)")
+        elif isinstance(image, Image.Image):
+            pass
+        else:
+            raise TypeError("Only support three types of image: "
+                            "ndarray, Tensor and PIL.Image.")
+
+    def to_array(self, image):
+        """
+        Convert image to array
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+
+        Return:
+        ------
+        arr[ndarray]: image array
+        """
+        self._check_image(image)
+
+        if isinstance(image, np.ndarray):
+            arr = image
+        elif isinstance(image, torch.Tensor):
+            arr = image.numpy()
+        else:
+            arr = np.asarray(image)
+            if arr.ndim == 3:
+                arr = arr.transpose((2, 0, 1))
+            elif arr.ndim == 2:
+                pass
+            else:
+                raise ValueError(f"Unsupported number of image dimensions: {arr.ndim}!")
+
+        return arr
+
+    def to_tensor(self, image):
+        """
+        Convert image to tensor
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+
+        Return:
+        ------
+        tensor[Tensor]: image tensor
+        """
+        self._check_image(image)
+
+        if isinstance(image, np.ndarray):
+            tensor = torch.from_numpy(image)
+        elif isinstance(image, torch.Tensor):
+            tensor = image
+        else:
+            tensor = torch.from_numpy(self.to_array(image))
+
+        return tensor
+
+    def to_pil(self, image, normalization=False):
+        """
+        Convert image to PIL.Image
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+        normalization[bool]: normalization
+            If is True, normalize image data to integers in [0, 255].
+
+        Return:
+        ------
+        image[PIL.Image]: PIL.Image
+        """
+        self._check_image(image)
+
+        if normalization:
+            image = normalize(self.to_array(image)) * 255
+            image = image.astype(np.uint8)
+
+        if isinstance(image, torch.Tensor):
+            image = image.numpy()
+        if isinstance(image, np.ndarray):
+            if image.ndim == 3:
+                image = image.transpose((1, 2, 0))
+            image = Image.fromarray(image)
+
+        return image
+
+    def resize(self, image, size, interpolation='nearest'):
+        """
+        Resize image
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        size[tuple]: the target size
+            as a 2-tuple: (height, width)
+        interpolation[str]: interpolation method for resize
+            check self.str2pil_interp and self.str2cv2_interp to
+            find the available interpolation.
+
+        Return:
+        ------
+        image[ndarray|Tensor|PIL.Image]: image data after resizing
+        """
+        self._check_image(image)
+
+        size = size[::-1]
+        if isinstance(image, Image.Image):
+            image = image.resize(size, self.str2pil_interp[interpolation])
+        elif isinstance(image, np.ndarray):
+            if image.ndim == 2:
+                image = cv2.resize(image, size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+            else:
+                image = cv2.resize(image.transpose((1, 2, 0)), size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+                image = image.transpose((2, 0, 1))
+        else:
+            image = image.numpy()
+            if image.ndim == 2:
+                image = cv2.resize(image, size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+            else:
+                image = cv2.resize(image.transpose((1, 2, 0)), size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+                image = image.transpose((2, 0, 1))
+            image = torch.from_numpy(image)
+
+        return image
+
+    def crop(self, image, box):
+        """
+        Crop image with a rectangular region
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        box[tuple]: the crop rectangle
+            as a (left, upper, right, lower)-tuple
+
+        Return:
+        ------
+        image[ndarray|Tensor|PIL.Image]: image data after crop
+        """
+        self._check_image(image)
+
+        if isinstance(image, Image.Image):
+            image = image.crop(box)
+        else:
+            if image.ndim == 2:
+                image = image[box[1]:box[3], box[0]:box[2]]
+            else:
+                image = image[:, box[1]:box[3], box[0]:box[2]]
+
+        return image
 
 
 class ImageSet:
