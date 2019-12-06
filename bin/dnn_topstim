@@ -1,8 +1,6 @@
 #! /usr/bin/env python
 import numpy as np
 import os, copy, argparse
-from os.path import join as pjoin
-from os.path import exists as pexist
 from dnnbrain.dnn.base import array_statistic
 from dnnbrain.dnn.core import Stimulus, Mask
 from dnnbrain.dnn import models as db_models # Use eval to import DNN model
@@ -15,69 +13,87 @@ def main():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-net',
+    parser.add_argument('-model',
                         metavar='Name of DNN Model',
                         type=str, required=True,
                         help='Name of DNN Model, which should be placed in system variable '
                                 'DNNBRAIN_MODEL_DIR with format *.pth. ')
+
     parser.add_argument('-top',
                         metavar='Number of Top Stimulus',
                         type=int, required=True,
                         help='Number of top stimulus.For example, assign top = 5, and top 5 '
                         'image for each <layer,channel> pair will be generated. ')
+
     parser.add_argument('-stim',
                         metavar='Path of Stimulus',
                         type=str, required=True,
                         help='A *.stim.csv file contained stimuli to calculate. ')
+
     parser.add_argument('-dmask',
                         metavar='Path of Dmask',
                         type=str, required=True,
                         help='A *.dmask.csv list of interested layers and channels. ')
+
     parser.add_argument('-out',
                         metavar='Path of Output',
                         type=str, required=True,
                         help='Output directory to save .stim.csv for top stimulus, '
                                 'and associated .act.hd5 file. ')
+
     args = parser.parse_args()
 
-    # Load net
-    dnn = eval('db_models.{}()'.format(args.net))
+    # Load Neuro Network Model
+    model = eval('db_models.{}()'.format(args.model))
 
-    # Load stim
-    stim = Stimulus(args.stim)
+    # Load Stim Dict (*.stim.csv)
+    stim = Stimulus()
+    stim.load(args.stim)
 
-    # Load dmask
+    # Load Dmask File (*.dmask.csv)
     dmask = Mask(args.dmask)
 
-    # Extract activation
-    activation = dnn.compute_activation(stim, dmask)
+    # Extract Activation
+    activation = model.compute_activation(stim, dmask)
 
-    # Create output file if inexistent
-    if not pexist(args.out):
+    # Create the Output File if Inexistent
+    if not os.path.exists(args.out):
         os.mkdir(args.out)
 
-    for ly in activation.layers:
-        raw = activation.get(ly)
-        tmp = np.zeros(raw.shape)[0:args.top, :, :, :]
-        # Use array_statistic in dnn.base to do max
-        act = array_statistic(raw, 'max', axis=(2, 3), keepdims=False).T
-        # Do sorting and arg-sorting
-        sort = np.argsort(-act, axis=1, kind='heapsort')[:, 0:args.top]
-        act = -np.sort(-act, axis=1, kind='heapsort')[:, 0:args.top]
-        for cid, chn in enumerate(dmask.get(ly)['chn']):
-            # Set .stim.csv act info
-            chn_stim = copy.deepcopy(stim)
-            chn_csv = ly + '_chn' + str(chn) + '_top' + str(args.top) + '.stim.csv'
-            chn_stim.set('stimID', stim.get('stimID')[sort[cid, :]])
-            # Save .stim.csv act info
-            chn_stim.set('value', act[cid, :])
-            chn_stim.save(pjoin(args.out, chn_csv))
-            tmp[:, cid, :, :] = raw[sort[cid, :], cid, :, :]
-        # Set .act.h5 act file for each layer
-        activation.set(ly, tmp)
+    # Below Count the Activation to Select Top Stimulus
+    for current_layer in activation.layers:
+        current_activation = activation.get(current_layer)
+        top_activation = np.zeros(current_activation.shape)[0:args.top, :, :, :]
 
-    # Save .act.h5 act file for all
-    activation.save(pjoin(args.out, 'result.act.h5'))
+        # Use Array_statistic in dnn.base to Do Max-pooling
+        pooled_act = array_statistic(current_activation, 'max', axis=(2, 3), keepdims=False).T
+
+        # Do Sorting and Arg-sorting
+        act_sort = np.argsort(-pooled_act, axis=1, kind='heapsort')
+        act_sort = act_sort[:, 0:args.top]
+        pooled_act = -np.sort(-pooled_act, axis=1, kind='heapsort')
+        pooled_act = pooled_act[:, 0:args.top]
+
+        for channel_id, channel in enumerate(dmask.get(current_layer)['chn']):
+
+            # Set .stim.csv Activation Information
+            channel_stim = copy.deepcopy(stim)
+            channel_csv_name = current_layer + '_channel' + str(channel) + '_top' + str(args.top) + '.stim.csv'
+            channel_stim.set('stimID', stim.get('stimID')[act_sort[channel_id, :]])
+
+            # Save .stim.csv Activation Information
+            channel_stim.set('value', pooled_act[channel_id, :])
+            out_stim_path = os.path.join(args.out, channel_csv_name)
+            channel_stim.save(out_stim_path)
+            top_activation[:, channel_id, :, :] = \
+                current_activation[act_sort[channel_id, :], channel_id, :, :]
+
+        # Set .act.h5 Activation File for Each Layer with Each Channel
+        activation.set(current_layer, top_activation)
+
+    # Set .act.h5 Activation File for All
+    out_act_path = os.path.join(args.out, 'result.act.h5')
+    activation.save(out_act_path)
 
 
 if __name__ == '__main__':

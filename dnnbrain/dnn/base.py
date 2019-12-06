@@ -17,6 +17,26 @@ from torchvision import transforms
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
+def normalize(array):
+    """
+    Normalize an array's value domain to [0, 1]
+    Note: the original normalize function is at dnnbrain/utils/util.py
+        but 'from dnnbrain.dnn.core import Mask' in the file causes import conflicts.
+        Fix the conflicts in future.
+
+    Parameter:
+    ---------
+    array[ndarray]: a numpy array
+
+    Return:
+    ------
+    array[ndarray]: a numpy array after normalization
+    """
+    array = (array - array.min()) / (array.max() - array.min())
+
+    return array
+
+
 def array_statistic(arr, method, axis=None, keepdims=False):
     """
     extract statistic of an array
@@ -48,6 +68,197 @@ def array_statistic(arr, method, axis=None, keepdims=False):
         raise ValueError('Not supported method:', method)
 
     return arr
+
+
+class ImageProcessor:
+
+    def __init__(self):
+        self.str2pil_interp = {
+            'nearest': Image.NEAREST,
+            'bilinear': Image.BILINEAR,
+            'bicubic': Image.BICUBIC,
+            'lanczos': Image.LANCZOS
+        }
+
+        self.str2cv2_interp = {
+            'nearest': cv2.INTER_NEAREST,
+            'bilinear': cv2.INTER_LINEAR,
+            'bicubic': cv2.INTER_CUBIC,
+            'lanczos': cv2.INTER_LANCZOS4
+        }
+
+    def _check_image(self, image):
+        """
+        Check if the image is valid.
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+            If is ndarray or Tensor, its shape is (height, width) or (3, height, width)
+        """
+        if isinstance(image, (np.ndarray, torch.Tensor)):
+            if image.ndim == 2:
+                pass
+            elif image.ndim == 3:
+                assert image.shape[0] == 3, "RGB channel must be the first axis."
+            else:
+                raise ValueError("Only two shapes are valid: "
+                                 "(height, width) and (3, height, width)")
+        elif isinstance(image, Image.Image):
+            pass
+        else:
+            raise TypeError("Only support three types of image: "
+                            "ndarray, Tensor and PIL.Image.")
+
+    def to_array(self, image):
+        """
+        Convert image to array
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+
+        Return:
+        ------
+        arr[ndarray]: image array
+        """
+        self._check_image(image)
+
+        if isinstance(image, np.ndarray):
+            arr = image
+        elif isinstance(image, torch.Tensor):
+            arr = image.numpy()
+        else:
+            arr = np.asarray(image)
+            if arr.ndim == 3:
+                arr = arr.transpose((2, 0, 1))
+            elif arr.ndim == 2:
+                pass
+            else:
+                raise ValueError(f"Unsupported number of image dimensions: {arr.ndim}!")
+
+        return arr
+
+    def to_tensor(self, image):
+        """
+        Convert image to tensor
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+
+        Return:
+        ------
+        tensor[Tensor]: image tensor
+        """
+        self._check_image(image)
+
+        if isinstance(image, np.ndarray):
+            tensor = torch.from_numpy(image)
+        elif isinstance(image, torch.Tensor):
+            tensor = image
+        else:
+            tensor = torch.from_numpy(self.to_array(image))
+
+        return tensor
+
+    def to_pil(self, image, normalization=False):
+        """
+        Convert image to PIL.Image
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+        normalization[bool]: normalization
+            If is True, normalize image data to integers in [0, 255].
+
+        Return:
+        ------
+        image[PIL.Image]: PIL.Image
+        """
+        self._check_image(image)
+
+        if normalization:
+            image = normalize(self.to_array(image)) * 255
+            image = image.astype(np.uint8)
+
+        if isinstance(image, torch.Tensor):
+            image = image.numpy()
+        if isinstance(image, np.ndarray):
+            if image.ndim == 3:
+                image = image.transpose((1, 2, 0))
+            image = Image.fromarray(image)
+
+        return image
+
+    def resize(self, image, size, interpolation='nearest'):
+        """
+        Resize image
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        size[tuple]: the target size
+            as a 2-tuple: (height, width)
+        interpolation[str]: interpolation method for resize
+            check self.str2pil_interp and self.str2cv2_interp to
+            find the available interpolation.
+
+        Return:
+        ------
+        image[ndarray|Tensor|PIL.Image]: image data after resizing
+        """
+        self._check_image(image)
+
+        size = size[::-1]
+        if isinstance(image, Image.Image):
+            image = image.resize(size, self.str2pil_interp[interpolation])
+        elif isinstance(image, np.ndarray):
+            if image.ndim == 2:
+                image = cv2.resize(image, size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+            else:
+                image = cv2.resize(image.transpose((1, 2, 0)), size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+                image = image.transpose((2, 0, 1))
+        else:
+            image = image.numpy()
+            if image.ndim == 2:
+                image = cv2.resize(image, size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+            else:
+                image = cv2.resize(image.transpose((1, 2, 0)), size,
+                                   interpolation=self.str2cv2_interp[interpolation])
+                image = image.transpose((2, 0, 1))
+            image = torch.from_numpy(image)
+
+        return image
+
+    def crop(self, image, box):
+        """
+        Crop image with a rectangular region
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        box[tuple]: the crop rectangle
+            as a (left, upper, right, lower)-tuple
+
+        Return:
+        ------
+        image[ndarray|Tensor|PIL.Image]: image data after crop
+        """
+        self._check_image(image)
+
+        if isinstance(image, Image.Image):
+            image = image.crop(box)
+        else:
+            if image.ndim == 2:
+                image = image[box[1]:box[3], box[0]:box[2]]
+            else:
+                image = image[:, box[1]:box[3], box[0]:box[2]]
+
+        return image
 
 
 class ImageSet:
@@ -373,7 +584,7 @@ class MultivariatePredictionModel:
         return pred_dict
 
 
-def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
+def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):
     """
     Extract DNN activation
 
@@ -381,22 +592,28 @@ def dnn_mask(dnn_acts, channels=None, rows=None, columns=None):
     ----------
     dnn_acts[array]: DNN activation
         A 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    channels[list]: sequence numbers of channels of interest.
-    rows[list]: sequence numbers of rows of interest.
-    columns[list]: sequence numbers of columns of interest.
+    channels[str|list]: channels of interest.
+        If is str, it must be 'all' which means all channels.
+        If is list, its elements are serial numbers of channels.
+    rows[str|list]: rows of interest.
+        If is str, it must be 'all' which means all rows.
+        If is list, its elements are serial numbers of rows.
+    columns[str|list]: columns of interest.
+        If is str, it must be 'all' which means all columns.
+        If is list, its elements are serial numbers of columns.
 
     Return:
     ------
     dnn_acts[array]: DNN activation after mask
         a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
     """
-    if channels is not None:
+    if isinstance(channels, list):
         channels = [chn-1 for chn in channels]
         dnn_acts = dnn_acts[:, channels, :, :]
-    if rows is not None:
+    if isinstance(rows, list):
         rows = [row-1 for row in rows]
         dnn_acts = dnn_acts[:, :, rows, :]
-    if columns is not None:
+    if isinstance(columns, list):
         columns = [col-1 for col in columns]
         dnn_acts = dnn_acts[:, :, :, columns]
 
@@ -476,3 +693,6 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
         dnn_acts_new = dnn_acts_new[:, :, :, None]
 
     return dnn_acts_new
+
+
+ip = ImageProcessor()

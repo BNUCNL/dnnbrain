@@ -25,12 +25,14 @@ class TestROI:
         rf = h5py.File(fname, 'r')
 
         # assert read without rois
-        roi = ROI(fname)
+        roi = ROI()
+        roi.load(fname)
         assert roi.rois == rf.attrs['roi'].tolist()
         np.testing.assert_equal(roi.data, rf['data'][:])
 
         # assert read with rois
-        roi = ROI(fname, 'PHA1_R')
+        roi = ROI()
+        roi.load(fname, 'PHA1_R')
         assert roi.rois == ['PHA1_R']
         np.testing.assert_equal(roi.data, rf['data'][:, [1]])
 

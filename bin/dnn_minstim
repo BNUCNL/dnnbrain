@@ -51,7 +51,8 @@ def main():
     
     # Load net/stim
     dnn = eval('db_models.{}()'.format(args.net))
-    stim = Stimulus(args.stim)
+    stim = Stimulus()
+    stim.load(args.stim)
 
     # Create output file if inexistent
     if not pexist(args.out):

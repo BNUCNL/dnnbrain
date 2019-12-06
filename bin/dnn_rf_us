@@ -76,7 +76,8 @@ def main():
 
     args = parser.parse_args()
 
-    stimuli = Stimulus(args.stim)
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
 
     up_activation_maps = np.zeros([len(stimuli.get('stimID')), 224, 224])
 

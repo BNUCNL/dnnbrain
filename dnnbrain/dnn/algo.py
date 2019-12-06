@@ -3,7 +3,8 @@ import torch
 import numpy as np
 
 from torch.optim import Adam
-from dnnbrain.dnn.core import Mask, Image
+from dnnbrain.dnn.core import Mask
+from dnnbrain.dnn.base import ip
 
 
 class Algorithm(abc.ABC):
@@ -35,7 +36,7 @@ class Algorithm(abc.ABC):
         channel[int]: sequence number of the channel where the algorithm performs on
         """
         self.mask = Mask()
-        self.mask.set(layer, [channel])
+        self.mask.set(layer, channels=[channel])
 
     def get_layer(self):
         """
@@ -85,7 +86,7 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Image]: DNNBrain Image
+        image[ndarray|Tensor|PIL.Image]: image data
         to_layer[str]: name of the layer where gradients back propagate to
             If is None, get the first layer in the layers recorded in DNN.
 
@@ -99,7 +100,7 @@ class SaliencyImage(Algorithm):
         self.register_hooks()
 
         # forward
-        image = self.dnn.test_transform(image.get())
+        image = self.dnn.test_transform(ip.to_pil(image))
         image = image.unsqueeze(0)
         image.requires_grad_(True)
         self.dnn(image)
@@ -128,7 +129,7 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Image]: DNNBrain Image
+        image[ndarray|Tensor|PIL.Image]: image data
         n_iter[int]: the number of noisy images to be generated before average.
         sigma_multiplier[int]: multiply when calculating std of noise
         to_layer[str]: name of the layer where gradients back propagate to
@@ -146,7 +147,7 @@ class SaliencyImage(Algorithm):
         self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
         self.register_hooks()
 
-        image = self.dnn.test_transform(image.get())
+        image = self.dnn.test_transform(ip.to_pil(image))
         image = image.unsqueeze(0)
         gradient = 0
         sigma = sigma_multiplier * (image.max() - image.min()).item()
@@ -255,16 +256,18 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer, channel,
-                 activ_metric='mean', regular_metric='L1', n_iter=30):
+                 activ_metric='mean', regular_metric=None):
         """
         Parameters:
         ----------
         dnn[DNN]: DNNBrain DNN
         layer[str]: name of the layer where the algorithm performs on
         channel[int]: sequence number of the channel where the algorithm performs on
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_params(activ_metric, regular_metric, n_iter)
+        self.set_metric(activ_metric, regular_metric)
         self.activation = None
         self.optimal_image = None
 
@@ -272,15 +275,14 @@ class SynthesisImage(Algorithm):
         self.activation_loss = []
         self.regularization_loss = []
 
-    def set_params(self, activ_metric, regular_metric, n_iter):
+    def set_metric(self, activ_metric, regular_metric):
         """
-        Set some parameters
+        Set metric methods
 
-        Parameters:
-        ----------
-        activ_metric[str]: activation metric
-        regular_metric[str]: regularization metric
-        n_iter[int]: the number of iteration
+        Parameter:
+        ---------
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -291,13 +293,12 @@ class SynthesisImage(Algorithm):
             raise AssertionError('Only max and mean activation metrics are supported')
 
         # regularization metric setting
-        if regular_metric == 'L1':
+        if regular_metric is None:
+            self.regular_metric = None
+        elif regular_metric == 'L1':
             self.regular_metric = self.L1_norm
         else:
             raise AssertionError('Only L1 is supported')
-
-        # time for iter
-        self.n_iter = n_iter
 
     def mean_activation(self):
         activ = -torch.mean(self.activation)
@@ -340,24 +341,32 @@ class SynthesisImage(Algorithm):
         module = self.dnn.layer2module(layer)
         module.register_forward_hook(forward_hook)
 
-    def synthesize(self):
+    def synthesize(self, n_iter=30):
         """
         Synthesize the image which maximally activates target layer and channel
+
+        Parameter:
+        ---------
+        n_iter[int]: the number of iterations
+
+        Return:
+        ------
+            [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
         # Hook the selected layer
         self.register_hooks()
 
         # Generate a random image
-        image = np.random.uniform(0, 3, (3, *self.dnn.img_size)).astype(np.uint8)
-        image = Image(image)
-        self.optimal_image = self.dnn.test_transform(image.get()).unsqueeze(0)
+        image = np.random.randint(0, 256, (3, *self.dnn.img_size)).astype(np.uint8)
+        image = ip.to_pil(image)
+        self.optimal_image = self.dnn.test_transform(image).unsqueeze(0)
         self.optimal_image.requires_grad_(True)
 
         # Define optimizer for the image
         self.activation_loss = []
         self.regularization_loss = []
         optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9, 0.99))
-        for i in range(1, self.n_iter + 1):
+        for i in range(1, n_iter + 1):
             # clear gradients for next train
             optimizer.zero_grad()
 
@@ -367,13 +376,16 @@ class SynthesisImage(Algorithm):
 
             # computer loss
             alpha = 0.1
-            loss = self.activ_metric() + alpha * self.regular_metric()
+            if self.regular_metric is None:
+                loss = self.activ_metric()
+            else:
+                loss = self.activ_metric() + alpha * self.regular_metric()
 
             # Backward
             loss.backward()
             # Update image
             optimizer.step()
-            print(f'Iteration: {i}/{self.n_iter}')
+            print(f'Iteration: {i}/{n_iter}')
 
         # Return the optimized image
         return self.optimal_image[0].detach().numpy()
