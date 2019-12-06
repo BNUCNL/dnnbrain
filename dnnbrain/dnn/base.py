@@ -693,3 +693,6 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
         dnn_acts_new = dnn_acts_new[:, :, :, None]
 
     return dnn_acts_new
+
+
+ip = ImageProcessor()

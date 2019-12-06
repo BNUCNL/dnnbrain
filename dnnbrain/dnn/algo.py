@@ -3,7 +3,8 @@ import torch
 import numpy as np
 
 from torch.optim import Adam
-from dnnbrain.dnn.core import Mask, Image
+from dnnbrain.dnn.core import Mask
+from dnnbrain.dnn.base import ip
 
 
 class Algorithm(abc.ABC):
@@ -85,7 +86,7 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Image]: DNNBrain Image
+        image[ndarray|Tensor|PIL.Image]: image data
         to_layer[str]: name of the layer where gradients back propagate to
             If is None, get the first layer in the layers recorded in DNN.
 
@@ -99,7 +100,7 @@ class SaliencyImage(Algorithm):
         self.register_hooks()
 
         # forward
-        image = self.dnn.test_transform(image.get())
+        image = self.dnn.test_transform(ip.to_pil(image))
         image = image.unsqueeze(0)
         image.requires_grad_(True)
         self.dnn(image)
@@ -128,7 +129,7 @@ class SaliencyImage(Algorithm):
 
         Parameters:
         ----------
-        image[Image]: DNNBrain Image
+        image[ndarray|Tensor|PIL.Image]: image data
         n_iter[int]: the number of noisy images to be generated before average.
         sigma_multiplier[int]: multiply when calculating std of noise
         to_layer[str]: name of the layer where gradients back propagate to
@@ -146,7 +147,7 @@ class SaliencyImage(Algorithm):
         self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
         self.register_hooks()
 
-        image = self.dnn.test_transform(image.get())
+        image = self.dnn.test_transform(ip.to_pil(image))
         image = image.unsqueeze(0)
         gradient = 0
         sigma = sigma_multiplier * (image.max() - image.min()).item()
@@ -356,9 +357,9 @@ class SynthesisImage(Algorithm):
         self.register_hooks()
 
         # Generate a random image
-        image = np.random.uniform(0, 3, (3, *self.dnn.img_size)).astype(np.uint8)
-        image = Image(image)
-        self.optimal_image = self.dnn.test_transform(image.get()).unsqueeze(0)
+        image = np.random.randint(0, 256, (3, *self.dnn.img_size)).astype(np.uint8)
+        image = ip.to_pil(image)
+        self.optimal_image = self.dnn.test_transform(image).unsqueeze(0)
         self.optimal_image.requires_grad_(True)
 
         # Define optimizer for the image
