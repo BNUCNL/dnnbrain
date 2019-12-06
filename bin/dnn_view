@@ -88,7 +88,7 @@ def main():
         # prepare original images
         images = []
         for stim_id in stim.get('stimID'):
-            img = Image.open(pjoin(stim.meta['path'], stim_id))
+            img = Image.open(pjoin(stim.header['path'], stim_id))
             images.append(np.array(img))
         # prepare DNN activation feature maps
         dnn_activ = dnn.compute_activation(stim, dmask)

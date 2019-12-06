@@ -66,7 +66,8 @@ def main():
     stimuli.load(args.stim)
 
     # generate DNN mask
-    dmask = gen_dmask(args.layer, args.chn, args.dmask)
+    channels = 'all' if args.chn is None else args.chn
+    dmask = gen_dmask(args.layer, channels, args.dmask)
 
     # -extract activation-
     activation = dnn.compute_activation(stimuli, dmask, args.pool)
