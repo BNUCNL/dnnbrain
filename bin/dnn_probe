@@ -108,7 +108,8 @@ def main():
     if args.layer is None and args.dmask is None:
         dmask = None
     else:
-        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+        channels = 'all' if args.chn is None else args.chn
+        dmask = gen_dmask(args.layer, channels, args.dmask)
     activation = Activation()
     activation.load(args.act, dmask)
     print('Finish loading DNN activation: ', args.act)
