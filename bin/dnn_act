@@ -17,7 +17,6 @@ def main():
                         metavar='Net',
                         required=True,
                         type=str,
-                        choices=('AlexNet',),
                         help='a neural network name')
     parser.add_argument('-layer',
                         metavar='Layer',
