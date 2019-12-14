@@ -26,8 +26,8 @@ class MinmalParcelImage(Algorithm):
         
         Parameter:
         ---------
-        activaiton_criterion[str]: the criterion of how to pooling activaiton
-        search_criterion[str]: the criterion of how to search minimal image
+        activaiton_criterion[str]: the criterion of how to pooling activaiton, choices=(max, mean, median, L1, L2)
+        search_criterion[str]: the criterion of how to search minimal image, choices=(max, fitting curve)
         """
         self.activaiton_criterion = activaiton_criterion
         self.search_criterion = search_criterion
@@ -141,17 +141,17 @@ class MinmalParcelImage(Algorithm):
         
         Parameter:
         ---------
-        indices[int|list|slice]: subscript indices
+        indices[list|slice]: subscript indices
         
         Return:
         -----
         image_container[ndarray]: shape (n_chn,height,width)
         """
         #compose parcel correaspond with indices
-        if isinstance(indices, int):
-            image_compose = np.sum(self.parcel[[indices]],axis=0)
-        elif isinstance(indices, (list,slice)):
+        if isinstance(indices, (list,slice)):
             image_compose = np.sum(self.parcel[indices],axis=0)
+        else:
+            raise AssertionError('Only list and slice indices are supported')
         return image_compose
     
     def generate_minmal_image(self):
