@@ -55,6 +55,7 @@ class Algorithm(abc.ABC):
 class SaliencyImage(Algorithm):
     """
     An Abstract Base Classes class to define interfaces for gradient back propagation
+    Note: the saliency image values are not applied with absolute operation.
     """
 
     def __init__(self, dnn, from_layer=None, from_chn=None):
