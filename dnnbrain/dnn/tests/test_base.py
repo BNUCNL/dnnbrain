@@ -375,6 +375,11 @@ class TestImageProcessor:
         norm2 = np.sqrt(np.sum([i**2 for i in self.image.ravel()]))
         assert norm1 == norm2
 
+    def test_total_variation(self):
+
+        img = np.array([[1, 2], [3, 4]])
+        assert self.ip.total_variation(img) == 6
+
 
 if __name__ == '__main__':
     pytest.main()

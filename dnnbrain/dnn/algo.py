@@ -300,8 +300,9 @@ class SynthesisImage(Algorithm):
             self.regular_metric = self._L1_norm
         elif regular_metric == 'L2':
             self.regular_metric = self._L2_norm
+        elif regular_metric == 'TV':
         else:
-            raise AssertionError('Only L1 and L2 are supported')
+            raise AssertionError('Only L1, L2, and total variation are supported!')
 
     def _mean_activation(self):
         activ = -torch.mean(self.activation)
@@ -323,8 +324,10 @@ class SynthesisImage(Algorithm):
         self.regularization_loss.append(reg)
         return reg
 
-    def total_variation(self):
-        pass
+    def _total_variation(self):
+        reg = ip.total_variation(self.optimal_image.detach().numpy()[0])
+        self.regularization_loss.append(reg)
+        return reg
 
     def gaussian_blur(self):
         pass
