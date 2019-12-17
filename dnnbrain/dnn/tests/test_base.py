@@ -365,6 +365,16 @@ class TestImageProcessor:
         assert isinstance(pil1, Image.Image)
         np.testing.assert_equal(pil1, pil2)
 
+    def test_norm(self):
+
+        # assert L1
+        assert self.ip.norm(self.image, 1) == np.abs(self.image).sum()
+
+        # assert L2
+        norm1 = self.ip.norm(self.image, 2)
+        norm2 = np.sqrt(np.sum([i**2 for i in self.image.ravel()]))
+        assert norm1 == norm2
+
 
 if __name__ == '__main__':
     pytest.main()

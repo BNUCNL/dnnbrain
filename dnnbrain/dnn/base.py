@@ -260,6 +260,24 @@ class ImageProcessor:
 
         return image
 
+    def norm(self, image, ord):
+        """
+        Calculate norms of the image by the following formula
+        sum(abs(image)**ord)**(1./ord)
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        ord[int]: the order of the norm
+
+        Return:
+        norm[float]: the norm of the image
+        """
+        image = self.to_array(image)
+        norm = np.linalg.norm(image.ravel(), ord)
+
+        return norm
+
 
 class ImageSet:
     """
