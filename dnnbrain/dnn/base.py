@@ -260,6 +260,50 @@ class ImageProcessor:
 
         return image
 
+    def norm(self, image, ord):
+        """
+        Calculate norms of the image by the following formula
+        sum(abs(image)**ord)**(1./ord)
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        ord[int]: the order of the norm
+
+        Return:
+        norm[float]: the norm of the image
+        """
+        image = self.to_array(image)
+        norm = np.linalg.norm(image.ravel(), ord)
+
+        return norm
+
+    def total_variation(self, image):
+        """
+        Calculate total variation of the image
+
+        Parameter:
+        ---------
+        image[ndarray|Tensor|PIL.Image]: image data
+
+        Return:
+        ------
+        tv[float]: total variation
+        """
+        image = self.to_array(image)
+
+        # calculate the difference of neighboring pixel-values
+        if image.ndim == 3:
+            diff1 = image[:, 1:, :] - image[:, :-1, :]
+            diff2 = image[:, :, 1:] - image[:, :, :-1]
+        else:
+            diff1 = image[1:, :] - image[:-1, :]
+            diff2 = image[:, 1:] - image[:, :-1]
+
+        # calculate the total variation
+        tv = np.sum(np.abs(diff1)) + np.sum(np.abs(diff2))
+        return tv
+
 
 class ImageSet:
     """

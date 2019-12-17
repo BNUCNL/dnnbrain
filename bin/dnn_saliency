@@ -47,6 +47,15 @@ def main():
                         default='guided',
                         choices=('guided', 'vanilla'),
                         help='the method used to generate the saliency image')
+    parser.add_argument('-mode',
+                        metavar='Mode',
+                        default='RGB',
+                        choices=('RGB', 'gray'),
+                        help='Visualization mode of the saliency image.'
+                             'RGB: visualize derivatives directly; '
+                             'gray: retain the maximal magnitude of RGB channels for each pixel, '
+                             '    and visualize as a gray image. Note: -cmap, -vmin and -vmax '
+                             '    options are only valid at the gray mode.')
     parser.add_argument('-cmap',
                         metavar='Colormap',
                         type=str,
@@ -105,7 +114,8 @@ def main():
             saliency.set_layer(args.layer, chn_num)
             for img in pil_imgs:
                 grad = saliency.backprop(img)
-                # grad = np.max(np.abs(grad), 0)
+                if args.mode == 'gray':
+                    grad = np.max(np.abs(grad), 0)
                 grad = ip.to_pil(grad, True)
                 out_imgs.append(np.array(grad))
 
