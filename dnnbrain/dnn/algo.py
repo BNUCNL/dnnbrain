@@ -287,9 +287,9 @@ class SynthesisImage(Algorithm):
         """
         # activation metric setting
         if activ_metric == 'max':
-            self.activ_metric = self.max_activation
+            self.activ_metric = self._max_activation
         elif activ_metric == 'mean':
-            self.activ_metric = self.mean_activation
+            self.activ_metric = self._mean_activation
         else:
             raise AssertionError('Only max and mean activation metrics are supported')
 
@@ -297,24 +297,30 @@ class SynthesisImage(Algorithm):
         if regular_metric is None:
             self.regular_metric = None
         elif regular_metric == 'L1':
-            self.regular_metric = self.L1_norm
+            self.regular_metric = self._L1_norm
+        elif regular_metric == 'L2':
+            self.regular_metric = self._L2_norm
         else:
-            raise AssertionError('Only L1 is supported')
+            raise AssertionError('Only L1 and L2 are supported')
 
-    def mean_activation(self):
+    def _mean_activation(self):
         activ = -torch.mean(self.activation)
         self.activation_loss.append(activ)
         return activ
 
-    def max_activation(self):
+    def _max_activation(self):
         activ = -torch.max(self.activation)
         self.activation_loss.append(activ)
         return activ
 
-    def L1_norm(self):
-        reg = np.abs(self.optimal_image.detach().numpy()).sum()
+    def _L1_norm(self):
+        reg = ip.norm(self.optimal_image.detach().numpy()[0], 1)
         self.regularization_loss.append(reg)
+        return reg
 
+    def _L2_norm(self):
+        reg = ip.norm(self.optimal_image.detach().numpy()[0], 2)
+        self.regularization_loss.append(reg)
         return reg
 
     def total_variation(self):
@@ -336,18 +342,20 @@ class SynthesisImage(Algorithm):
         layer, chn = self.get_layer()
 
         def forward_hook(module, feat_in, feat_out):
-            self.activation = feat_out[0, chn]
+            self.activation = feat_out[0, chn-1]
 
         # register forward hook to the target layer
         module = self.dnn.layer2module(layer)
         module.register_forward_hook(forward_hook)
 
-    def synthesize(self, n_iter=30):
+    def synthesize(self, lr=6, regular_lambda=0.1, n_iter=30):
         """
         Synthesize the image which maximally activates target layer and channel
 
         Parameter:
         ---------
+        lr[float]: learning rate
+        regular_lambda[float]: the lambda of the regularization
         n_iter[int]: the number of iterations
 
         Return:
@@ -366,27 +374,26 @@ class SynthesisImage(Algorithm):
         # Define optimizer for the image
         self.activation_loss = []
         self.regularization_loss = []
-        optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9, 0.99))
+        optimizer = Adam([self.optimal_image], lr=lr)
         for i in range(1, n_iter + 1):
-            # clear gradients for next train
-            optimizer.zero_grad()
 
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
 
             # computer loss
-            alpha = 0.1
             if self.regular_metric is None:
                 loss = self.activ_metric()
             else:
-                loss = self.activ_metric() + alpha * self.regular_metric()
+                loss = self.activ_metric() + regular_lambda * self.regular_metric()
 
+            # zero gradients
+            optimizer.zero_grad()
             # Backward
             loss.backward()
             # Update image
             optimizer.step()
-            print(f'Iteration: {i}/{n_iter}')
+            print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
 
         # Return the optimized image
         return self.optimal_image[0].detach().numpy()
