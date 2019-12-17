@@ -301,6 +301,7 @@ class SynthesisImage(Algorithm):
         elif regular_metric == 'L2':
             self.regular_metric = self._L2_norm
         elif regular_metric == 'TV':
+            self.regular_metric = self._total_variation
         else:
             raise AssertionError('Only L1, L2, and total variation are supported!')
 
