@@ -3,6 +3,7 @@ import torch
 import numpy as np
 
 from torch.optim import Adam
+from os.path import join as pjoin
 from dnnbrain.dnn.core import Mask
 from dnnbrain.dnn.base import ip
 
@@ -352,7 +353,8 @@ class SynthesisImage(Algorithm):
         module = self.dnn.layer2module(layer)
         module.register_forward_hook(forward_hook)
 
-    def synthesize(self, lr=6, regular_lambda=0.1, n_iter=30):
+    def synthesize(self, lr=6, regular_lambda=0.1, n_iter=30,
+                   save_interval=None, save_path='.'):
         """
         Synthesize the image which maximally activates target layer and channel
 
@@ -361,6 +363,12 @@ class SynthesisImage(Algorithm):
         lr[float]: learning rate
         regular_lambda[float]: the lambda of the regularization
         n_iter[int]: the number of iterations
+        save_interval[int]: save interval
+            Save out synthesis image per 'save interval' iterations.
+            If is None, do nothing.
+        save_path[str]: the directory to save images
+            Only works when save_interval is not None.
+            Default is the current directory.
 
         Return:
         ------
@@ -372,6 +380,8 @@ class SynthesisImage(Algorithm):
         # Generate a random image
         image = np.random.randint(0, 256, (3, *self.dnn.img_size)).astype(np.uint8)
         image = ip.to_pil(image)
+        if save_interval is not None:
+            image.save(pjoin(save_path, 'synthesis_image_iter0.jpg'))
         self.optimal_image = self.dnn.test_transform(image).unsqueeze(0)
         self.optimal_image.requires_grad_(True)
 
@@ -398,6 +408,13 @@ class SynthesisImage(Algorithm):
             # Update image
             optimizer.step()
             print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
+
+            # save out
+            if save_interval is not None:
+                if i % save_interval == 0:
+                    img_out = self.optimal_image.detach()[0]
+                    img_out = ip.to_pil(img_out, True)
+                    img_out.save(pjoin(save_path, f'synthesis_image_iter{i}.jpg'))
 
         # Return the optimized image
         return self.optimal_image[0].detach().numpy()
