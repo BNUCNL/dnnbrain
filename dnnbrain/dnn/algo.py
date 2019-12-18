@@ -257,7 +257,7 @@ class SynthesisImage(Algorithm):
     Generate a synthetic image that maximally activates a neuron.
     """
 
-    def __init__(self, dnn, layer, channel,
+    def __init__(self, dnn, layer=None, channel=None,
                  activ_metric='mean', regular_metric=None):
         """
         Parameters:
@@ -353,22 +353,24 @@ class SynthesisImage(Algorithm):
         module = self.dnn.layer2module(layer)
         module.register_forward_hook(forward_hook)
 
-    def synthesize(self, lr=6, regular_lambda=0.1, n_iter=30,
-                   save_interval=None, save_path='.'):
+    def synthesize(self, init_image=None, lr=6, regular_lambda=0.1, n_iter=30,
+                   save_path=None, save_interval=None):
         """
         Synthesize the image which maximally activates target layer and channel
 
         Parameter:
         ---------
+        init_image[ndarray|Tensor|PIL.Image]: initialized image
         lr[float]: learning rate
         regular_lambda[float]: the lambda of the regularization
         n_iter[int]: the number of iterations
-        save_interval[int]: save interval
-            Save out synthesis image per 'save interval' iterations.
-            If is None, do nothing.
         save_path[str]: the directory to save images
-            Only works when save_interval is not None.
-            Default is the current directory.
+            If is None, do nothing.
+            else, save synthesized image at the last iteration.
+        save_interval[int]: save interval
+            If is None, do nothing.
+            else, save_path must not be None.
+                Save out synthesized images per 'save interval' iterations.
 
         Return:
         ------
@@ -377,12 +379,18 @@ class SynthesisImage(Algorithm):
         # Hook the selected layer
         self.register_hooks()
 
-        # Generate a random image
-        image = np.random.randint(0, 256, (3, *self.dnn.img_size)).astype(np.uint8)
-        image = ip.to_pil(image)
+        # prepare initialized image
+        if init_image is None:
+            # Generate a random image
+            init_image = np.random.randint(0, 256, (3, *self.dnn.img_size), dtype=np.uint8)
+        init_image = ip.to_pil(init_image)
+
+        # save out the initialized image
         if save_interval is not None:
-            image.save(pjoin(save_path, 'synthesis_image_iter0.jpg'))
-        self.optimal_image = self.dnn.test_transform(image).unsqueeze(0)
+            assert save_path is not None, 'save_interval should be used with save_path!'
+            init_image.save(pjoin(save_path, 'synthesized_image_iter0.jpg'))
+
+        self.optimal_image = self.dnn.test_transform(init_image).unsqueeze(0)
         self.optimal_image.requires_grad_(True)
 
         # Define optimizer for the image
@@ -414,7 +422,11 @@ class SynthesisImage(Algorithm):
                 if i % save_interval == 0:
                     img_out = self.optimal_image.detach()[0]
                     img_out = ip.to_pil(img_out, True)
-                    img_out.save(pjoin(save_path, f'synthesis_image_iter{i}.jpg'))
+                    img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
 
-        # Return the optimized image
-        return self.optimal_image[0].detach().numpy()
+        # output synthesized image
+        img_out = self.optimal_image.detach().numpy()[0]
+        if save_path is not None:
+            img_out = ip.to_pil(img_out, True)
+            img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
+        return img_out
