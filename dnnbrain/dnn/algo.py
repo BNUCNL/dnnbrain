@@ -270,12 +270,12 @@ class SynthesisImage(Algorithm):
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
         self.set_metric(activ_metric, regular_metric)
-        self.activation = None
+        self.activ_loss = None
         self.optimal_image = None
 
         # loss recorder
-        self.activation_loss = []
-        self.regularization_loss = []
+        self.activ_losses = []
+        self.regular_losses = []
 
     def set_metric(self, activ_metric, regular_metric):
         """
@@ -288,9 +288,9 @@ class SynthesisImage(Algorithm):
         """
         # activation metric setting
         if activ_metric == 'max':
-            self.activ_metric = self._max_activation
+            self.activ_metric = torch.max
         elif activ_metric == 'mean':
-            self.activ_metric = self._mean_activation
+            self.activ_metric = torch.mean
         else:
             raise AssertionError('Only max and mean activation metrics are supported')
 
@@ -306,29 +306,24 @@ class SynthesisImage(Algorithm):
         else:
             raise AssertionError('Only L1, L2, and total variation are supported!')
 
-    def _mean_activation(self):
-        activ = -torch.mean(self.activation)
-        self.activation_loss.append(activ)
-        return activ
-
-    def _max_activation(self):
-        activ = -torch.max(self.activation)
-        self.activation_loss.append(activ)
-        return activ
-
     def _L1_norm(self):
-        reg = ip.norm(self.optimal_image.detach().numpy()[0], 1)
-        self.regularization_loss.append(reg)
+        reg = torch.abs(self.optimal_image).sum()
+        self.regular_losses.append(reg.item())
         return reg
 
     def _L2_norm(self):
-        reg = ip.norm(self.optimal_image.detach().numpy()[0], 2)
-        self.regularization_loss.append(reg)
+        reg = torch.sqrt(torch.sum(self.optimal_image ** 2))
+        self.regular_losses.append(reg.item())
         return reg
 
     def _total_variation(self):
-        reg = ip.total_variation(self.optimal_image.detach().numpy()[0])
-        self.regularization_loss.append(reg)
+        # calculate the difference of neighboring pixel-values
+        diff1 = self.optimal_image[0, :, 1:, :] - self.optimal_image[0, :, :-1, :]
+        diff2 = self.optimal_image[0, :, :, 1:] - self.optimal_image[0, :, :, :-1]
+
+        # calculate the total variation
+        reg = torch.sum(torch.abs(diff1)) + torch.sum(torch.abs(diff2))
+        self.regular_losses.append(reg.item())
         return reg
 
     def gaussian_blur(self):
@@ -347,13 +342,16 @@ class SynthesisImage(Algorithm):
         layer, chn = self.get_layer()
 
         def forward_hook(module, feat_in, feat_out):
-            self.activation = feat_out[0, chn-1]
+            self.activ_loss = -self.activ_metric(feat_out[0, chn-1])
+            self.activ_losses.append(self.activ_loss.item())
 
         # register forward hook to the target layer
         module = self.dnn.layer2module(layer)
-        module.register_forward_hook(forward_hook)
+        handle = module.register_forward_hook(forward_hook)
 
-    def synthesize(self, init_image=None, lr=6, regular_lambda=0.1, n_iter=30,
+        return handle
+
+    def synthesize(self, init_image=None, lr=0.1, regular_lambda=1, n_iter=30,
                    save_path=None, save_interval=None):
         """
         Synthesize the image which maximally activates target layer and channel
@@ -377,27 +375,29 @@ class SynthesisImage(Algorithm):
             [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
         # Hook the selected layer
-        self.register_hooks()
+        handle = self.register_hooks()
 
         # prepare initialized image
         if init_image is None:
             # Generate a random image
-            init_image = np.random.randint(0, 256, (3, *self.dnn.img_size), dtype=np.uint8)
-        init_image = ip.to_pil(init_image)
+            init_image = torch.rand(3, *self.dnn.img_size, dtype=torch.float32)
+        else:
+            init_image = ip.to_tensor(init_image).float()
 
-        # save out the initialized image
-        if save_interval is not None:
-            assert save_path is not None, 'save_interval should be used with save_path!'
-            init_image.save(pjoin(save_path, 'synthesized_image_iter0.jpg'))
-
-        self.optimal_image = self.dnn.test_transform(init_image).unsqueeze(0)
+        # prepare optimal image
+        self.optimal_image = init_image.unsqueeze(0)
         self.optimal_image.requires_grad_(True)
-
-        # Define optimizer for the image
-        self.activation_loss = []
-        self.regularization_loss = []
         optimizer = Adam([self.optimal_image], lr=lr)
-        for i in range(1, n_iter + 1):
+
+        self.activ_losses = []
+        self.regular_losses = []
+        for i in range(n_iter):
+
+            # save out
+            if save_interval is not None and i % save_interval == 0:
+                img_out = self.optimal_image[0].detach().numpy().copy()
+                img_out = ip.to_pil(img_out, True)
+                img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
 
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
@@ -405,9 +405,9 @@ class SynthesisImage(Algorithm):
 
             # computer loss
             if self.regular_metric is None:
-                loss = self.activ_metric()
+                loss = self.activ_loss
             else:
-                loss = self.activ_metric() + regular_lambda * self.regular_metric()
+                loss = self.activ_loss + regular_lambda * self.regular_metric()
 
             # zero gradients
             optimizer.zero_grad()
@@ -417,16 +417,12 @@ class SynthesisImage(Algorithm):
             optimizer.step()
             print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
 
-            # save out
-            if save_interval is not None:
-                if i % save_interval == 0:
-                    img_out = self.optimal_image.detach()[0]
-                    img_out = ip.to_pil(img_out, True)
-                    img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
+        # remove hook
+        handle.remove()
 
         # output synthesized image
-        img_out = self.optimal_image.detach().numpy()[0]
+        final_image = self.optimal_image[0].detach().numpy().copy()
         if save_path is not None:
-            img_out = ip.to_pil(img_out, True)
-            img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
-        return img_out
+            img_out = ip.to_pil(final_image, True)
+            img_out.save(pjoin(save_path, f'synthesized_image_iter{n_iter}.jpg'))
+        return final_image
