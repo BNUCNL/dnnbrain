@@ -1,4 +1,5 @@
 import abc
+import copy
 import torch
 import numpy as np
 
@@ -383,6 +384,7 @@ class SynthesisImage(Algorithm):
             init_image = torch.rand(3, *self.dnn.img_size, dtype=torch.float32)
         else:
             init_image = ip.to_tensor(init_image).float()
+            init_image = copy.deepcopy(init_image)
 
         # prepare optimal image
         self.optimal_image = init_image.unsqueeze(0)
