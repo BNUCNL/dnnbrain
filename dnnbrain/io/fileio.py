@@ -177,7 +177,7 @@ class ActivationFile:
         """
         wf = h5py.File(self.fname, 'w')
         for layer, data in activation.items():
-            wf.create_dataset(layer, data=data)
+            wf.create_dataset(layer, data=data, compression='gzip')
 
         wf.close()
 
