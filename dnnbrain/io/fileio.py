@@ -110,7 +110,7 @@ class StimulusFile:
 
             # write variable data
             wf.write('data={}\n'.format(','.join(data.keys())))
-            var_data = np.array(list(data.values()), dtype=np.str).T
+            var_data = np.array(list(data.values())).astype(np.str).T
             var_data = [','.join(row) for row in var_data]
             wf.write('\n'.join(var_data))
 
