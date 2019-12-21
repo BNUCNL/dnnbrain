@@ -337,7 +337,7 @@ class DNN:
         """
         raise NotImplementedError('This method should be implemented in subclasses.')
 
-    def compute_activation(self, stimuli, dmask, pool_method=None):
+    def compute_activation(self, stimuli, dmask, pool_method=None, cuda=False):
         """
         Extract DNN activation
 
@@ -348,6 +348,7 @@ class DNN:
             If is ndarray, its shape is (n_stim, n_chn, height, width)
         dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
         pool_method[str]: pooling method, choices=(max, mean, median, L1, L2)
+        cuda[bool]: use GPU or not
 
         Return:
         ------
@@ -373,8 +374,12 @@ class DNN:
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # -extract activation-
-        # change to eval mode
+        # prepare model
         self.model.eval()
+        if cuda:
+            assert torch.cuda.is_available(), 'There is no CUDA available.'
+            self.model.to(torch.device('cuda'))
+
         n_stim = len(stim_set)
         activation = Activation()
         for layer in dmask.layers:
@@ -384,7 +389,12 @@ class DNN:
             def hook_act(module, input, output):
 
                 # copy activation
-                acts = output.detach().numpy().copy()
+                if cuda:
+                    acts = output.cpu().data.numpy().copy()
+                else:
+                    acts = output.detach().numpy().copy()
+
+                # unify dimension number
                 if acts.ndim == 4:
                     pass
                 elif acts.ndim == 2:
@@ -410,12 +420,18 @@ class DNN:
             # extract DNN activation
             for stims, _ in data_loader:
                 # stimuli with shape as (n_stim, n_chn, height, width)
+                if cuda:
+                    stims = stims.to(torch.device('cuda'))
                 self.model(stims)
                 print('Extracted activation of {0}: {1}/{2}'.format(
                     layer, len(acts_holder), n_stim))
             activation.set(layer, np.asarray(acts_holder))
 
             hook_handle.remove()
+
+        if cuda:
+            # back to cpu
+            self.model.to(torch.device('cpu'))
 
         return activation
 
