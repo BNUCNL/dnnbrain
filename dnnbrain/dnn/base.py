@@ -677,7 +677,8 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
         hist: use histogram of activation as features
             Note: n_feat equal-width bins in the given range will be used!
         psd: use power spectral density as features
-    n_feat[int]: The number of features to extract
+    n_feat[int|float]: The number of features to extract
+        Note: It can be a float only when the method is pca.
     axis{str}: axis for feature extraction, choices=(chn, row_col)
         If is chn, extract feature along channel axis.
             The result will be an array with shape
@@ -709,16 +710,19 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
     _, n_iter, _ = dnn_acts.shape
 
     # extract features
-    dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
     if method == 'pca':
+        dnn_acts_new = []
         pca = PCA(n_components=n_feat)
         for i in range(n_iter):
-            dnn_acts_new[:, i, :] = pca.fit_transform(dnn_acts[:, i, :])
+            dnn_acts_new.append(pca.fit_transform(dnn_acts[:, i, :]))
+        dnn_acts_new = np.asarray(dnn_acts_new).transpose((1, 0, 2))
     elif method == 'hist':
+        dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
         for i in range(n_iter):
             for j in range(n_stim):
                 dnn_acts_new[j, i, :] = np.histogram(dnn_acts[j, i, :], n_feat)[0]
     elif method == 'psd':
+        dnn_acts_new = np.zeros((n_stim, n_iter, n_feat))
         for i in range(n_iter):
             for j in range(n_stim):
                 f, p = periodogram(dnn_acts[j, i, :])
