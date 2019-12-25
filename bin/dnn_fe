@@ -14,10 +14,22 @@ from dnnbrain.utils.util import gen_dmask
 class MethodAction(argparse.Action):
     def __call__(self, parser, args, values, option_string=None):
         method, n_feat = values
+
+        # prescribe a limit to method
         methods = ('pca', 'hist', 'psd')
         if method not in methods:
             raise ValueError('invalid name: {0} (choose from {1})'.format(method, methods))
-        n_feat = int(n_feat)
+
+        # prescribe a limit to n_feat
+        if method == 'pca':
+            if 0 < float(n_feat) < 1:
+                n_feat = float(n_feat)
+            else:
+                n_feat = int(n_feat)
+        else:
+            n_feat = int(n_feat)
+
+        # pack the two values
         Meth = namedtuple('Meth', ('method', 'n_feat'))
         setattr(args, self.dest, Meth(method, n_feat))
 
