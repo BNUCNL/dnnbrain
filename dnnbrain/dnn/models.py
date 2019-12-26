@@ -505,7 +505,10 @@ class DNN:
 
         Return:
         ------
-        loss_list[list]: losses of the epochs
+        epoch_losses[list]: losses of epochs
+        step_losses[list]: losses of steps
+            The indices are one-to-one corresponding with the epoch_losses.
+            Each element is a list where elements are step losses of the corresponding epoch.
         """
         # prepare data loader
         if isinstance(data, np.ndarray):
@@ -540,7 +543,8 @@ class DNN:
             optimizer = torch.optim.Adam(self.model.parameters())
 
         # start train
-        loss_list = []
+        epoch_losses = []
+        step_losses = []
         time1 = time.time()
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.train()
@@ -551,6 +555,7 @@ class DNN:
             time2 = time.time()
             running_loss = 0.0
 
+            step_losses_tmp = []
             for inputs, targets in data_loader:
                 inputs.requires_grad_(True)
                 inputs = inputs.to(device)
@@ -573,12 +578,14 @@ class DNN:
                     optimizer.step()
 
                 # Statistics loss in every batch
+                step_losses_tmp.append(loss.item())
                 running_loss += loss.item() * inputs.size(0)
 
+            step_losses.append(step_losses_tmp)
             # calculate loss in every epoch
             epoch_loss = running_loss / len(data_loader.dataset)
             print(f'Loss: {epoch_loss}')
-            loss_list.append(epoch_loss)
+            epoch_losses.append(epoch_loss)
 
             # print time of a epoch
             epoch_time = time.time() - time2
@@ -589,9 +596,9 @@ class DNN:
 
         # back to cpu
         self.model.to(torch.device('cpu'))
-        return loss_list
+        return epoch_losses, step_losses
 
-    def test(self, data, task, target=None):
+    def test(self, data, task, target=None, cuda=False):
         """
         Test the DNN model
 
@@ -607,15 +614,17 @@ class DNN:
         target[ndarray]: the output of the model
             Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
                 Note, n_feat is the number of features of the last layer.
+        cuda[bool]: use GPU or not
 
         Returns:
         -------
         test_dict[dict]:
             if task == 'classification':
-                pred_value[array]: prediction values by the model
-                true_value[array]: observation values
-                acc_top1[float]: prediction accuracy of top1
-                acc_top5[float]: prediction accuracy of top5
+                pred_value[array]: prediction labels by the model
+                    2d array with shape as (n_stim, n_class)
+                    Each row's labels are sorted from large to small their probabilities.
+                true_value[array]: observation labels
+                accuracy[float]: prediction accuracy
             if task == 'regression':
                 pred_value[array]: prediction values by the model
                 true_value[array]: observation values
@@ -644,59 +653,47 @@ class DNN:
         data_loader = DataLoader(stim_set, 8, shuffle=False)
 
         # start test
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model.eval()
-        model = self.model.to(device)
+        if cuda:
+            assert torch.cuda.is_available(), 'There is no CUDA available.'
+            self.model.to(torch.device('cuda'))
         pred_values = []
         true_values = []
-        if task == 'classification':
-            pred_values_top5 = []
         with torch.no_grad():
             for i, (inputs, targets) in enumerate(data_loader):
-                inputs = inputs.to(device)
-                outputs = model(inputs)
+                if cuda:
+                    inputs = inputs.to(torch.device('cuda'))
+                outputs = self.model(inputs)
 
                 # collect outputs
-                if task == 'classification':
-                    _, pred_labels = torch.max(outputs, 1)
-                    _, pred_labels_top5 = torch.topk(outputs, 5)
-                    pred_values.extend(pred_labels.detach().numpy())
-                    pred_values_top5.extend(pred_labels_top5.detach().numpy())
-                    true_values.extend(targets.numpy())
-                elif task == 'regression':
-                    pred_values.extend(outputs.detach().numpy())
-                    true_values.extend(targets.numpy())
+                if cuda:
+                    pred_values.extend(outputs.cpu().detach().numpy())
                 else:
-                    raise ValueError('unsupported task:', task)
-
-        test_dict = dict()
+                    pred_values.extend(outputs.detach().numpy())
+                true_values.extend(targets.numpy())
         pred_values = np.array(pred_values)
         true_values = np.array(true_values)
+
+        # prepare output info
+        test_dict = dict()
         if task == 'classification':
-            pred_values_top5 = np.array(pred_values_top5)
-
-            # calculate the top1 acc and top5 acc
-            acc_top1 = np.sum(pred_values == true_values) / len(true_values)
-            acc_top5 = 0.0
-            for i in range(5):
-                acc_top5 += np.sum(pred_values_top5[:, i] == true_values)
-            acc_top5 = acc_top5 / len(true_values)
-
-            test_dict['pred_value'] = pred_values
-            test_dict['true_value'] = true_values
-            test_dict['acc_top1'] = acc_top1
-            test_dict['act_top5'] = acc_top5
-        else:
+            pred_values = np.argsort(-pred_values, 1)
+            # calculate accuracy
+            acc = np.mean(pred_values[:, 0] == true_values)
+            test_dict['accuracy'] = acc
+        elif task == 'regression':
             # calculate r_square
             r, _ = pearsonr(pred_values.ravel(), true_values.ravel())
             r_square = r ** 2
-
-            test_dict['pred_value'] = pred_values
-            test_dict['true_value'] = true_values
             test_dict['r_square'] = r_square
+        else:
+            raise ValueError(f'Not supported task: {task}')
+        test_dict['pred_value'] = pred_values
+        test_dict['true_value'] = true_values
 
-        # back to cpu
-        self.model.to(torch.device('cpu'))
+        if cuda:
+            # back to cpu
+            self.model.to(torch.device('cpu'))
         return test_dict
 
     def __call__(self, inputs):
