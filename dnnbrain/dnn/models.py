@@ -487,9 +487,9 @@ class DNN:
         data[Stimulus|ndarray]: training data
             If is Stimulus, load stimuli from files on the disk.
                 Note, the data of the 'label' item in the Stimulus object will be used as
-                output of the model when 'target' is None.
+                truth of the output when 'target' is None.
             If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
-                Note, the output data must be specified by 'target' parameter.
+                Note, the truth data must be specified by 'target' parameter.
         n_epoch[int]: the number of epochs
         criterion[str|object]: criterion function
             If is str, choices=('classification', 'regression').
@@ -502,6 +502,10 @@ class DNN:
         target[ndarray]: the output of the model
             Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
                 Note, n_feat is the number of features of the last layer.
+
+        Return:
+        ------
+        loss_list[list]: losses of the epochs
         """
         # prepare data loader
         if isinstance(data, np.ndarray):
@@ -533,7 +537,7 @@ class DNN:
 
         # prepare optimizer
         if optimizer is None:
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+            optimizer = torch.optim.Adam(self.model.parameters())
 
         # start train
         loss_list = []
@@ -582,6 +586,10 @@ class DNN:
 
         time_elapsed = time.time() - time1
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+        # back to cpu
+        self.model.to(torch.device('cpu'))
+        return loss_list
 
     def test(self, data, task, target=None):
         """
@@ -687,6 +695,8 @@ class DNN:
             test_dict['true_value'] = true_values
             test_dict['r_square'] = r_square
 
+        # back to cpu
+        self.model.to(torch.device('cpu'))
         return test_dict
 
     def __call__(self, inputs):
