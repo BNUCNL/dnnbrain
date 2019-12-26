@@ -112,3 +112,33 @@ def normalize(array):
     array = (array - array.min()) / (array.max() - array.min())
 
     return array
+
+
+def topk_accuracy(pred_labels, true_labels, k):
+    """
+    Calculate top k accuracy for the classification results
+
+    Parameters:
+    ----------
+    pred_labels[array-like]: predicted labels
+        2d array with shape as (n_stim, n_class)
+        Each row's labels are sorted from large to small their probabilities.
+    true_values[array-like]: true values
+        1d array with shape as (n_stim,)
+    k[int]: the number of tops
+
+    Return:
+        acc[float]: top k accuracy
+    """
+    pred_labels = np.asarray(pred_labels)
+    true_labels = np.asarray(true_labels)
+    assert pred_labels.shape[0] == true_labels.shape[0], 'The number of stimuli of pred_labels' \
+                                                         ' and true_labels are mismatched.'
+    assert 0 < k <= pred_labels.shape[1], 'k is out of range.'
+
+    acc = 0.0
+    for i in range(k):
+        acc += np.sum(pred_labels[:, i] == true_labels)
+    acc = acc / len(true_labels)
+
+    return acc
