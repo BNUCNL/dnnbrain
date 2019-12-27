@@ -533,7 +533,7 @@ class UnivariatePredictionModel:
                     scores_tmp.append(np.mean(cv_scores))
 
             # find maximal score and its location
-            max_feat_idx = np.argmax(scores_tmp)
+            max_feat_idx = np.nanargmax(scores_tmp)
             locations.append(max_feat_idx)
             max_score = scores_tmp[max_feat_idx]
             scores.append(max_score)
