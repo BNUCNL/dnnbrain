@@ -1,5 +1,6 @@
 import os
 import cv2
+import time
 import torch
 import numpy as np
 
@@ -519,10 +520,11 @@ class UnivariatePredictionModel:
         models = []
         locations = []
         for trg_idx in range(n_trg):
+            time1 = time.time()
             y = Y[:, trg_idx]
             if self.model == 'corr':
                 scores_tmp = pairwise_distances(X.T, y.reshape(1, -1), 'correlation')
-                scores_tmp = (1 - scores_tmp.ravel()) ** 2
+                scores_tmp = 1 - scores_tmp.ravel()
             else:
                 scores_tmp = []
                 for feat_idx in range(n_feat):
@@ -542,6 +544,8 @@ class UnivariatePredictionModel:
             else:
                 max_model = self.model.fit(X[:, max_feat_idx][:, None], y)
                 models.append(deepcopy(max_model))
+
+            print(f'Finish target {trg_idx + 1}/{n_trg} in {time.time() - time1} seconds.')
 
         pred_dict = {
             'score': np.array(scores),
@@ -614,12 +618,14 @@ class MultivariatePredictionModel:
         scores = []
         models = []
         for trg_idx in range(n_trg):
+            time1 = time.time()
             y = Y[:, trg_idx]
             cv_scores = cross_val_score(self.model, X, y,
                                         scoring=self.score_evl, cv=self.cv)
             # recording
             scores.append(np.mean(cv_scores))
             models.append(deepcopy(self.model.fit(X, y)))
+            print(f'Finish target {trg_idx+1}/{n_trg} in {time.time()-time1} seconds.')
 
         pred_dict = {
             'score': np.array(scores),
