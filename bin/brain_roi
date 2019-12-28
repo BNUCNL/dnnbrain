@@ -47,7 +47,7 @@ def main():
     extsignals = np.array(extsignals).T
 
     # Save
-    roi_names = [f'ROI{ml}' for ml in masklabels]
+    roi_names = [str(ml) for ml in masklabels]
     ROI(roi_names, extsignals).save(args.out)
 
 

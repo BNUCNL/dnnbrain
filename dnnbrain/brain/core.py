@@ -594,8 +594,9 @@ class BrainDecoder:
             data['model'] = data['model'].reshape(shape)
             if isinstance(self.model, UnivariatePredictionModel):
                 data['location'] = data['location'].reshape(shape)
-
             pred_dict[layer] = data
+            print(f'Layer-{layer} finished.')
+
         return pred_dict
 
     def decode_behavior(self, beh_data):
