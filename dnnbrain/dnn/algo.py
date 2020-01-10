@@ -7,6 +7,8 @@ from torch.optim import Adam
 from os.path import join as pjoin
 from dnnbrain.dnn.core import Mask
 from dnnbrain.dnn.base import ip
+from PIL import ImageFilter
+from skimage import filters
 
 
 class Algorithm(abc.ABC):
@@ -259,7 +261,7 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer=None, channel=None,
-                 activ_metric='mean', regular_metric=None):
+                 activ_metric='mean', regular_metric=None, precondition_metric=None,):
         """
         Parameters:
         ----------
@@ -268,17 +270,22 @@ class SynthesisImage(Algorithm):
         channel[int]: sequence number of the channel where the algorithm performs on
         activ_metric[str]: The metric method to summarize activation
         regular_metric[str]: The metric method of regularization
+        precondition_metric[str]: The metric method of precondition
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_metric(activ_metric, regular_metric)
+        self.set_metric(activ_metric, regular_metric, precondition_metric)
         self.activ_loss = None
         self.optimal_image = None
+
 
         # loss recorder
         self.activ_losses = []
         self.regular_losses = []
 
-    def set_metric(self, activ_metric, regular_metric):
+        #regularize parameter
+        self.GB_radius = 1
+
+    def set_metric(self, activ_metric, regular_metric,precondition_metric):
         """
         Set metric methods
 
@@ -286,6 +293,7 @@ class SynthesisImage(Algorithm):
         ---------
         activ_metric[str]: The metric method to summarize activation
         regular_metric[str]: The metric method of regularization
+        precondition_metric[str]: The metric method of preconditioning
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -297,7 +305,7 @@ class SynthesisImage(Algorithm):
 
         # regularization metric setting
         if regular_metric is None:
-            self.regular_metric = None
+            self.regular_metric = self._regular_default
         elif regular_metric == 'L1':
             self.regular_metric = self._L1_norm
         elif regular_metric == 'L2':
@@ -306,6 +314,18 @@ class SynthesisImage(Algorithm):
             self.regular_metric = self._total_variation
         else:
             raise AssertionError('Only L1, L2, and total variation are supported!')
+
+        # precondition metric setting
+        if precondition_metric is None:
+            self.precondition_metric = self._precondition_default
+        elif precondition_metric == 'GB':
+            self.precondition_metric = self._gaussian_blur
+        else:
+            raise AssertionError('Only Gaussian Blur is supported!')
+
+    def _regular_default(self):
+        reg = 0
+        return reg
 
     def _L1_norm(self):
         reg = torch.abs(self.optimal_image).sum()
@@ -327,8 +347,17 @@ class SynthesisImage(Algorithm):
         self.regular_losses.append(reg.item())
         return reg
 
-    def gaussian_blur(self):
-        pass
+    def _precondition_default(self):
+        precond_image = self.optimal_image[0].detach().numpy()
+        precond_image = ip.to_tensor(precond_image).float()
+        precond_image = copy.deepcopy(precond_image)
+        return precond_image
+
+    def _gaussian_blur(self):
+        precond_image = filters.gaussian(self.optimal_image[0].detach().numpy(), self.GB_radius)
+        precond_image = ip.to_tensor(precond_image).float()
+        precond_image = copy.deepcopy(precond_image)
+        return precond_image
 
     def mean_image(self):
         pass
@@ -381,50 +410,57 @@ class SynthesisImage(Algorithm):
         # prepare initialized image
         if init_image is None:
             # Generate a random image
-            init_image = torch.rand(3, *self.dnn.img_size, dtype=torch.float32)
+            init_image = np.random.rand(3,*self.dnn.img_size)
+            init_image = ip.to_tensor(init_image).float()
+            init_image = copy.deepcopy(init_image)
         else:
             init_image = ip.to_tensor(init_image).float()
             init_image = copy.deepcopy(init_image)
 
-        # prepare optimal image
-        self.optimal_image = init_image.unsqueeze(0)
-        self.optimal_image.requires_grad_(True)
-        optimizer = Adam([self.optimal_image], lr=lr)
-
         self.activ_losses = []
         self.regular_losses = []
+
+        # prepare for loss
         for i in range(n_iter):
 
+            self.optimal_image = init_image.unsqueeze(0)
+            self.optimal_image.requires_grad_(True)
+            optimizer = Adam([self.optimal_image], lr=lr)
+
             # save out
-            if save_interval is not None and i % save_interval == 0:
-                img_out = self.optimal_image[0].detach().numpy().copy()
-                img_out = ip.to_pil(img_out, True)
-                img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
+            # if save_interval is not None and i % save_interval == 0:
+            #     img_out = self.optimal_image[0].detach().numpy().copy()
+            #     img_out = ip.to_pil(img_out, True)
+            #     img_out.save(pjoin(save_path, f'synthesized_image_iter{i}.jpg'))
 
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
 
             # computer loss
-            if self.regular_metric is None:
-                loss = self.activ_loss
-            else:
-                loss = self.activ_loss + regular_lambda * self.regular_metric()
+
+            loss = self.activ_loss + regular_lambda * self.regular_metric()
 
             # zero gradients
             optimizer.zero_grad()
             # Backward
+
             loss.backward()
             # Update image
             optimizer.step()
-            print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
+            if i % 149 == 0:
+                print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
+
+            # precondition
+            init_image = self.precondition_metric()
 
         # remove hook
         handle.remove()
 
         # output synthesized image
         final_image = self.optimal_image[0].detach().numpy().copy()
-        if save_path is not None:
-            img_out = ip.to_pil(final_image, True)
-            img_out.save(pjoin(save_path, f'synthesized_image_iter{n_iter}.jpg'))
+        # if save_path is not None:
+        #     img_out = ip.to_pil(final_image, True)
+        #     img_out.save(pjoin(save_path, f'synthesized_image_iter{n_iter}.jpg'))
         return final_image
+
