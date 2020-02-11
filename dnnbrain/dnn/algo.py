@@ -335,6 +335,25 @@ class SynthesisImage(Algorithm):
 
     def center_bias(self):
         pass
+    
+    def fft_smooth(grad, factor=1/4):
+    
+        """
+        Tones down the gradient with 1/sqrt(f) filter in the Fourier domain.
+        Equivalent to low-pass filtering in the spatial domain.
+        """
+        #h, w = grad.size()[-2:]
+        # grad = tf.transpose(grad, [0, 3, 1, 2])
+        # grad_fft = tf.fft2d(tf.cast(grad, tf.complex64))
+        h, w = grad.size()[-2:]
+        # grad = tf.transpose(grad, [0, 3, 1, 2])
+        # grad_fft = tf.fft2d(tf.cast(grad, tf.complex64))
+        tw = np.minimum(np.arange(0, w), np.arange(w-1, -1, -1), dtype=np.float32)  # [-(w+2)//2:]
+        th = np.minimum(np.arange(0, h), np.arange(h-1, -1, -1), dtype=np.float32)
+        t = 1 / np.maximum(1.0, (tw[None, :] ** 2 + th[:, None] ** 2) ** (factor))
+        F = grad.new_tensor(t / t.mean()).unsqueeze(-1)
+        pp = torch.rfft(grad.data, 2, onesided=False)
+        return torch.irfft(pp * F, 2, onesided=False)
 
     def register_hooks(self):
         """
@@ -389,12 +408,11 @@ class SynthesisImage(Algorithm):
         # prepare optimal image
         self.optimal_image = init_image.unsqueeze(0)
         self.optimal_image.requires_grad_(True)
-        optimizer = Adam([self.optimal_image], lr=lr)
 
         self.activ_losses = []
         self.regular_losses = []
         for i in range(n_iter):
-
+            optimizer = Adam([self.optimal_image], lr=lr)
             # save out
             if save_interval is not None and i % save_interval == 0:
                 img_out = self.optimal_image[0].detach().numpy().copy()
@@ -415,8 +433,11 @@ class SynthesisImage(Algorithm):
             optimizer.zero_grad()
             # Backward
             loss.backward()
+            one_grad = self.optimal_image.grad
             # Update image
-            optimizer.step()
+            grad = self.fft_smooth(one_grad)
+            # optimizer.step()
+            self.optimal_image.data -= (1.5/(torch.abs(grad.data).mean() + 1e-12))* (1 / 255) * grad.data
             print(f'Iteration: {i}/{n_iter}; Loss: {loss.item()}')
 
         # remove hook
