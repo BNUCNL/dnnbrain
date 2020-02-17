@@ -1,8 +1,7 @@
-# import some necessary packages
 import numpy as np
-from os import remove
-import torch, copy, cv2
-from matplotlib import pyplot as plt
+import torch
+import copy
+import cv2
 from torch.nn.functional import interpolate
 from dnnbrain.dnn.algo import Mask, Algorithm
 from dnnbrain.dnn import models as db_models # Use eval to import model model
@@ -16,7 +15,6 @@ class OccluderDiscrepancyMapping(Algorithm):
     """
 
     def __init__(self, model, layer, channel, window=(11, 11), stride=(2, 2), metric='max'):
-
         """
         Set necessary parameters for the estimator.
 
@@ -34,11 +32,6 @@ class OccluderDiscrepancyMapping(Algorithm):
         """
 
         super(UpsamplingActivationMapping, self).__init__(model, layer, channel)
-        self.window = window
-        self.stride = stride
-        self.metric = metric
-
-    def set_params(self, window=(11, 11), stride=(2, 2), metric='max'):
         self.window = window
         self.stride = stride
         self.metric = metric
@@ -64,11 +57,9 @@ class OccluderDiscrepancyMapping(Algorithm):
                 current_occluded_pic = current_occluded_pic.transpose(2, 0, 1)
                 current_occluded_pic = current_occluded_pic[np.newaxis, :]
                 max_act = np.max(self.model.compute_activation(current_occluded_pic, self.mask).get(self.channel))
-                discrepancy_map[i, j] = discrepancy_map_whole - max_act
-
-                print(current_num, 'in', column_num * row_num,
-                      'finished. Discrepancy: %.1f' % abs(discrepancy_map[i, j]))
                 current_num = current_num + 1
+
+        discrepancy_map = discrepancy_map_whole - max_act
 
         return discrepancy_map
 
@@ -82,7 +73,6 @@ class UpsamplingActivationMapping(Algorithm):
     """
 
     def __init__(self, model, layer, channel, interp_meth='bicubic', interp_threshold=0.68):
-
         """
         Set necessary parameters for upsampling estimator.
 
@@ -101,12 +91,7 @@ class UpsamplingActivationMapping(Algorithm):
         self.interp_meth = interp_meth
         self.interp_threshold = interp_threshold
 
-    def set_params(self, interp_meth='bicubic', interp_threshold=0.68):
-        self.interp_meth = interp_meth
-        self.interp_threshold = interp_threshold
-
     def compute(self, image):
-
         """
         Do Real Computation for Pixel Activation Based on Upsampling Feature Mapping.
 
@@ -142,7 +127,6 @@ class EmpiricalReceptiveField():
     """
 
     def __init__(self, model=None, layer=None, channel=None, threshold=0.3921):
-
         """
         Parameter:
         ---------
@@ -155,11 +139,7 @@ class EmpiricalReceptiveField():
         self.model = model
         self.threshold = threshold
 
-    def set_params(self, threshold=0.3921):
-        self.threshold = threshold
-
     def generate_rf(self, all_thresed_act):
-
         """
         Compute RF on Given Image for Target Layer and Channel
 
@@ -188,10 +168,7 @@ class EmpiricalReceptiveField():
         sum_act = np.sum(sum_act, 0)[int(self.model.img_size[0] / 2):int(self.model.img_size[0] * 3 / 2),
                                      int(self.model.img_size[1] / 2):int(self.model.img_size[1] * 3 / 2)]
 
-        plt.imsave('tmp.png', sum_act, cmap='gray')
-        rf = cv2.imread('tmp.png', cv2.IMREAD_GRAYSCALE)
-        remove('tmp.png')
-        rf = cv2.medianBlur(rf, 31)
+        rf = cv2.medianBlur(sum_act, 31)
         _, th = cv2.threshold(rf, self.threshold * 255, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         rf_contour = np.array(contours).squeeze()
@@ -219,44 +196,6 @@ class TheoreticalReceptiveField(Algorithm):
                                       [3, 1, 1], [3, 1, 1], [3, 1, 1], [3, 2, 0]]
             self.net_struct['name'] = ['conv1', 'pool1', 'conv2', 'pool2', 'conv3',
                                        'conv4', 'conv5', 'pool5']
-
-        if self.dnn.__class__.__name__ == 'Vgg11':
-            self.net_struct = {}
-            self.net_struct['net'] = [[3, 1, 1], [2, 2, 0], [3, 1, 1], [2, 2, 0],
-                                      [3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
-                                      [2, 2, 0]]
-            self.net_struct['name'] = ['conv1', 'pool1', 'conv2', 'pool2',
-                                       'conv3_1', 'conv3_2', 'pool3', 'conv4_1',
-                                       'conv4_2', 'pool4', 'conv5_1', 'conv5_2',
-                                       'pool5']
-
-        if self.dnn.__class__.__name__ == 'Vgg16':
-            self.net_struct['net'] = [[3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0]]
-            self.net_struct['name'] = ['conv1_1', 'conv1_2', 'pool1', 'conv2_1',
-                                       'conv2_2', 'pool2', 'conv3_1', 'conv3_2',
-                                       'conv3_3', 'pool3', 'conv4_1', 'conv4_2',
-                                       'conv4_3', 'pool4', 'conv5_1', 'conv5_2',
-                                       'conv5_3', 'pool5']
-
-        if self.dnn.__class__.__name__ == 'Vgg19':
-            self.net_struct['net'] = [[3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
-                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
-                                      [3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
-                                      [3, 1, 1], [3, 1, 1], [3, 1, 1], [2, 2, 0],
-                                      [3, 1, 1], [3, 1, 1], [3, 1, 1], [3, 1, 1],
-                                      [2, 2, 0]]
-            self.net_struct['name'] = ['conv1_1', 'conv1_2', 'pool1', 'conv2_1',
-                                       'conv2_2', 'pool2', 'conv3_1', 'conv3_2',
-                                       'conv3_3', 'conv3_4', 'pool3', 'conv4_1',
-                                       'conv4_2', 'conv4_3', 'conv4_4', 'pool4',
-                                       'conv5_1', 'conv5_2', 'conv5_3', 'conv5_4',
-                                       'pool5']
-
         theoretical_rf_size = 1
         for layer in reversed(range(self.net_struct['name'].index(self.layer) + 1)):
             kernel_size, stride, padding = self.net_struct['net'][layer]
