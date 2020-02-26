@@ -1,0 +1,10 @@
+site_name: DNNBrain
+nav:
+    - Installation: 'install.md'
+    - Usage notes:
+        - Command-line arguments: 'usage/bin.md'
+        - Using python lib:
+            - extract_dnn_activation: 'usage/lib/extract_dnn_activation.md'
+    - API: 'API/TBD.md'
+    - Citing DNNBrain: 'citing.md'
+theme: readthedocs
