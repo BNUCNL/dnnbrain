@@ -1,244 +1,616 @@
-import torch
+import abc
 import copy
+import torch
 import numpy as np
 
 from torch.optim import Adam
-from torch.autograd import Variable
-from dnnbrain.dnn.core import Algorithm
+from os.path import join as pjoin
+from dnnbrain.dnn.core import Mask
+from dnnbrain.dnn.base import ip
+from scipy.ndimage import label
+from skimage.morphology import convex_hull_image,erosion, square
+from scipy.ndimage.filters import gaussian_filter
+from skimage import filters
+from skimage.color import rgb2gray
+import cv2
+
+class Algorithm(abc.ABC):
+    """
+    An Abstract Base Classes class to define interface for dnn algorithm
+    """
+
+    def __init__(self, dnn, layer=None, channel=None):
+        """
+        Parameters:
+        ----------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        if np.logical_xor(layer is None, channel is None):
+            raise ValueError("layer and channel must be used together!")
+        if layer is not None:
+            self.set_layer(layer, channel)
+        self.dnn = dnn
+        self.dnn.eval()
+
+    def set_layer(self, layer, channel):
+        """
+        Set layer or its channel
+
+        Parameters:
+        ----------
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        self.mask = Mask()
+        self.mask.set(layer, channels=[channel])
+
+    def get_layer(self):
+        """
+        Get layer or its channel
+
+        Parameters:
+        ----------
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        """
+        layer = self.mask.layers[0]
+        channel = self.mask.get(layer)['chn'][0]
+        return layer, channel
+
+
+class SaliencyImage(Algorithm):
+    """
+    An Abstract Base Classes class to define interfaces for gradient back propagation
+    Note: the saliency image values are not applied with absolute operation.
+    """
+
+    def __init__(self, dnn, from_layer=None, from_chn=None):
+        """
+        Parameters:
+        ----------
+        dnn[DNN]: dnnbrain's DNN object
+        from_layer[str]: name of the layer where gradients back propagate from
+        from_chn[int]: sequence number of the channel where gradient back propagate from
+        """
+        super(SaliencyImage, self).__init__(dnn, from_layer, from_chn)
+
+        self.to_layer = None
+        self.activation = None
+        self.gradient = None
+        self.hook_handles = []
+
+    @abc.abstractmethod
+    def register_hooks(self):
+        """
+        Define register hook and register them to specific layer and channel.
+        As this a abstract method, it is needed to be override in every subclass
+        """
+
+    def backprop(self, image, to_layer=None):
+        """
+        Compute gradients of the to_layer corresponding to the from_layer and from_channel
+        by back propagation algorithm.
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        to_layer[str]: name of the layer where gradients back propagate to
+            If is None, get the first layer in the layers recorded in DNN.
+
+        Return:
+        ------
+        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
+            If layer is the first layer of the model, its shape is (3, n_height, n_width)
+        """
+        # register hooks
+        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
+        self.register_hooks()
+
+        # forward
+        image = self.dnn.test_transform(ip.to_pil(image))
+        image = image.unsqueeze(0)
+        image.requires_grad_(True)
+        self.dnn(image)
+        # zero grads
+        self.dnn.model.zero_grad()
+        # backward
+        self.activation.backward()
+        # tensor to ndarray
+        # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
+        gradient = self.gradient.data.numpy()[0]
+
+        # remove hooks
+        for hook_handle in self.hook_handles:
+            hook_handle.remove()
+
+        # renew some attributions
+        self.activation = None
+        self.gradient = None
+
+        return gradient
+
+    def backprop_smooth(self, image, n_iter, sigma_multiplier=0.1, to_layer=None):
+        """
+        Compute smoothed gradient.
+        It will use the gradient method to compute the gradient and then smooth it
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        n_iter[int]: the number of noisy images to be generated before average.
+        sigma_multiplier[int]: multiply when calculating std of noise
+        to_layer[str]: name of the layer where gradients back propagate to
+            If is None, get the first layer in the layers recorded in DNN.
+
+        Return:
+        ------
+        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
+            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
+        """
+        assert isinstance(n_iter, int) and n_iter > 0, \
+            'The number of iterations must be a positive integer!'
+
+        # register hooks
+        self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
+        self.register_hooks()
+
+        image = self.dnn.test_transform(ip.to_pil(image))
+        image = image.unsqueeze(0)
+        gradient = 0
+        sigma = sigma_multiplier * (image.max() - image.min()).item()
+        for iter_idx in range(1, n_iter + 1):
+            # prepare image
+            image_noisy = image + image.normal_(0, sigma ** 2)
+            image_noisy.requires_grad_(True)
+
+            # forward
+            self.dnn(image_noisy)
+            # clean old gradients
+            self.dnn.model.zero_grad()
+            # backward
+            self.activation.backward()
+            # tensor to ndarray
+            # [0] to get rid of the first dimension (1, n_chn, n_row, n_col)
+            gradient += self.gradient.data.numpy()[0]
+            print(f'Finish: noisy_image{iter_idx}/{n_iter}')
+
+        # remove hooks
+        for hook_handle in self.hook_handles:
+            hook_handle.remove()
+
+        # renew some attributions
+        self.activation = None
+        self.gradient = None
+
+        gradient = gradient / n_iter
+        return gradient
+
+
+class VanillaSaliencyImage(SaliencyImage):
+    """
+    A class to compute vanila Backprob gradient for a image.
+    """
+
+    def register_hooks(self):
+        """
+        Override the abstract method from BackPropGradient class to
+        define a specific hook for vanila backprop gradient.
+        """
+        from_layer, from_chn = self.get_layer()
+
+        def from_layer_acti_hook(module, feat_in, feat_out):
+            self.activation = torch.mean(feat_out[0, from_chn - 1])
+
+        def to_layer_grad_hook(module, grad_in, grad_out):
+            self.gradient = grad_in[0]
+
+        # register forward hook to the target layer
+        from_module = self.dnn.layer2module(from_layer)
+        from_handle = from_module.register_forward_hook(from_layer_acti_hook)
+        self.hook_handles.append(from_handle)
+
+        # register backward to the first layer
+        to_module = self.dnn.layer2module(self.to_layer)
+        to_handle = to_module.register_backward_hook(to_layer_grad_hook)
+        self.hook_handles.append(to_handle)
+
+
+class GuidedSaliencyImage(SaliencyImage):
+    """
+    A class to compute Guided Backprob gradient for a image.
+    """
+
+    def register_hooks(self):
+        """
+        Override the abstract method from BackPropGradient class to
+        define a specific hook for guided backprop gradient.
+        """
+        from_layer, from_chn = self.get_layer()
+
+        def from_layer_acti_hook(module, feat_in, feat_out):
+            self.activation = torch.mean(feat_out[0, from_chn - 1])
+
+        def to_layer_grad_hook(module, grad_in, grad_out):
+            self.gradient = grad_in[0]
+
+        def relu_grad_hook(module, grad_in, grad_out):
+            grad_in[0][grad_out[0] <= 0] = 0
+
+        # register hook for from_layer
+        from_module = self.dnn.layer2module(from_layer)
+        handle = from_module.register_forward_hook(from_layer_acti_hook)
+        self.hook_handles.append(handle)
+
+        # register backward hook to all relu layers util from_layer
+        for module in self.dnn.model.modules():
+            # register hooks for relu
+            if isinstance(module, torch.nn.ReLU):
+                handle = module.register_backward_hook(relu_grad_hook)
+                self.hook_handles.append(handle)
+
+            if module is from_module:
+                break
+
+        # register hook for to_layer
+        to_module = self.dnn.layer2module(self.to_layer)
+        handle = to_module.register_backward_hook(to_layer_grad_hook)
+        self.hook_handles.append(handle)
 
 
 class SynthesisImage(Algorithm):
-    """ 
-    An Abstract Base Classes class to generate a synthetic image 
-    that maximally activates a neuron
     """
-    def __init__(self, dnn, layer, channel, 
-                 activation_metric='mean', regularization_metric='L2', n_iter=30):
+    Generate a synthetic image that maximally activates a neuron.
+    """
+
+    def __init__(self, dnn, layer=None, channel=None,
+                 activ_metric='mean', regular_metric=None, precondition_metric=None,
+                 save_out_interval=False, print_inter_loss=False, ):
         """
+        Parameters:
+        ----------
+        dnn[DNN]: DNNBrain DNN
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
+        precondition_metric[str]: The metric method of precondition
+        """
+        super(SynthesisImage, self).__init__(dnn, layer, channel)
+        self.set_metric(activ_metric, regular_metric, precondition_metric, save_out_interval, print_inter_loss)
+        self.activ_loss = None
+        self.optimal_image = None
+
+        # loss recorder
+        self.activ_losses = []
+        self.regular_losses = []
+
+        self.row =None
+        self.column=None
+        
+        #for mask
+        self.stdev_size_thr = None
+        self.filter_sigma = None
+        self.target_reduction_ratio = None
+
+    def set_metric(self, activ_metric, regular_metric,
+                   precondition_metric, save_out_interval, print_inter_loss):
+        """
+        Set metric methods
+
         Parameter:
         ---------
-        dnn[DNN]: dnnbrain's DNN object
-        """        
-        super(SynthesisImage,self).__init__(dnn, layer, channel)
-        self.activation = None
-        self.n_iter = n_iter
-
+        activ_metric[str]: The metric method to summarize activation
+        regular_metric[str]: The metric method of regularization
+        precondition_metric[str]: The metric method of preconditioning
+        save_out_internal[str]: the method of saving the pics in interations
+        """
         # activation metric setting
-        if activation_metric == 'max':
-            self.activation_metric = self.max_activation
-        elif activation_metric == 'mean':
-            self.activation_metric = self.mean_activation
+        if activ_metric == 'max':
+            self.activ_metric = torch.max
+        elif activ_metric == 'mean':
+            self.activ_metric = torch.mean
         else:
-            raise AssertionError('Only max and mean metic is supported')
-            
-        # regularization metric setting 
-        if regularization_metric == 'L1':
-            self.regularization_metric = self.L1_norm
-        elif regularization_metric == 'TV':
-            self.regularization_metric = self.total_variation
+            raise AssertionError('Only max and mean activation metrics are supported')
+
+        # regularization metric setting
+        if regular_metric is None:
+            self.regular_metric = self._regular_default
+        elif regular_metric == 'L1':
+            self.regular_metric = self._L1_norm
+        elif regular_metric == 'L2':
+            self.regular_metric = self._L2_norm
+        elif regular_metric == 'TV':
+            self.regular_metric = self._total_variation
         else:
-            raise AssertionError('Only L2, Total variation is supported')       
+            raise AssertionError('Only L1, L2, and total variation are supported!')
 
+        # precondition metric setting
+        if precondition_metric is None:
+            self.precondition_metric = self._precondition_default
+        elif precondition_metric == 'GB':
+            self.precondition_metric = self._gaussian_blur
+        else:
+            raise AssertionError('Only Gaussian Blur is supported!')
 
-    
-        # loss setting
-        self.activation_loss = [] 
-        self.regularization_loss = []
+        # saving interval pics in iteration setting
+        if save_out_interval is True:
+            self.save_out_interval = self._save_out
+        elif save_out_interval is False:
+            self.save_out_interval = self._close_save
 
-        # Generate a random image
-        self.image_size = (3,) + self.dnn.img_size
-        random_image = np.uint8(np.random.uniform(150, 180, (224, 224, 3)))
-        # Process image and return variable
-        self.optimal_image = self.preprocess_image(random_image, False)
-        
-    def mean_activation(self):
-        activ = -torch.mean(self.activation)
-        self.activation_loss.append(activ)
-        return activ
-    
-    def max_activation(self):
-        activ = -torch.max(self.activation)
-        self.activation_loss.append(activ)
-        return activ
-    
-    def L2_norm(self):
-        reg = np.abs((self.optimal_image[0]).detach().numpy()).sum()
-        self.regularization_loss.append(reg) 
+        # print interation loss
+        if print_inter_loss is True:
+            self.print_inter_loss = self._print_loss
+        elif print_inter_loss is False:
+            self.print_inter_loss = self._print_close
 
-    def total_variation(self):
-        pass 
-    
-    def gaussian_blur(self):
+    def _print_loss(self, i, step, n_iter, loss):
+        if i % step == 0:
+            print(f'Interation: {i}/{n_iter}; Loss: {loss}')
+
+    def _print_close(self, i, step, n_iter, loss):
         pass
-    
+
+    def _save_out(self, currti, save_interval, save_path):
+        if (currti + 1) % save_interval == 0 and save_path is not None:
+            img_out = self.optimal_image[0].detach().numpy().copy()
+            img_out = ip.to_pil(img_out, True)
+            img_out.save(pjoin(save_path, f'synthesized_image_iter{currti + 1}.jpg'))
+        else:
+            raise AssertionError('Check save_out_interval parameters please! You must give save_interval & save_path!')
+
+    def _close_save(self, currti, save_interval, save_path):
+        pass
+
+    def _regular_default(self):
+        reg = 0
+        return reg
+
+    def _L1_norm(self):
+        reg = torch.abs(self.optimal_image).sum()
+        self.regular_losses.append(reg.item())
+        return reg
+
+    def _L2_norm(self):
+        reg = torch.sqrt(torch.sum(self.optimal_image ** 2))
+        self.regular_losses.append(reg.item())
+        return reg
+
+    def _total_variation(self):
+        # calculate the difference of neighboring pixel-values
+        diff1 = self.optimal_image[0, :, 1:, :] - self.optimal_image[0, :, :-1, :]
+        diff2 = self.optimal_image[0, :, :, 1:] - self.optimal_image[0, :, :, :-1]
+
+        # calculate the total variation
+        reg = torch.sum(torch.abs(diff1)) + torch.sum(torch.abs(diff2))
+        self.regular_losses.append(reg.item())
+        return reg
+
+    def _precondition_default(self, GB_radius):
+        precond_image = self.optimal_image[0].detach().numpy()
+        precond_image = ip.to_tensor(precond_image).float()
+        precond_image = copy.deepcopy(precond_image)
+        return precond_image
+
+    def _gaussian_blur(self, radius):
+        precond_image = filters.gaussian(self.optimal_image[0].detach().numpy(), radius)
+        precond_image = ip.to_tensor(precond_image).float()
+        precond_image = copy.deepcopy(precond_image)
+        return precond_image
+
     def mean_image(self):
         pass
-    
+
     def center_bias(self):
         pass
 
-
-    def set_params(self, activation_metric, regularization_metric, n_iter=30):
-        """
-        Set the number of iteration
-
-        Parameter:
-        ---------
-        n_iter[int]: the number of iteration
-        """
-        # activation metric setting
-        if activation_metric == 'max':
-            self.activation_metric = self.max_activation
-        elif activation_metric == 'mean':
-            self.activation_metric = self.mean_activation
-        else:
-            raise AssertionError('Only max and mean metic is supported')
-            
-        # regularization metric setting 
-        if regularization_metric == 'L1':
-            self.regularization_metric = self.L1_norm
-        elif regularization_metric == 'TV':
-            self.regularization_metric = self.total_variation
-        else:
-            raise AssertionError('Only L2, Total variation is supported')
-            
-        # time for iter
-        self.n_iter = n_iter
-
-            
     def register_hooks(self):
         """
         Define register hook and register them to specific layer and channel.
         """
+        layer, chn = self.get_layer()
+
         def forward_hook(module, feat_in, feat_out):
-            self.activation = feat_out[0, self.channel]
-            # print("feat_out[0, self.channel] = ",feat_out[0, self.channel])
+            if self.row == None or self.column == None:
+                self.activ_loss = - self.activ_metric(feat_out[0, chn - 1])
+            else:
+                row = int(self.row)
+                column = int(self.column)
+                self.activ_loss = - self.activ_metric(feat_out[0, chn - 1][row][column])  # single unit
+            self.activ_losses.append(self.activ_loss.item())
+
         # register forward hook to the target layer
-        module = self.dnn.layer2module(self.layer)
-        module.register_forward_hook(forward_hook)
+        module = self.dnn.layer2module(layer)
+        handle = module.register_forward_hook(forward_hook)
 
-    def format_np_output(self,np_arr):
-        """
-            This is a (kind of) bandaid fix to streamline saving procedure.
-            It converts all the outputs to the same format which is 3xWxH
-            with using sucecssive if clauses.
-        Args:
-            im_as_arr (Numpy array): Matrix of shape 1xWxH or WxH or 3xWxH
-        """
-        # Phase/Case 1: The np arr only has 2 dimensions
-        # Result: Add a dimension at the beginning
-        if len(np_arr.shape) == 2:
-            np_arr = np.expand_dims(np_arr, axis=0)
-        # Phase/Case 2: Np arr has only 1 channel (assuming first dim is channel)
-        # Result: Repeat first channel and convert 1xWxH to 3xWxH
-        if np_arr.shape[0] == 1:
-            np_arr = np.repeat(np_arr, 3, axis=0)
-        # Phase/Case 3: Np arr is of shape 3xWxH
-        # Result: Convert it to WxHx3 in order to make it saveable by PIL
-        if np_arr.shape[0] == 3:
-            np_arr = np_arr.transpose(1, 2, 0)
-        # Phase/Case 4: NP arr is normalized between 0-1
-        # Result: Multiply with 255 and change type to make it saveable by PIL
-        if np.max(np_arr) <= 1:
-            np_arr = (np_arr * 255).astype(np.uint8)
-        return np_arr
+        return handle
 
-    def preprocess_image(self,pil_im, resize_im=True):
-        """
-            Processes image for CNNs
-
-        Args:
-            PIL_img (PIL_img): Image to process
-            resize_im (bool): Resize to 224 or not
-        returns:
-            im_as_var (torch variable): Variable that contains processed float tensor
-        """
-        # mean and std list for channels (Imagenet)
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        # Resize image
-        if resize_im:
-            pil_im.thumbnail((512, 512))
-        im_as_arr = np.float32(pil_im)
-        im_as_arr = im_as_arr.transpose(2, 0, 1)  # Convert array to D,W,H
-        # Normalize the channels
-        for channel, _ in enumerate(im_as_arr):
-            im_as_arr[channel] /= 255
-            im_as_arr[channel] -= mean[channel]
-            im_as_arr[channel] /= std[channel]
-        # Convert to float tensor
-        im_as_ten = torch.from_numpy(im_as_arr).float()
-        # Add one more channel to the beginning. Tensor shape = 1,3,224,224
-        im_as_ten.unsqueeze_(0)
-        im_as_var = Variable(im_as_ten, requires_grad=True)
-        return im_as_var
-
-    def recreate_image(self,im_as_var):
-        """
-            Recreates images from a torch variable, sort of reverse preprocessing
-        Args:
-            im_as_var (torch variable): Image to recreate
-        returns:
-            recreated_im (numpy arr): Recreated image in array
-        """
-        reverse_mean = [-0.485, -0.456, -0.406]
-        reverse_std = [1 / 0.229, 1 / 0.224, 1 / 0.225]
-        recreated_im = copy.copy(im_as_var.data.numpy()[0])
-        for c in range(3):
-            recreated_im[c] /= reverse_std[c]
-            recreated_im[c] -= reverse_mean[c]
-        recreated_im[recreated_im > 1] = 1
-        recreated_im[recreated_im < 0] = 0
-        recreated_im = np.round(recreated_im * 255)
-
-        recreated_im = np.uint8(recreated_im).transpose(1, 2, 0)
-        return recreated_im
-        
-    def L1synthesize(self):
+    def synthesize(self, init_image = None, lr = 0.1,
+                    regular_lambda = 1, n_iter = 30,save_path = None,
+                    save_interval = None, GB_radius = None, step = 1):
         """
         Synthesize the image which maximally activates target layer and channel
-        using L1 regularization.
+
+        Parameter:
+        ---------
+        init_image[ndarray|Tensor|PIL.Image]: initialized image
+        lr[float]: learning rate
+        regular_lambda[float]: the lambda of the regularization
+        n_iter[int]: the number of iterations
+        save_path[str]: the directory to save images
+            If is None, do nothing.
+            else, save synthesized image at the last iteration.
+        save_interval[int]: save interval
+            If is None, do nothing.
+            else, save_path must not be None.
+                Save out synthesized images per 'save interval' iterations.
+        GB_radius[float]
+        step[int]
+        Return:
+        ------
+            [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
-        
         # Hook the selected layer
-        self.register_hooks()
+        handle = self.register_hooks()
 
-     
+        # prepare initialized image
+        if init_image is None:
+            # Generate a random image
+            init_image = np.random.rand(3, *self.dnn.img_size)
+            init_image = ip.to_tensor(init_image).float()
+            init_image = copy.deepcopy(init_image)
+        else:
+            init_image = ip.to_tensor(init_image).float()
+            init_image = copy.deepcopy(init_image)
 
-        # optimal_image = torch.randn(1, *self.image_size)
-        # optimal_image.requires_grad_(True)
-        # optimal_image = Variable(optimal_image, requires_grad=True)  #
+        self.activ_losses = []
+        self.regular_losses = []
 
+        # prepare for loss
+        for i in range(n_iter):
+            self.optimal_image = init_image.unsqueeze(0)
+            self.optimal_image.requires_grad_(True)
+            optimizer = Adam([self.optimal_image], lr=lr)
 
-        # Define optimizer for the image
-        optimizer = Adam([self.optimal_image], lr=0.1, betas=(0.9,0.99))
-        for i in range(1, self.n_iter+1):
-            # clear gradients for next train
-            optimizer.zero_grad()
+            # save out
+            self.save_out_interval(i, save_interval, save_path)
+
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
-
             self.dnn.model(self.optimal_image)
-            alpha = 0.1
-            # Loss function is the mean of the output of the selected filter
-            # We try to maximize the mean of the output of that specific filter
-            loss =  self.activation_metric() + alpha * self.regularization_metric()
 
-        
+            # computer loss
+            loss = self.activ_loss + regular_lambda * self.regular_metric()
+
+            # zero gradients
+            optimizer.zero_grad()
             # Backward
+
             loss.backward()
             # Update image
             optimizer.step()
-            # Recreate image
-            self.optimal_image = self.recreate_image(self.optimal_image)
-        # Return the optimized image
-        return np.uint8(self.optimal_image[0].detach().numpy())
 
+            # Print interation
+            self.print_inter_loss(i, step, n_iter, loss)
+            # precondition
+            init_image = self.precondition_metric(GB_radius)
 
+        # remove hook
+        handle.remove()
 
+        # output synthesized image
+        final_image = self.optimal_image[0].detach().numpy().copy()
 
+        return final_image
+    
+    
+    def __set_MaskParameters__(self,delta_thr,size_thr,
+                          expansion_sigma,expansion_thr,filter_sigma):
+        if isinstance(delta_thr,int):
+            self.delta_thr = delta_thr
+            self.size_thr = size_thr
+        else:
+            raise AssertionError('delta_thr&size_thr must be [int]!')
 
+        self.expansion_sigma = expansion_sigma
+        self.expansion_thr = expansion_thr
+        self.filter_sigma = filter_sigma
 
+    def remove_small_area(self,mask):
+        mask_mod = mask.copy()
+        label_im, nb_labels = label(mask_mod)
+        for i in range(0, nb_labels + 1):
+            area = label_im == i
+            s = np.sum(area)
+            if s < self.size_thr:
+                mask_mod[area] = 0
+        return mask_mod
 
+    def __Mask__(self,img):
+        img = img.copy(order='c')
+        delta = img - img.mean()
+        mask = np.abs(delta) > self.delta_thr
+        # remove small lobes - likely an artifact
+        mask = self.remove_small_area(mask)
+        # fill in the gap between lobes
+        mask = convex_hull_image(mask)
+        # expand the size of the mask
+        mask = gaussian_filter(mask.astype(float),
+                               sigma=self.expansion_sigma) > self.expansion_thr
+        # blur the edge, giving smooth transition
+        mask = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
 
+    def set_MaskParameter(self,stdev_size_thr=1.0,
+                          filter_sigma=1.0,target_reduction_ratio=0.9):
+        """
+            stdev_size_thr:  float  # fraction of standard dev threshold for size of blobs
+            filter_sigma: float # sigma for final gaussian blur
+            target_reduction_ratio: float  # reduction ratio to achieve for tightening the mask
+        """
+        self.stdev_size_thr = stdev_size_thr
+        self.filter_sigma = filter_sigma
+        self.target_reduction_ratio = target_reduction_ratio
 
+    def Mask(self,optimal_image):
+        
+        handle = self.register_hooks()
+        
+        img = optimal_image.copy()
+        img = img.transpose((1,2,0))
+        print('Changed SHAPE',img.shape)
+        #degrade dimension
+        img = rgb2gray(img)
+        print('IMG Size',img.size)
+        delta = img - img.mean()
+        fluc = np.abs(delta)
+        thr = np.std(fluc) * self.stdev_size_thr
+
+        # original mask
+        mask = convex_hull_image((fluc > thr).astype(float))
+        fm = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
+        masked_img = fm * img + (1 - fm) * img.mean()
+        #print('MASKED_IMG SHAPE',masked_img.shape)
+        #print('Mask SHAPE',masked_img.shape)
+        masked_img = masked_img.reshape(224,224,1)
+        test_image = np.concatenate((masked_img,masked_img,masked_img),axis=-1)
+        #print('TEST SHAPE',test_image.shape)
+        test_image = test_image.transpose((2,0,1))
+        test_image = ip.to_tensor(test_image).float()
+        test_image = copy.deepcopy(test_image)
+        test_image = test_image.unsqueeze(0)
+        
+        self.dnn.model(test_image)
+        #print(mask.shape,'Mask[0]',mask[0])
+        activation = base_line = -self.activ_loss.detach().numpy()
+
+        print('Baseline:', base_line)
+        count = 0
+        while (activation > base_line * self.target_reduction_ratio):
+            mask = erosion(mask, square(3))
+            
+            #print('mask',mask)
+            fm = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
+            masked_img = fm * img + (1 - fm) * img.mean()
+            #print('MASKED_IMG SHAPE',masked_img.shape)
+            masked_img = masked_img.reshape(224,224,1)
+            test_image = np.concatenate((masked_img,masked_img,masked_img),axis=-1)
+            test_image = test_image.transpose((2,0,1))
+            test_image = ip.to_tensor(test_image).float()
+            test_image = copy.deepcopy(test_image)
+            test_image = test_image.unsqueeze(0)
+            self.dnn.model(test_image)
+            activation  = - self.activ_loss.detach().numpy()
+            print('Activation:', activation)
+            count += 1
+
+            if count > 100:
+                print('This has been going on for too long! - aborting')
+                raise ValueError('The activation does not reduce for the given setting')
+                break
+        
+        handle.remove()
+        
+        #print('MASKED_IMG SHAPE',test_image.shape)
+        return  test_image[0].detach().numpy().copy()
