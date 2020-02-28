@@ -14,10 +14,22 @@ from dnnbrain.utils.util import gen_dmask
 class MethodAction(argparse.Action):
     def __call__(self, parser, args, values, option_string=None):
         method, n_feat = values
+
+        # prescribe a limit to method
         methods = ('pca', 'hist', 'psd')
         if method not in methods:
             raise ValueError('invalid name: {0} (choose from {1})'.format(method, methods))
-        n_feat = int(n_feat)
+
+        # prescribe a limit to n_feat
+        if method == 'pca':
+            if 0 < float(n_feat) < 1:
+                n_feat = float(n_feat)
+            else:
+                n_feat = int(n_feat)
+        else:
+            n_feat = int(n_feat)
+
+        # pack the two values
         Meth = namedtuple('Meth', ('method', 'n_feat'))
         setattr(args, self.dest, Meth(method, n_feat))
 
@@ -74,10 +86,12 @@ def main():
     if args.layer is None and args.dmask is None:
         dmask = None
     else:
-        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+        channels = 'all' if args.chn is None else args.chn
+        dmask = gen_dmask(args.layer, channels, args.dmask)
 
     # do feature extraction
-    activation = Activation(args.act, dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
     activation = activation.fe(args.meth.method, args.meth.n_feat, args.axis)
     activation.save(args.out)
 

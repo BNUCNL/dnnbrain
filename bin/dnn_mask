@@ -43,8 +43,10 @@ def main():
     args = parser.parse_args()
 
     # extract dnn activation with mask
-    dmask = gen_dmask(args.layer, args.chn, args.dmask)
-    activation = Activation(args.act, dmask)
+    channels = 'all' if args.chn is None else args.chn
+    dmask = gen_dmask(args.layer, channels, args.dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
     activation.save(args.out)
 
 

@@ -17,7 +17,7 @@ if not os.path.isdir(TMP_DIR):
 
 class TestStimulus:
 
-    meta_true = {
+    header_true = {
         'type': 'video',
         'path': 'test path',
         'title': 'test title'
@@ -28,6 +28,26 @@ class TestStimulus:
         'acc': np.array([0.2, 0.4, 0.1, 0.6]),
         'label': np.array([0, 1, 1, 2])
     }
+
+    def test_init(self):
+
+        # test normal
+        stimuli = dcore.Stimulus(self.header_true, self.data_true)
+        assert stimuli.header == self.header_true
+        for k, v in self.data_true.items():
+            np.testing.assert_equal(v, stimuli.get(k))
+
+        # test exception
+        data = copy.deepcopy(self.data_true)
+        data['acc'] = data['acc'][:-1]
+        data['label'] = data['label'][:-1]
+        with pytest.raises(AssertionError):
+            dcore.Stimulus(data=data)
+        data.pop('stimID')
+        with pytest.raises(KeyError):
+            dcore.Stimulus(data=data)
+        with pytest.raises(AssertionError):
+            dcore.Stimulus('header')
 
     def test_load(self):
 
@@ -44,8 +64,8 @@ class TestStimulus:
         stimuli.load(fname)
 
         # assert
-        assert stimuli.meta['type'] == type
-        assert stimuli.meta['title'] == title
+        assert stimuli.header['type'] == type
+        assert stimuli.header['title'] == title
         assert stimuli.items == items
         assert stimuli._data['stimID'][[0, 2]].tolist() == stim_ids
         assert stimuli._data['RT'][[0, 2]].tolist() == rts
@@ -54,16 +74,17 @@ class TestStimulus:
 
         # save by Stimulus.save()
         stimuli1 = dcore.Stimulus()
-        stimuli1.meta = self.meta_true
+        stimuli1.header = self.header_true
         stimuli1._data = self.data_true
         fname = pjoin(TMP_DIR, 'test.stim.csv')
         stimuli1.save(fname)
 
         # assert
-        stimuli2 = dcore.Stimulus(fname)
-        assert stimuli1.meta == stimuli2.meta
+        stimuli2 = dcore.Stimulus()
+        stimuli2.load(fname)
+        assert stimuli1.header == stimuli2.header
         for k, v in stimuli1._data.items():
-            assert v.tolist() == stimuli2._data[k].tolist()
+            np.testing.assert_equal(v, stimuli2._data[k])
 
     def test_get(self):
 
@@ -104,7 +125,7 @@ class TestStimulus:
     def test_len(self):
 
         stimuli = dcore.Stimulus()
-        stimuli.meta = self.meta_true
+        stimuli.header = self.header_true
         stimuli._data = self.data_true
         assert len(stimuli) == len(self.data_true['stimID'])
 
@@ -112,42 +133,42 @@ class TestStimulus:
 
         # prepare
         stimuli = dcore.Stimulus()
-        stimuli.meta = self.meta_true
+        stimuli.header = self.header_true
         stimuli._data = self.data_true
 
         # -assert int-
         # --assert positive--
         indices = 1
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert v[0] == stimuli._data[k][indices]
 
         # --assert negative--
         indices = -1
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert v[0] == stimuli._data[k][indices]
 
         # -assert list-
         indices = [0, 2]
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert np.all(v == stimuli._data[k][indices])
 
         # -assert slice-
         indices = slice(1, 3)
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k, v in stim_tmp._data.items():
             assert np.all(v == stimuli._data[k][indices])
 
         # -assert (list, list of str)-
         indices = ([0, 2], ['stimID', 'label'])
         stim_tmp = stimuli[indices]
-        assert stimuli.meta == stim_tmp.meta
+        assert stimuli.header == stim_tmp.header
         for k in indices[1]:
             assert np.all(stim_tmp._data[k] == stimuli._data[k][indices[0]])
 
@@ -191,7 +212,8 @@ class TestActivation:
         dmask.set('fc3', channels=[1, 2, 3])
 
         # assert without dmask
-        activation = dcore.Activation(fname)
+        activation = dcore.Activation()
+        activation.load(fname)
         for layer in rf.keys():
             np.testing.assert_array_equal(np.asarray(rf[layer]),
                                           activation._activation[layer])
@@ -200,10 +222,9 @@ class TestActivation:
         activation.load(fname, dmask)
         for layer in rf.keys():
             mask = dmask.get(layer)
-            data_true = dnn_mask(np.asarray(rf[layer]), mask.get('chn'),
-                                 mask.get('row'), mask.get('col'))
-            np.testing.assert_array_equal(data_true,
-                                          activation._activation[layer])
+            data_true = dnn_mask(np.asarray(rf[layer]), mask['chn'],
+                                 mask['row'], mask['col'])
+            np.testing.assert_equal(data_true, activation._activation[layer])
         rf.close()
 
     def test_save(self):
@@ -217,8 +238,7 @@ class TestActivation:
         # assert
         rf = h5py.File(fname, 'r')
         for layer, data in self.activation_true.items():
-            np.testing.assert_array_equal(data,
-                                          np.asarray(rf[layer]))
+            np.testing.assert_equal(data, np.asarray(rf[layer]))
         rf.close()
 
     def test_get(self):
@@ -242,8 +262,7 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             data = np.concatenate([data, data])
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_mask(self):
 
@@ -259,10 +278,8 @@ class TestActivation:
         # assert
         for layer, data in self.activation_true.items():
             mask = dmask.get(layer)
-            data = dnn_mask(data, mask.get('chn'),
-                                 mask.get('row'), mask.get('col'))
-            np.testing.assert_array_equal(data,
-                                          activation._activation[layer])
+            data = dnn_mask(data, mask['chn'], mask['row'], mask['col'])
+            np.testing.assert_equal(data, activation._activation[layer])
 
     def test_pool(self):
 
@@ -341,6 +358,12 @@ class TestActivation:
 
 class TestMask:
 
+    dmask_true = {
+        'conv1': {'chn': 'all', 'row': 'all', 'col': [1, 2, 3]},
+        'conv2': {'chn': 'all', 'row': [2, 5, 6], 'col': 'all'},
+        'fc1': {'chn': [2, 4, 6], 'row': 'all', 'col': 'all'}
+    }
+
     def test_get(self):
 
         fname = pjoin(DNNBRAIN_TEST, 'alexnet.dmask.csv')
@@ -349,7 +372,8 @@ class TestMask:
         dmask_dict = fio.MaskFile(fname).read()
 
         # load by Mask.load()
-        dmask = dcore.Mask(fname)
+        dmask = dcore.Mask()
+        dmask.load(fname)
 
         # assert
         assert dmask.layers == list(dmask_dict.keys())
@@ -358,34 +382,22 @@ class TestMask:
 
     def test_set(self):
 
-        # ground truth
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
-
         # set by Mask.set()
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # assert
-        assert dmask.layers == list(dmask_dict.keys())
+        assert dmask.layers == list(self.dmask_true.keys())
         for layer in dmask.layers:
-            assert dmask.get(layer) == dmask_dict[layer]
+            assert dmask.get(layer) == self.dmask_true[layer]
 
     def test_copy(self):
 
         # prepare origin dmask
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # make a copy
         dmask_copy = dmask.copy()
@@ -398,20 +410,16 @@ class TestMask:
     def test_delete(self):
 
         # prepare a dmask
-        dmask_dict = {
-            'conv1': {'col': [1, 2, 3]},
-            'conv2': {'row': [2, 5, 6]},
-            'fc1': {'chn': [2, 4, 6]}
-        }
         dmask = dcore.Mask()
-        for layer, d in dmask_dict.items():
-            dmask.set(layer, channels=d.get('chn'), rows=d.get('row'), columns=d.get('col'))
+        for layer, d in self.dmask_true.items():
+            dmask.set(layer, channels=d['chn'], rows=d['row'], columns=d['col'])
 
         # delete a layer
         layer_del = 'conv1'
         dmask.delete(layer_del)
 
         # assert
+        dmask_dict = copy.deepcopy(self.dmask_true)
         dmask_dict.pop(layer_del)
         assert dmask.layers == list(dmask_dict.keys())
         for layer in dmask.layers:

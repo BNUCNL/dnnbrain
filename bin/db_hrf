@@ -64,15 +64,20 @@ def main():
                         help='an output filename with suffix .act.h5')
     args = parser.parse_args()
 
-    stimuli = Stimulus(args.stim)  # load stimuli
+    # load stimuli
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
+
     # initialize DNN mask
     if args.layer is None and args.dmask is None:
         dmask = None
     else:
-        dmask = gen_dmask(args.layer, args.chn, args.dmask)
+        channels = 'all' if args.chn is None else args.chn
+        dmask = gen_dmask(args.layer, channels, args.dmask)
 
     # do convolution
-    activation = Activation(args.act, dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
     activation = activation.convolve_hrf(stimuli.get('onset'), stimuli.get('duration'),
                                          args.n_vol, args.tr, args.ops)
     activation.save(args.out)

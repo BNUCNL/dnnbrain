@@ -103,7 +103,8 @@ def main():
 
     # -Load response start-
     if args.resp.endswith('.roi.h5'):
-        roi = ROI(args.resp, args.roi)
+        roi = ROI()
+        roi.load(args.resp, args.roi)
         Y = roi.data
 
     elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
@@ -129,8 +130,10 @@ def main():
     if args.layer is None and args.dmask is None:
         dmask = None
     else:
-        dmask = gen_dmask(args.layer, args.chn, args.dmask)
-    activation = Activation(args.act, dmask)
+        channels = 'all' if args.chn is None else args.chn
+        dmask = gen_dmask(args.layer, channels, args.dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
     print('Finish loading activation: ', args.act)
     # -load activation end-
 

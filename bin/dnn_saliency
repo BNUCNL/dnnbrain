@@ -1,7 +1,8 @@
 #! /usr/bin/env python
 
 """
-view feature maps of stimuli
+Find the saliency parts of an image that contributes to
+the activation of the specified channel.
 """
 
 import argparse
@@ -9,10 +10,11 @@ import numpy as np
 
 from os.path import join as pjoin
 from PIL import Image
+from dnnbrain.dnn.base import ip
 from dnnbrain.dnn.core import Stimulus
 from dnnbrain.utils.plot import imgarray_show
-from dnnbrain.utils.util import gen_dmask
 from dnnbrain.dnn import models as db_models  # used by eval
+from dnnbrain.dnn.algo import GuidedSaliencyImage, VanillaSaliencyImage
 
 
 def main():
@@ -40,6 +42,20 @@ def main():
                         required=True,
                         type=str,
                         help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-meth',
+                        metavar='Method',
+                        default='guided',
+                        choices=('guided', 'vanilla'),
+                        help='the method used to generate the saliency image')
+    parser.add_argument('-mode',
+                        metavar='Mode',
+                        default='RGB',
+                        choices=('RGB', 'gray'),
+                        help='Visualization mode of the saliency image.'
+                             'RGB: visualize derivatives directly; '
+                             'gray: retain the maximal magnitude of RGB channels for each pixel, '
+                             '    and visualize as a gray image. Note: -cmap, -vmin and -vmax '
+                             '    options are only valid at the gray mode.')
     parser.add_argument('-cmap',
                         metavar='Colormap',
                         type=str,
@@ -63,7 +79,6 @@ def main():
                         type=str,
                         help='an output directory where the figures are saved')
     args = parser.parse_args()
-    assert args.layer.startswith('conv'), 'Only support convolution layer!'
     assert len(args.chn) <= 5, "Don't support view more than 5 channels at once!"
 
     # load objects
@@ -71,8 +86,11 @@ def main():
     # load stimuli
     stimuli = Stimulus()
     stimuli.load(args.stim)
-    # generate DNN mask
-    dmask = gen_dmask([args.layer], args.chn)
+    # prepare saliency
+    if args.meth == 'guided':
+        saliency = GuidedSaliencyImage(dnn)
+    else:
+        saliency = VanillaSaliencyImage(dnn)
 
     # compute DNN activation batch-wise
     count = 1
@@ -85,14 +103,21 @@ def main():
 
         # -prepare images-
         # prepare original images
-        images = []
+        pil_imgs = []
+        out_imgs = []
         for stim_id in stim.get('stimID'):
             img = Image.open(pjoin(stim.header['path'], stim_id))
-            images.append(np.array(img))
-        # prepare DNN activation feature maps
-        dnn_activ = dnn.compute_activation(stim, dmask)
-        for idx in range(len(args.chn)):
-            images.extend(dnn_activ.get(args.layer)[:, idx, ...])
+            pil_imgs.append(img)
+            out_imgs.append(np.array(img))
+        # prepare saliency images
+        for chn_num in args.chn:
+            saliency.set_layer(args.layer, chn_num)
+            for img in pil_imgs:
+                grad = saliency.backprop(img)
+                if args.mode == 'gray':
+                    grad = np.max(np.abs(grad), 0)
+                grad = ip.to_pil(grad, True)
+                out_imgs.append(np.array(grad))
 
         # -prepare row_names-
         row_names = ['chn{}'.format(chn) for chn in args.chn]
@@ -105,7 +130,7 @@ def main():
             save_path = pjoin(args.out, '{0}_{1}_fig{2}.jpg'.format(args.net, args.layer, count))
 
         n_col = len(stim)
-        imgarray_show(images, n_row, n_col, row_names, args.vmin, args.vmax,
+        imgarray_show(out_imgs, n_row, n_col, row_names, args.vmin, args.vmax,
                       cmap=args.cmap, show=args.show, save_path=save_path)
         print('Finish: {0}/{1}'.format((count - 1) * batch_size + n_col, n_stim))
         count += 1

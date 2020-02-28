@@ -9,19 +9,18 @@ class ROI:
     """
     A class used to encapsulate and manipulate ROI data of brain
     """
-    def __init__(self, fname=None, rois=None):
+    def __init__(self, rois=None, value=None):
         """
         Parameters:
         ----------
-        fname[str]: file name with suffix as .roi.h5
         rois[str|list]: ROI names of interest
+        value[ndarray]: ROI data
         """
         self.rois = []
         self.data = None
-        if fname is None:
-            assert rois is None, "The 'rois' only used when 'fname' is not None!"
-        else:
-            self.load(fname, rois)
+        if rois is not None:
+            assert value is not None, "The value can't be None when rois is not None!"
+            self.set(rois, value)
 
     def load(self, fname, rois=None):
         """
@@ -595,8 +594,9 @@ class BrainDecoder:
             data['model'] = data['model'].reshape(shape)
             if isinstance(self.model, UnivariatePredictionModel):
                 data['location'] = data['location'].reshape(shape)
-
             pred_dict[layer] = data
+            print(f'Layer-{layer} finished.')
+
         return pred_dict
 
     def decode_behavior(self, beh_data):

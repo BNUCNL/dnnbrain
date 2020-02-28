@@ -1,9 +1,9 @@
 import os
 
 from os.path import join as pjoin
+from PIL import Image
 from matplotlib import pyplot as plt
 from dnnbrain.dnn import algo as d_algo
-from dnnbrain.dnn.core import Image
 from dnnbrain.dnn.models import AlexNet
 from dnnbrain.utils.util import normalize
 
@@ -15,8 +15,7 @@ if not os.path.isdir(TMP_DIR):
 
 class TestVanillaSaliencyImage:
 
-    image = Image()
-    image.load(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
 
     def test_backprop(self):
 
@@ -73,8 +72,7 @@ class TestVanillaSaliencyImage:
 
 class TestGuidedSaliencyImage:
 
-    image = Image()
-    image.load(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
 
     def test_backprop(self):
 
@@ -142,8 +140,8 @@ class TestSynthesisImage:
     def test_synthesize(self):
 
         dnn = AlexNet()
-        syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276, n_iter=2)
-        img_out = syn_img.synthesize()
+        syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276)
+        img_out = syn_img.synthesize(2)
 
         # assert
         assert img_out.shape == (3, *dnn.img_size)

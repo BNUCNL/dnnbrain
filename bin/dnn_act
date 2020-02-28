@@ -17,7 +17,6 @@ def main():
                         metavar='Net',
                         required=True,
                         type=str,
-                        choices=('AlexNet',),
                         help='a neural network name')
     parser.add_argument('-layer',
                         metavar='Layer',
@@ -52,6 +51,9 @@ def main():
                              'median: median pooling; '
                              'L1: 1-norm; '
                              'L2: 2-norm.')
+    parser.add_argument('-cuda',
+                        action='store_true',
+                        help='Use GPU or not')
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
@@ -60,11 +62,17 @@ def main():
     args = parser.parse_args()
 
     dnn = eval('db_models.{}()'.format(args.net))  # load DNN
-    stimuli = Stimulus(args.stim)  # load stimuli
-    dmask = gen_dmask(args.layer, args.chn, args.dmask)  # generate DNN mask
+
+    # load stimuli
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
+
+    # generate DNN mask
+    channels = 'all' if args.chn is None else args.chn
+    dmask = gen_dmask(args.layer, channels, args.dmask)
 
     # -extract activation-
-    activation = dnn.compute_activation(stimuli, dmask, args.pool)
+    activation = dnn.compute_activation(stimuli, dmask, args.pool, args.cuda)
     activation.save(args.out)
 
 

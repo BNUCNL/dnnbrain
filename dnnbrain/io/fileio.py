@@ -110,7 +110,7 @@ class StimulusFile:
 
             # write variable data
             wf.write('data={}\n'.format(','.join(data.keys())))
-            var_data = np.array(list(data.values()), dtype=np.str).T
+            var_data = np.array(list(data.values())).astype(np.str).T
             var_data = [','.join(row) for row in var_data]
             wf.write('\n'.join(var_data))
 
@@ -145,20 +145,20 @@ class ActivationFile:
         if dmask is None:
             dmask = dict()
             for layer in rf.keys():
-                dmask[layer] = dict()
+                dmask[layer] = {'chn': 'all', 'row': 'all', 'col': 'all'}
 
         # read activation
         activation = dict()
         for k, v in dmask.items():
             activation[k] = dict()
             ds = rf[k]
-            if v.get('chn') is not None:
+            if v['chn'] != 'all':
                 channels = [chn-1 for chn in v['chn']]
                 ds = ds[:, channels, :, :]
-            if v.get('row') is not None:
+            if v['row'] != 'all':
                 rows = [row-1 for row in v['row']]
                 ds = ds[:, :, rows, :]
-            if v.get('col') is not None:
+            if v['col'] != 'all':
                 columns = [col-1 for col in v['col']]
                 ds = ds[:, :, :, columns]
 
@@ -177,7 +177,7 @@ class ActivationFile:
         """
         wf = h5py.File(self.fname, 'w')
         for layer, data in activation.items():
-            wf.create_dataset(layer, data=data)
+            wf.create_dataset(layer, data=data, compression='gzip')
 
         wf.close()
 
@@ -212,7 +212,7 @@ class MaskFile:
             if '=' in line:
                 # layer
                 layer, axes = line.split('=')
-                dmask[layer] = dict()
+                dmask[layer] = {'chn': 'all', 'row': 'all', 'col': 'all'}
 
                 # channels, rows, and columns
                 axes = axes.split(',')
@@ -245,9 +245,10 @@ class MaskFile:
                 for axis, numbers in axes_dict.items():
                     assert axis in ('chn', 'row', 'col'), \
                         'Axis must be from (chn, row, col).'
-                    axes.append(axis)
-                    num_line = ','.join(map(str, numbers))
-                    num_lines.append(num_line)
+                    if numbers != 'all':
+                        axes.append(axis)
+                        num_line = ','.join(map(str, numbers))
+                        num_lines.append(num_line)
 
                 wf.write('{0}={1}\n'.format(layer, ','.join(axes)))
                 for num_line in num_lines:
