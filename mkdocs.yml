@@ -10,3 +10,7 @@ nav:
     - API: 'API/TBD.md'
     - Citing DNNBrain: 'citing.md'
 theme: readthedocs
+markdown_extensions:
+    - toc:
+        permalink: "#"
+        separator: "_"
