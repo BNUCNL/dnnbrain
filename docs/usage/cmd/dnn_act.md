@@ -25,6 +25,10 @@ dnn_act -net Net [-layer Layer [Layer ...]] [-chn Channel [Channel ...]] [-dmask
 An .act.h5 file containing the extracted activation that can be read and saved with the module dnnbrain.io.fileio.ActivationFile.
 
 # Examples
+```
 dnn_act -net AlexNet -layer conv1 conv5_relu fc2_relu -stim ./faces.stim.csv -pool max -out ./faces.act.h5
+```
 
+```
 dnn_act -net AlexNet -dmask ./faces.dmask.csv -stim ./faces.stim.csv -pool max -out ./faces.act.h5
+```
