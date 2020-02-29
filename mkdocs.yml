@@ -3,7 +3,7 @@ nav:
     - Installation: 'install.md'
     - Usage notes:
         - File format: 'usage/file_format.md'
-        - Command-line arguments:
+        - Using command line:
             - dnn_act: 'usage/cmd/dnn_act.md'
         - Using python lib:
             - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
