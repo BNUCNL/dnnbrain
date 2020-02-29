@@ -1,4 +1,4 @@
-# Named
+# Name
 dnn_act - extract activation of stimuli from DNN
 
 # Synopsis
