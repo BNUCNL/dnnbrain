@@ -589,7 +589,14 @@ class MaskedImage(Algorithm):
         
     def prepare_test(self,masked_image):
         '''
-        transfer pic to tenssor for dnn activation 
+        transfer pic to tenssor for dnn activation
+        Parameters:
+        -----------
+        masked_image [ndarray]: masked image waits for dnn activation
+        
+        returns:
+        -----------
+            [tensor] for dnn computation
         '''
         test_image = np.repeat(masked_image,3).reshape((224,224,3))
         test_image = test_image.transpose((2,0,1))
@@ -680,7 +687,7 @@ class MaskedImage(Algorithm):
                 break
         
         handle.remove()
-        
-        return  test_image[0].detach().numpy()
+        masked_image = test_image[0].detach().numpy()
+        return  masked_image
     
          
