@@ -12,7 +12,7 @@ from skimage.morphology import convex_hull_image,erosion, square
 from scipy.ndimage.filters import gaussian_filter
 from skimage import filters
 from skimage.color import rgb2gray
-import cv2
+
 
 class Algorithm(abc.ABC):
     """
@@ -278,7 +278,8 @@ class SynthesisImage(Algorithm):
         precondition_metric[str]: The metric method of precondition
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_metric(activ_metric, regular_metric, precondition_metric, save_out_interval, print_inter_loss)
+        self.set_metric(activ_metric, regular_metric, precondition_metric)
+        self.set_utiliz(save_out_interval, print_inter_loss)
         self.activ_loss = None
         self.optimal_image = None
 
@@ -289,13 +290,8 @@ class SynthesisImage(Algorithm):
         self.row =None
         self.column=None
         
-        #for mask
-        self.stdev_size_thr = None
-        self.filter_sigma = None
-        self.target_reduction_ratio = None
-
     def set_metric(self, activ_metric, regular_metric,
-                   precondition_metric, save_out_interval, print_inter_loss):
+                   precondition_metric):
         """
         Set metric methods
 
@@ -333,7 +329,16 @@ class SynthesisImage(Algorithm):
             self.precondition_metric = self._gaussian_blur
         else:
             raise AssertionError('Only Gaussian Blur is supported!')
+            
 
+    def set_utiliz(self, save_out_interval=False, print_inter_loss=False):
+        '''
+        Set print and save interval pics
+        Parameters
+        -----------
+        save_out_interval[bool]
+        print_inter_loss[bool]
+        '''
         # saving interval pics in iteration setting
         if save_out_interval is True:
             self.save_out_interval = self._save_out
@@ -358,7 +363,8 @@ class SynthesisImage(Algorithm):
             img_out = self.optimal_image[0].detach().numpy().copy()
             img_out = ip.to_pil(img_out, True)
             img_out.save(pjoin(save_path, f'synthesized_image_iter{currti + 1}.jpg'))
-        else:
+            print('Saved No.',currti + 1,'in iteration')
+        elif save_path == None:
             raise AssertionError('Check save_out_interval parameters please! You must give save_interval & save_path!')
 
     def _close_save(self, currti, save_interval, save_path):
@@ -406,19 +412,27 @@ class SynthesisImage(Algorithm):
     def center_bias(self):
         pass
 
-    def register_hooks(self):
+    def register_hooks(self,unit=None):
         """
         Define register hook and register them to specific layer and channel.
+        Parameter:
+        ---------
+        unit[tuple]: determine unit position, None means channel
+        
         """
         layer, chn = self.get_layer()
 
         def forward_hook(module, feat_in, feat_out):
-            if self.row == None or self.column == None:
+            if unit == None:
                 self.activ_loss = - self.activ_metric(feat_out[0, chn - 1])
             else:
-                row = int(self.row)
-                column = int(self.column)
-                self.activ_loss = - self.activ_metric(feat_out[0, chn - 1][row][column])  # single unit
+                if isinstance(unit,tuple) and len(unit)==2:
+                    self.row,self.column = unit
+                    row = int(self.row)
+                    column = int(self.column)
+                    self.activ_loss = - self.activ_metric(feat_out[0, chn - 1,row,column])  # single unit
+                else:
+                    raise AssertionError('Check unit must be 2-dimensinal tuple')
             self.activ_losses.append(self.activ_loss.item())
 
         # register forward hook to the target layer
@@ -427,15 +441,16 @@ class SynthesisImage(Algorithm):
 
         return handle
 
-    def synthesize(self, init_image = None, lr = 0.1,
+    def synthesize(self, init_image = None, unit=None,lr = 0.1,
                     regular_lambda = 1, n_iter = 30,save_path = None,
-                    save_interval = None, GB_radius = None, step = 1):
+                    save_interval = None, GB_radius = 0.875, step = 1):
         """
         Synthesize the image which maximally activates target layer and channel
 
         Parameter:
         ---------
         init_image[ndarray|Tensor|PIL.Image]: initialized image
+        unit[tuple]:set target unit position
         lr[float]: learning rate
         regular_lambda[float]: the lambda of the regularization
         n_iter[int]: the number of iterations
@@ -452,8 +467,10 @@ class SynthesisImage(Algorithm):
         ------
             [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
+                
+        
         # Hook the selected layer
-        handle = self.register_hooks()
+        handle = self.register_hooks(unit)
 
         # prepare initialized image
         if init_image is None:
@@ -506,63 +523,127 @@ class SynthesisImage(Algorithm):
         return final_image
     
     
-    def __set_MaskParameters__(self,delta_thr,size_thr,
-                          expansion_sigma,expansion_thr,filter_sigma):
-        if isinstance(delta_thr,int):
-            self.delta_thr = delta_thr
-            self.size_thr = size_thr
-        else:
-            raise AssertionError('delta_thr&size_thr must be [int]!')
+    
+    
+class MaskedImage(Algorithm):
+    '''
+   
+    Generate masked gray picture for images according to activation changes
+   
+    '''
+    def __int__(self,dnn, layer=None, channel=None,
+             initial_image=None,unit=None, 
+             stdev_size_thr=None,filter_sigma=None,target_reduction_ratio=None):
+        """
+        Parameters:
+        ----------
+        dnn[DNN]: DNNBrain DNN
+        layer[str]: name of the layer where the algorithm performs on
+        channel[int]: sequence number of the channel where the algorithm performs on
+        initial_image[ndarray]: initial image waits for masking
+        unit[tuple]: position of the target unit
+        """
+       
+        super(MaskedImage, self).__init__(dnn, layer, channel)
+        self.set_parameters(initial_image,unit,stdev_size_thr,filter_sigma,target_reduction_ratio)
+        self.activ = None
+        self.masked_image = None
+        
+        self.activ_type = None
+        self.row =None
+        self.column=None
+        
+        
 
-        self.expansion_sigma = expansion_sigma
-        self.expansion_thr = expansion_thr
-        self.filter_sigma = filter_sigma
-
-    def remove_small_area(self,mask):
-        mask_mod = mask.copy()
-        label_im, nb_labels = label(mask_mod)
-        for i in range(0, nb_labels + 1):
-            area = label_im == i
-            s = np.sum(area)
-            if s < self.size_thr:
-                mask_mod[area] = 0
-        return mask_mod
-
-    def __Mask__(self,img):
-        img = img.copy(order='c')
-        delta = img - img.mean()
-        mask = np.abs(delta) > self.delta_thr
-        # remove small lobes - likely an artifact
-        mask = self.remove_small_area(mask)
-        # fill in the gap between lobes
-        mask = convex_hull_image(mask)
-        # expand the size of the mask
-        mask = gaussian_filter(mask.astype(float),
-                               sigma=self.expansion_sigma) > self.expansion_thr
-        # blur the edge, giving smooth transition
-        mask = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
-
-    def set_MaskParameter(self,stdev_size_thr=1.0,
+    def set_parameters(self,initial_image=None,unit=None,stdev_size_thr=1.0,
                           filter_sigma=1.0,target_reduction_ratio=0.9):
         """
-            stdev_size_thr:  float  # fraction of standard dev threshold for size of blobs
-            filter_sigma: float # sigma for final gaussian blur
-            target_reduction_ratio: float  # reduction ratio to achieve for tightening the mask
+        Set parameters for mask
+        Parameters
+        ----------
+        initial_image[ndarray]: initial image waits for masking
+        unit[tuple]: position of the target unit
+        stdev_size_thr[float]: fraction of standard dev threshold for size of blobs,default 1.0
+        filter_sigma[float]: sigma for final gaussian blur, default 1.0
+        target_reduction_ratio[float]; reduction ratio to achieve for tightening the mask,default 0.9
         """
+        if isinstance(initial_image,np.ndarray):
+            if len(initial_image.shape) in [2,3]:
+                self.initial_image = initial_image
+            else: 
+                raise AssertionError('Check initial_image, only two or three dimentions can be set!')
+        else:
+            raise AssertionError('Check initial_image to be np.ndarray')
+            
+        if isinstance(unit,tuple) and len(unit) == 2:    
+            self.row,self.column = unit
+            self.activ_type = 'unit'
+        elif unit == None:
+            self.activ_type = 'channel'
+        else: 
+            raise AssertionError('Check unit must be 2-dimentional tuple,like(27,27)')
+            
         self.stdev_size_thr = stdev_size_thr
         self.filter_sigma = filter_sigma
         self.target_reduction_ratio = target_reduction_ratio
-
-    def Mask(self,optimal_image):
         
+    def prepare_test(self,masked_image):
+        '''
+        transfer pic to tenssor for dnn activation 
+        '''
+        test_image = np.repeat(masked_image,3).reshape((224,224,3))
+        test_image = test_image.transpose((2,0,1))
+        test_image = ip.to_tensor(test_image).float()
+        test_image = copy.deepcopy(test_image)
+        test_image = test_image.unsqueeze(0)
+        return test_image
+    
+    def register_hooks(self):
+        """
+        Define register hook and register them to specific layer and channel.
+        """
+        layer, chn = self.get_layer()
+
+        def forward_hook(module, feat_in, feat_out):
+            if self.activ_type=='channel':
+                self.activ = torch.mean(feat_out[0, chn - 1])
+            elif self.activ_type=='unit':
+                row = int(self.row)
+                column = int(self.column)
+                self.activ = feat_out[0, chn - 1,row,column]  # single unit
+            self.activ_trace.append(self.activ.item())
+
+        # register forward hook to the target layer
+        module = self.dnn.layer2module(layer)
+        handle = module.register_forward_hook(forward_hook)
+
+        return handle
+             
+
+    def put_mask(self,maxiteration=100):
+        '''
+        Put mask on image
+       
+        Parameter:
+        --------
+        maxiteration[int]: the max number of iterations to sto
+        
+        Return
+        -------
+            [ndarray] the masked image with shape as (n_chn, height, width)
+        '''
+        self.activ_trace = [] 
         handle = self.register_hooks()
         
-        img = optimal_image.copy()
-        img = img.transpose((1,2,0))
-        print('Changed SHAPE',img.shape)
+        img = self.initial_image.copy()
+        
+        if len(img.shape) == 3 and img.shape[0] == 3:        
+            img = img.transpose((1,2,0))
+        
         #degrade dimension
         img = rgb2gray(img)
-        print('IMG Size',img.size)
+        
+        #compute the threshold of pixel contrast
         delta = img - img.mean()
         fluc = np.abs(delta)
         thr = np.std(fluc) * self.stdev_size_thr
@@ -571,46 +652,35 @@ class SynthesisImage(Algorithm):
         mask = convex_hull_image((fluc > thr).astype(float))
         fm = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
         masked_img = fm * img + (1 - fm) * img.mean()
-        #print('MASKED_IMG SHAPE',masked_img.shape)
-        #print('Mask SHAPE',masked_img.shape)
-        masked_img = masked_img.reshape(224,224,1)
-        test_image = np.concatenate((masked_img,masked_img,masked_img),axis=-1)
-        #print('TEST SHAPE',test_image.shape)
-        test_image = test_image.transpose((2,0,1))
-        test_image = ip.to_tensor(test_image).float()
-        test_image = copy.deepcopy(test_image)
-        test_image = test_image.unsqueeze(0)
-        
+
+        #prepare test img and get base acivation
+        test_image = self.prepare_test(masked_img)
         self.dnn.model(test_image)
-        #print(mask.shape,'Mask[0]',mask[0])
-        activation = base_line = -self.activ_loss.detach().numpy()
+        activation = base_line = self.activ.detach().numpy()
 
         print('Baseline:', base_line)
         count = 0
+        
+        #START
         while (activation > base_line * self.target_reduction_ratio):
             mask = erosion(mask, square(3))
             
             #print('mask',mask)
             fm = gaussian_filter(mask.astype(float), sigma=self.filter_sigma)
             masked_img = fm * img + (1 - fm) * img.mean()
-            #print('MASKED_IMG SHAPE',masked_img.shape)
-            masked_img = masked_img.reshape(224,224,1)
-            test_image = np.concatenate((masked_img,masked_img,masked_img),axis=-1)
-            test_image = test_image.transpose((2,0,1))
-            test_image = ip.to_tensor(test_image).float()
-            test_image = copy.deepcopy(test_image)
-            test_image = test_image.unsqueeze(0)
+            test_image = self.prepare_test(masked_img)
             self.dnn.model(test_image)
             activation  = - self.activ_loss.detach().numpy()
             print('Activation:', activation)
             count += 1
 
-            if count > 100:
+            if  count > maxiteration:
                 print('This has been going on for too long! - aborting')
                 raise ValueError('The activation does not reduce for the given setting')
                 break
         
         handle.remove()
         
-        #print('MASKED_IMG SHAPE',test_image.shape)
-        return  test_image[0].detach().numpy().copy()
+        return  test_image[0].detach().numpy()
+    
+         
