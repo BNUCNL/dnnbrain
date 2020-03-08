@@ -184,17 +184,11 @@ class MinmalParcelImage(Algorithm):
         act_add = dnn_act.flatten()
         # generate minmal image according to the search_criterion
         if self.search_criterion == 'max':
-            index = np.argmax(act_add)
-        elif self.search_criterion == 'percentage':
-            for i in range(act_add.shape[0]):
-                if act_add[i] > np.max(act_add) * 0.5:
-                    index = i
-                    break
+            image_min = parcel_add[index]
+            image_min = np.squeeze(image_min).transpose(1,2,0)
         else:
             pass
-        image_min = parcel_add[index]
-        image_min = np.squeeze(image_min).transpose(1,2,0)
-        return act_add,image_min
+        return image_min
         
 class MinmalComponentImage(Algorithm):
     """

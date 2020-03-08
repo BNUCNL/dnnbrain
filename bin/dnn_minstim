@@ -69,7 +69,7 @@ def main():
         #decompose image
         minimal_image.felzenszwalb_decompose(image) 
         # generate the minimal image
-        _,image_min = minimal_image.generate_minmal_image()
+        image_min = minimal_image.generate_minmal_image()
         # save the minimal image
         plt.imsave(pjoin(args.out, 'mi_'+str(args.layer)+'_chn'+str(args.chn)+'_'+str(img_id)),image_min)
         plt.axis('off')
