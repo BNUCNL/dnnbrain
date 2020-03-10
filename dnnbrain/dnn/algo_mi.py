@@ -184,7 +184,7 @@ class MinmalParcelImage(Algorithm):
         act_add = dnn_act.flatten()
         # generate minmal image according to the search_criterion
         if self.search_criterion == 'max':
-            image_min = parcel_add[index]
+            image_min = parcel_add[np.argmax(act_add)]
             image_min = np.squeeze(image_min).transpose(1,2,0)
         else:
             pass

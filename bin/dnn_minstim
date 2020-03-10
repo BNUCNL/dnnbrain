@@ -60,7 +60,7 @@ def main():
         
     # Create the minimal image class
     minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)
-    minimal_image.set_params(activaiton_criterion='max', search_criterion='max')
+    minimal_image.set_params()
     
     for img_id in stim.get('stimID'):
         #load image
