@@ -1,18 +1,18 @@
-# Name
-dnn_act - extract activation of stimuli from DNN
+## Name
+dnn_act - extract activation of stimuli from DNN.  
 
-# Synopsis
+## Synopsis
 dnn_act -net Net [-layer Layer [Layer ...]] [-chn Channel [Channel ...]] [-dmask DnnMask] -stim Stimulus [-pool Pooling] [-cuda] -out Output
 
-# Arguments
-## Required Arguments
+## Arguments
+### Required Arguments
 |Argument|Discription|
 |--------|-----------|
 |net     |Name of a neural network|
 |stim    |Path of a .stim.csv file which contains stimulus information|
 |out     |Output path with a suffix as .act.h5|
 
-## Optional Arguments
+### Optional Arguments
 |Argument|Discription|
 |--------|-----------|
 |layer   |Name of the target layer(s).</br>Default is all.</br>E.g., 'conv1' represents the first convolution layer, and 'fc1' represents the first full connection layer.|
@@ -21,14 +21,18 @@ dnn_act -net Net [-layer Layer [Layer ...]] [-chn Channel [Channel ...]] [-dmask
 |pool    |Pooling method.</br>Default is none.</br>max: max pooling; mean: mean pooling; median: median pooling; L1: 1-norm; L2: 2-norm.|
 |cuda    |Use GPU|
 
-# Outputs
+## Outputs
 An .act.h5 file containing the extracted activation that can be read and saved with the module dnnbrain.io.fileio.ActivationFile.
 
-# Examples
+## Examples
+These examples demonstrate the activation extraction function. Activation from target layers of stimuli provided by test.stim.csv was extracted and maxpooled, finally saved in the test.act.h5 file.  
+
 ```
-dnn_act -net AlexNet -layer conv1 conv5_relu fc2_relu -stim ./faces.stim.csv -pool max -out ./faces.act.h5
+# Asserting target layers using the -layer argument
+dnn_act -net AlexNet -layer conv1 conv5_relu fc2_relu -stim ./test.stim.csv -pool max -out ./test.act.h5
 ```
 
 ```
-dnn_act -net AlexNet -dmask ./faces.dmask.csv -stim ./faces.stim.csv -pool max -out ./faces.act.h5
+# Asserting target layers using the -dmask argument
+dnn_act -net AlexNet -dmask ./test.dmask.csv -stim ./test.stim.csv -pool max -out ./test.act.h5
 ```
