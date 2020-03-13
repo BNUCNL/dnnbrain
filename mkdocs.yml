@@ -1,4 +1,7 @@
-@@ -5,6 +5,7 @@ nav:
+site_name: DNNBrain
+nav:
+    - Installation: 'install.md'
+    - Usage notes:
         - File format: 'usage/file_format.md'
         - Using command line:
             - dnn_act: 'usage/cmd/dnn_act.md'
@@ -7,9 +10,9 @@
         - Using python lib:
             - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
     - API: 'API/TBD.md'
-@@ -13,4 +14,4 @@ theme: readthedocs
+    - Citing DNNBrain: 'citing.md'
+theme: readthedocs
 markdown_extensions:
     - toc:
         permalink: "#"
-        separator: "_"
         separator: "_"
