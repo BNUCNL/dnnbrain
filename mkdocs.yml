@@ -6,6 +6,7 @@ nav:
         - Using command line:
             - dnn_act: 'usage/cmd/dnn_act.md'
             - dnn_minstim: 'usage/cmd/dnn_minstim.md'
+            - dnn_topstim: 'usage/cmd/dnn_topstim.md'
         - Using python lib:
             - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
     - API: 'API/TBD.md'
