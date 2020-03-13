@@ -44,7 +44,6 @@ from os.path import join as pjoin
 from dnnbrain.dnn.core import Mask
 from dnnbrain.dnn.models import AlexNet
 
-DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.environ['HOME'], '.dnnbrain_tmp')
 if not os.path.isdir(TMP_DIR):
     os.makedirs(TMP_DIR)
