@@ -265,8 +265,8 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer=None, channel=None,
-                 activ_metric='mean', regular_metric=None, precondition_metric=None,
-                 save_out_interval=False, print_inter_loss=False, ):
+                 activ_metric='mean', regular_metric=None, precondition_metric=None, smooth_metric=None,
+                 save_out_interval=False, print_inter_loss=False):
         """
         Parameters:
         ----------
@@ -276,9 +276,10 @@ class SynthesisImage(Algorithm):
         activ_metric[str]: The metric method to summarize activation
         regular_metric[str]: The metric method of regularization
         precondition_metric[str]: The metric method of precondition
+        smooth_metric[str]: the metric method of smoothing
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_metric(activ_metric, regular_metric, precondition_metric)
+        self.set_metric(activ_metric, regular_metric, precondition_metric, smooth_metric)
         self.set_utiliz(save_out_interval, print_inter_loss)
         self.activ_loss = None
         self.optimal_image = None
@@ -291,7 +292,7 @@ class SynthesisImage(Algorithm):
         self.column=None
         
     def set_metric(self, activ_metric, regular_metric,
-                   precondition_metric):
+                   precondition_metric, smooth_metric):
         """
         Set metric methods
 
@@ -300,7 +301,7 @@ class SynthesisImage(Algorithm):
         activ_metric[str]: The metric method to summarize activation
         regular_metric[str]: The metric method of regularization
         precondition_metric[str]: The metric method of preconditioning
-        save_out_internal[str]: the method of saving the pics in interations
+        smooth_metric[str]: the metric method of smoothing
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -330,6 +331,13 @@ class SynthesisImage(Algorithm):
         else:
             raise AssertionError('Only Gaussian Blur is supported!')
             
+        # smooth metric setting
+        if smooth_metric is None:
+            self.smooth_metric = self._smooth_default
+        elif smooth_metric == 'Fourier':
+            self.smooth_metric = self._smooth_fourier
+        else:
+            raise AssertionError('Only Fourier Smooth is supported!')
 
     def set_utiliz(self, save_out_interval=False, print_inter_loss=False):
         '''
@@ -406,6 +414,35 @@ class SynthesisImage(Algorithm):
         precond_image = copy.deepcopy(precond_image)
         return precond_image
 
+    def _smooth_default(self):
+        pass
+
+    def _smooth_fourier(self, factor):
+        """
+        Tones down the optimal image gradient with 1/sqrt(f) filter in the Fourier domain.
+        Equivalent to low-pass filtering in the spatial domain.
+        
+        Parameter:
+        ---------
+        factor[float]: parameters used in fourier transform
+        """
+        # initialize grad
+        grad = self.optimal_image.grad
+        # handle special situations
+        if factor == 0:
+            pass
+        else:
+            # get information of grad
+            h, w = grad.size()[-2:]
+            tw = np.minimum(np.arange(0, w), np.arange(w-1, -1, -1), dtype=np.float32) 
+            th = np.minimum(np.arange(0, h), np.arange(h-1, -1, -1), dtype=np.float32)
+            # filtering in the spatial domain
+            t = 1 / np.maximum(1.0, (tw[None, :] ** 2 + th[:, None] ** 2) ** (factor))
+            F = grad.new_tensor(t / t.mean()).unsqueeze(-1)
+            pp = torch.rfft(grad.data, 2, onesided=False)
+            # adjust the optimal_image grad after Fourier transform
+            self.optimal_image.grad = torch.irfft(pp * F, 2, onesided=False)
+    
     def mean_image(self):
         pass
 
@@ -441,9 +478,9 @@ class SynthesisImage(Algorithm):
 
         return handle
 
-    def synthesize(self, init_image = None, unit=None,lr = 0.1,
-                    regular_lambda = 1, n_iter = 30,save_path = None,
-                    save_interval = None, GB_radius = 0.875, step = 1):
+    def synthesize(self, init_image = None, unit=None, lr = 0.1,
+                    regular_lambda = 1, n_iter = 30, save_path = None,
+                    save_interval = None, GB_radius = 0.875, factor = 0.5, step = 1):
         """
         Synthesize the image which maximally activates target layer and channel
 
@@ -461,6 +498,7 @@ class SynthesisImage(Algorithm):
             If is None, do nothing.
             else, save_path must not be None.
                 Save out synthesized images per 'save interval' iterations.
+        factor[float]
         GB_radius[float]
         step[int]
         Return:
@@ -490,25 +528,24 @@ class SynthesisImage(Algorithm):
             self.optimal_image = init_image.unsqueeze(0)
             self.optimal_image.requires_grad_(True)
             optimizer = Adam([self.optimal_image], lr=lr)
-
+            
             # save out
             self.save_out_interval(i, save_interval, save_path)
-
+            
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
-
             # computer loss
-            loss = self.activ_loss + regular_lambda * self.regular_metric()
-
+            loss = self.activ_loss + regular_lambda * self.regular_metric()           
             # zero gradients
             optimizer.zero_grad()
             # Backward
-
             loss.backward()
+            #smoooth the gradient
+            self.smooth_metric(factor)
             # Update image
             optimizer.step()
-
+            
             # Print interation
             self.print_inter_loss(i, step, n_iter, loss)
             # precondition
