@@ -1,6 +1,6 @@
 ## Name
 <b>dnn_act</b> - extract activation of stimuli from DNN.  
-The dnn_act takes as principal input the network name and the path of the file containing stimuli imformation, and produces activation of the stimuli in the network as output. Further specific requirments like roi selection, pooling method and GPU using can be asserted by optional inputs.
+The dnn_act takes as principal input the network name and the path of the file containing stimuli imformation, and extracts the activation of the stimuli in the network as output. Further specific requirments like roi selection, pooling method and GPU using can be asserted by optional inputs.
 
 ## Synopsis
 dnn_act -net Net [-layer Layer [Layer ...]] [-chn Channel [Channel ...]] [-dmask DnnMask] -stim Stimulus [-pool Pooling] [-cuda] -out Output
