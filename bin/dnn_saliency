@@ -28,15 +28,14 @@ def main():
                         metavar='Layer',
                         required=True,
                         type=str,
-                        help="convolution layers used to specify where activation is extracted from "
-                             "For example, 'conv1' represents the first convolution layer.")
+                        help="specify the layer"
+                             "E.g., 'conv1' represents the first convolution layer and 'fc1' represents the first full connection layer.")
     parser.add_argument('-chn',
                         metavar='Channel',
                         required=True,
                         type=int,
                         nargs='+',
-                        help="Channel numbers used to specify which channels are used to "
-                             "extract feature maps")
+                        help="Channel numbers used to specify which channels are used to find salience images")
     parser.add_argument('-stim',
                         metavar='Stimulus',
                         required=True,
@@ -60,20 +59,20 @@ def main():
                         metavar='Colormap',
                         type=str,
                         default='coolwarm',
-                        help='show feature maps with the specified colormap')
+                        help='show salience images with the specified colormap')
     parser.add_argument('-vmin',
                         metavar='Vmin',
                         type=float,
-                        help='The minimal value used in colormap is applied in all feature maps.'
-                             'Default is the minimal value of each feature map for itself.')
+                        help='The minimal value used in colormap is applied in all salience images.'
+                             'Default is the minimal value of each salience image for itself.')
     parser.add_argument('-vmax',
                         metavar='Vmax',
                         type=float,
-                        help='The maximal value used in colormap is applied in all feature maps.'
-                             'Default is the maximal value of each feature map for itself.')
+                        help='The maximal value used in colormap is applied in all salience images.'
+                             'Default is the maximal value of each salience image for itself.')
     parser.add_argument('-show',
                         action='store_true',
-                        help='If used, display stimuli and feature maps in figures.')
+                        help='If used, display stimuli and salience images in figures.')
     parser.add_argument('-out',
                         metavar='Output',
                         type=str,
