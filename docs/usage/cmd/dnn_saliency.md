@@ -1,5 +1,6 @@
 # Name
-<b>dnn_saliency</b> - Find the saliency parts of an image that contributes to the activation of the specified channel.  
+<b>dnn_saliency</b> - Find the saliency parts of an image that contribute to the activation of the specified channel.
+
 # Synopsis
 ```
 dnn_saliency [-h] -net Net -layer Layer -chn Channel [Channel ...]
