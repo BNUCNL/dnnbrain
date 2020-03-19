@@ -10,7 +10,7 @@ nav:
             - dnn_saliency: 'usage/cmd/dnn_saliency.md'
         - Using python lib:
             - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
-            - salience_image: 'usage/pylib/salience_image.md'
+            - saliency_image: 'usage/pylib/saliency_image.md'
             - synthesis_image: 'usage/pylib/synthesis_image.md'
     - API: 'API/TBD.md'
     - Citing DNNBrain: 'citing.md'
