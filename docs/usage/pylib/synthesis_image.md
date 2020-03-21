@@ -1,4 +1,4 @@
-#Synthesize Optimal Image
+# Synthesize Optimal Image
 There is an example to synthesize the image which can extract the highest activation of target unit.
 
 ## Code
