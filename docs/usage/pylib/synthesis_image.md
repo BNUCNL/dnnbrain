@@ -17,59 +17,58 @@ path = os.getcwd()
 
 # 1:Parameter Set
 # 1.1 prepare target channel
-	#First save your target channel in variable
+    #First save your target channel in variable
 layer = 'fc3'
 chn = 131
 
 # 1.2 method
-	# Next you can choose metrics for synthesizing,
-	# you must decide how to compute the activation in 1.2.1
-	# and for those in 1.2.2-1.2.4, they are optimal method
-	# you can choose only one or combinations of many
-	# which depends on your purpose and image quality.
+    # Next you can choose metrics for synthesizing,
+    # you must decide how to compute the activation in 1.2.1
+    # and for those in 1.2.2-1.2.4, they are optimal method
+    # you can choose only one or combinations of many
+    # which depends on your purpose and image quality.
 
 # 1.2.1 How to compute
-	# Because channels in convolutional layers has more 
-	# than one activation value, we provide mean and max
-	# to compute the activation loss function of activation  
-	# map, but for fully-connected(fc) layers, the activation 
-	# map only has one activation.
+    # Because channels in convolutional layers has more
+    # than one activation value, we provide mean and max
+    # to compute the activation loss function of activation
+    # map, but for fully-connected(fc) layers, the activation
+    # map only has one activation.
 act_meth = 'mean'
- 
+
 # 1.2.2 Regularization
-	# Loss function =  - activation + regularization
-	# where activation is the mean or max of the channel
-	# and regularization constraint additional requirement
-	# on the image, usually dealing with outliers in pixels.
+    # Loss function =  - activation + regularization
+    # where activation is the mean or max of the channel
+    # and regularization constraint additional requirement
+    # on the image, usually dealing with outliers in pixels.
 reg_meth = 'TV' # Method name: total variance
 reg_lambda = 0.01 
 
 # 1.2.3 Image Precondition
-	# This type of metrics processes the whole image in every
-	# iteration, often blur the image to mitigate high frequency.
+    # This type of metrics processes the whole image in every
+    # iteration, often blur the image to mitigate high frequency.
 pre_meth = 'GB' # Method name: gaussian blur
 GB_radius = 0.3
 
 # 1.2.4 Gradient Smooth
-	# Gradient smooth works by smooth the gradient of activation,
-	# gradient determines the output of image in every iteration.
-	
+    # Gradient smooth works by smooth the gradient of activation,
+    # gradient determines the output of image in every iteration.
+
 sm_meth = 'Fourier' # Method name: Fourier filter
 factor = 0.3
 
 
 #1.3 utiliz
-	# If you want to see interim images in iteration, 
-	# or you want to know how loss function value changes
-	# we provide method for such purpose
-	
+    # If you want to see interim images in iteration,
+    # or you want to know how loss function value changes
+    # we provide method for such purpose
+
 #1.3.1 Save interval images in iteration 
-	# Such method can help you know the evolution of 
-	# optimal image
+    # Such method can help you know the evolution of
+    # optimal image
 save_out_interval = True
 save_interval = 10 # every 10 iteration save one
-	.
-	
+
 #1.3.2 Print when iterating
 print_inter_loss = True
 step = 10 # print loss every 10 iterations
@@ -87,40 +86,40 @@ dnn = AlexNet()
 
 #prepare parameters of optimizer
 lr = 0.1 #learning rate
-n_iter = 500 # number of iterations
+n_iter = 150 # number of iterations
 
 #create instance of SynthesisImage
 synthesis = SynthesisImage(dnn)
 
 #Set layer & channel
-synthesis.set_layer(layer,chn)
+synthesis.set_layer(layer, chn)
 
 #Set metric parameters
-	# Note if you don't use some optimal ones, 
-	# you need to give 'None' value,
-	# here we only adopt smooth_metric
-	# but all the metrics should be set
-synthesis.set_metric(activ_metric='mean',regular_metric=reg_meth,
-                   precondition_metric=None, smooth_metric=None)
+    # Note if you don't use some optimal ones,
+    # you need to give 'None' value,
+    # here we only adopt smooth_metric
+    # but all the metrics should be set
+synthesis.set_metric(activ_metric='mean', regular_metric=reg_meth,
+                     precondition_metric=pre_meth, smooth_metric=sm_meth)
 
 #Set utiliz parameters
-	# Here we set both to be True,
-	# then essential parameters should be set 
-	# in synthesize()
-synthesis.set_utiliz(save_out_interval,print_inter_loss)
+    # Here we set both to be True,
+    # then essential parameters should be set
+    # in synthesize()
+synthesis.set_utiliz(save_out_interval, print_inter_loss)
 
 #start synthesize
-	# In this example you can omit init_image & unit & factor & GB_radius if not necessary
-optimal_img = synthesis.synthesize(init_image=None,unit=None,lr=lr,regular_lambda=reg_lambda,
-									n_iter=n_iter, save_path=path,save_interval=save_interval,
-									GB_radius=GB_radius, factor=factor, step=step)
-	
+    # In this example you can omit init_image & unit & factor & GB_radius if not necessary
+optimal_img = synthesis.synthesize(init_image=None, unit=None, lr=lr, regular_lambda=reg_lambda,
+                                   n_iter=n_iter, save_path=path, save_interval=save_interval,
+                                   GB_radius=GB_radius, factor=factor, step=step)
+
 # Save final images
 # name the image path
 file_name = f'optimal_{layer}_chn{chn}.png'
-file_path = pjoin(path,file_name)
+file_path = pjoin(path, file_name)
 # transfer to Image
-img_out = ip.to_pil(optimal_img,True)
+img_out = ip.to_pil(optimal_img, True)
 # save in the current dir
 img_out.save(file_path)
 # you will see the png in your current path
