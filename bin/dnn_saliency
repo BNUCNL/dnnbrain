@@ -112,9 +112,9 @@ def main():
         for chn_num in args.chn:
             saliency.set_layer(args.layer, chn_num)
             for img in pil_imgs:
-                grad = saliency.backprop(img)
+                grad = np.abs(saliency.backprop(img))
                 if args.mode == 'gray':
-                    grad = np.max(np.abs(grad), 0)
+                    grad = np.max(grad, 0)
                 grad = ip.to_pil(grad, True)
                 out_imgs.append(np.array(grad))
 
