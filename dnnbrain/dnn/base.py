@@ -10,8 +10,8 @@ from copy import deepcopy
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.svm import SVC
-from sklearn.model_selection import cross_val_score
-from sklearn.metrics import pairwise_distances
+from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.metrics import pairwise_distances, confusion_matrix
 from scipy.signal import periodogram
 from torchvision import transforms
 
@@ -442,6 +442,46 @@ class VideoSet:
         Return the number of frames
         """
         return len(self.frame_nums)
+
+
+def cross_val_confusion(classifier, X, y, cv=None):
+    """
+    Evaluate confusion matrix and score from each fold of cross validation
+
+    Parameters:
+    ----------
+    classifier:  classifier object
+        The object used to fit the data.
+    X[ndarray]: shape=(n_sample, n_feature)
+    y[ndarray]: shape=(n_sample,)
+    cv[int]: the number of folds of the cross validation
+
+    Returns:
+    -------
+    conf_ms[list]: confusion matrices of the folds
+    accuracies[list]: accuracies of the folds
+    """
+    assert getattr(classifier, "_estimator_type", None) == "classifier", \
+        "Estimator must be a classifier!"
+
+    # calculate CV metrics
+    conf_ms = []
+    accuracies = []
+    skf = StratifiedKFold(n_splits=cv)
+    for train_indices, test_indices in skf.split(X, y):
+        # fit and prediction
+        classifier.fit(X[train_indices], y[train_indices])
+        y_preds = classifier.predict(X[test_indices])
+
+        # calculate confusion matrix and accuracy
+        conf_m = confusion_matrix(y[test_indices], y_preds)
+        acc = np.sum(conf_m.diagonal()) / np.sum(conf_m)
+
+        # collection
+        conf_ms.append(conf_m)
+        accuracies.append(acc)
+
+    return conf_ms, accuracies
 
 
 class UnivariatePredictionModel:
