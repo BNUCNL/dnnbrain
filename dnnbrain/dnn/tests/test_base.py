@@ -6,8 +6,10 @@ import numpy as np
 
 from PIL import Image
 from os.path import join as pjoin
+from sklearn.svm import SVC
+from sklearn.model_selection import cross_val_score
 from torchvision import transforms
-from dnnbrain.dnn.base import ImageSet, VideoSet, ImageProcessor
+from dnnbrain.dnn.base import ImageSet, VideoSet, ImageProcessor, cross_val_confusion
 
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
@@ -379,6 +381,17 @@ class TestImageProcessor:
 
         img = np.array([[1, 2], [3, 4]])
         assert self.ip.total_variation(img) == 6
+
+
+def test_cross_val_confusion():
+    X = np.random.randn(30, 5)
+    y = np.random.randint(0, 2, 30)
+    svc = SVC()
+    cv = 3
+
+    accs_true = cross_val_score(svc, X, y, cv=cv, scoring='accuracy')
+    conf_ms, accs_test = cross_val_confusion(svc, X, y, cv)
+    np.testing.assert_equal(accs_test, accs_true)
 
 
 if __name__ == '__main__':
