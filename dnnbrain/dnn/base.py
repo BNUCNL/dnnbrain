@@ -1,5 +1,6 @@
 import os
 import cv2
+import copy
 import time
 import torch
 import numpy as np
@@ -324,7 +325,7 @@ class ImageSet:
         self.img_dir = img_dir
         self.img_ids = img_ids
         self.labels = np.ones(len(self.img_ids)) if labels is None else labels
-        self.labels = self.labels.astype(np.int64)
+        self.labels = np.int64(self.labels)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __len__(self):
@@ -390,7 +391,7 @@ class VideoSet:
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
         self.labels = np.ones(len(self.frame_nums)) if labels is None else labels
-        self.labels = self.labels.astype(np.int64)
+        self.labels = np.int64(self.labels)
         self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
 
     def __getitem__(self, indices):
@@ -467,6 +468,7 @@ def cross_val_confusion(classifier, X, y, cv=None):
     # calculate CV metrics
     conf_ms = []
     accuracies = []
+    classifier = copy.deepcopy(classifier)
     skf = StratifiedKFold(n_splits=cv)
     for train_indices, test_indices in skf.split(X, y):
         # fit and prediction
@@ -510,19 +512,19 @@ class UnivariatePredictionModel:
             pass
         elif model_name == 'lrc':
             self.model = LogisticRegression()
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'svc':
             self.model = SVC(kernel='linear', C=0.025)
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'glm':
             self.model = LinearRegression()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         elif model_name == 'lasso':
             self.model = Lasso()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         elif model_name == 'corr':
-            self.model = model_name
-            self.score_evl = 'R square'
+            self.model = None
+            self.model_type = model_name
         else:
             raise ValueError('unsupported model:', model_name)
 
@@ -543,12 +545,43 @@ class UnivariatePredictionModel:
 
         Return:
         ------
-        pred_dict[dict]:
-            score[ndarray]: shape=(n_target,)
-            model[ndarray]: shape=(n_target,)
-            location[ndarray]: shape=(n_target,)
-            If model_name == 'corr', the score is R square.
-                And the model is None.
+        If model_type == 'classifier',
+            pred_dict[dict]:
+                max_score[ndarray]: shape=(n_target,)
+                    Each element is the maximal accuracy
+                    among all features predicting to the corresponding target.
+                max_loc[ndarray]: shape=(n_target,)
+                    Each element is a location of the feature which makes the max score.
+                max_model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by
+                    the feature at the max loc and the corresponding target.
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains accuracies of each cross validation folds,
+                    when using the feature at the max loc to predict the corresponding target.
+                conf_m[ndarray]: shape=(n_target, cv)
+                    Each row contains confusion matrices (n_label, n_label) of
+                    each cross validation folds, when using the feature at the max loc to
+                    predict the corresponding target.
+        If model_type == 'regressor',
+            pred_dict[dict]:
+                max_score[ndarray]: shape=(n_target,)
+                    Each element is the maximal explained variance
+                    among all features predicting to the corresponding target.
+                max_loc[ndarray]: shape=(n_target,)
+                    Each element is a location of the feature which makes the max score.
+                max_model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by
+                    the feature at the max loc and the corresponding target.
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains explained variances of each cross validation folds,
+                    when using the feature at the max loc to predict the corresponding target.
+        If model_type == 'corr',
+            pred_dict[dict]:
+                max_score[ndarray]: shape=(n_target,)
+                    Each element is the maximal R square
+                    among all features correlating to the corresponding target.
+                max_loc[ndarray]: shape=(n_target,)
+                    Each element is a location of the feature which makes the max score.
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
@@ -556,42 +589,64 @@ class UnivariatePredictionModel:
                                          'same number of samples!'
         n_feat = X.shape[1]
         n_trg = Y.shape[1]
-        scores = []
-        models = []
-        locations = []
+
+        # initialize prediction dict
+        pred_dict = {
+            'max_score': np.zeros((n_trg,)),
+            'max_loc': np.zeros((n_trg,))
+        }
+        if self.model_type == 'classifier':
+            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
+            pred_dict['score'] = np.zeros((n_trg, self.cv))
+            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+        elif self.model_type == 'regressor':
+            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
+            pred_dict['score'] = np.zeros((n_trg, self.cv))
+
+        # do cross validation for each target
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            if self.model == 'corr':
+            if self.model_type == 'corr':
+                # calculate pearson r
                 scores_tmp = pairwise_distances(X.T, y.reshape(1, -1), 'correlation')
                 scores_tmp = 1 - scores_tmp.ravel()
-            else:
-                scores_tmp = []
+                # find maximal score and its location
+                max_feat_idx = np.nanargmax(scores_tmp)
+                pred_dict['max_loc'][trg_idx] = max_feat_idx
+                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
+            elif self.model_type == 'regressor':
+                # cross validation
+                scores_cv = np.zeros((n_feat, self.cv))
                 for feat_idx in range(n_feat):
-                    cv_scores = cross_val_score(self.model, X[:, feat_idx][:, None], y,
-                                                scoring=self.score_evl, cv=self.cv)
-                    scores_tmp.append(np.mean(cv_scores))
-
-            # find maximal score and its location
-            max_feat_idx = np.nanargmax(scores_tmp)
-            locations.append(max_feat_idx)
-            max_score = scores_tmp[max_feat_idx]
-            scores.append(max_score)
-
-            # fit the model with maximal score
-            if self.model == 'corr':
-                models.append(None)
+                    scores_cv[feat_idx] = cross_val_score(self.model, X[:, [feat_idx]], y,
+                                                          scoring='explained_variance', cv=self.cv)
+                scores_tmp = np.mean(scores_cv, 1)
+                # find maximal score and its location
+                max_feat_idx = np.nanargmax(scores_tmp)
+                pred_dict['max_loc'][trg_idx] = max_feat_idx
+                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
+                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
             else:
-                max_model = self.model.fit(X[:, max_feat_idx][:, None], y)
-                models.append(deepcopy(max_model))
+                # cross validation
+                scores_cv = np.zeros((n_feat, self.cv))
+                conf_ms_cv = np.zeros((n_feat, self.cv), dtype=np.object)
+                for feat_idx in range(n_feat):
+                    conf_ms, accs = cross_val_confusion(self.model, X[:, [feat_idx]], y, cv=self.cv)
+                    scores_cv[feat_idx] = accs
+                    conf_ms_cv[feat_idx] = conf_ms
+                scores_tmp = np.mean(scores_cv, 1)
+                # find maximal score and its location
+                max_feat_idx = np.nanargmax(scores_tmp)
+                pred_dict['max_loc'][trg_idx] = max_feat_idx
+                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
+                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                pred_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
+                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
 
-            print(f'Finish target {trg_idx + 1}/{n_trg} in {time.time() - time1} seconds.')
+            print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
-        pred_dict = {
-            'score': np.array(scores),
-            'model': np.array(models),
-            'location': np.array(locations)
-        }
         return pred_dict
 
 
@@ -619,16 +674,16 @@ class MultivariatePredictionModel:
             pass
         elif model_name == 'lrc':
             self.model = LogisticRegression()
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'svc':
             self.model = SVC(kernel='linear', C=0.025)
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'glm':
             self.model = LinearRegression()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         elif model_name == 'lasso':
             self.model = Lasso()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         else:
             raise ValueError('unsupported model:', model_name)
 
@@ -646,31 +701,53 @@ class MultivariatePredictionModel:
 
         Return:
         ------
-        pred_dict[dict]:
-            score[ndarray]: shape=(n_target,)
-            model[ndarray]: shape=(n_target,)
+        If model_type == 'classifier',
+            pred_dict[dict]:
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains accuracies of each cross validation folds,
+                    when using all features to predict the corresponding target.
+                model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by all features and the corresponding target.
+                conf_m[ndarray]: shape=(n_target, cv)
+                    Each row contains confusion matrices (n_label, n_label) of
+                    each cross validation folds, when using all features to
+                    predict the corresponding target.
+        If model_type == 'regressor',
+            pred_dict[dict]:
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains explained variances of each cross validation folds,
+                    when using all features to predict the corresponding target.
+                model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by all features and the corresponding target.
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
         assert X.shape[0] == Y.shape[0], 'X and Y must have the ' \
                                          'same number of samples!'
         n_trg = Y.shape[1]
-        scores = []
-        models = []
+        # initialize prediction dict
+        pred_dict = {
+            'score': np.zeros((n_trg, self.cv)),
+            'model': np.zeros((n_trg,), dtype=np.object)
+        }
+        if self.model_type == 'classifier':
+            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            cv_scores = cross_val_score(self.model, X, y,
-                                        scoring=self.score_evl, cv=self.cv)
+            if self.model_type == 'classifier':
+                conf_ms, scores_tmp = cross_val_confusion(self.model, X, y, self.cv)
+                pred_dict['conf_m'][trg_idx] = conf_ms
+            else:
+                scores_tmp = cross_val_score(self.model, X, y,
+                                             scoring='explained_variance', cv=self.cv)
             # recording
-            scores.append(np.mean(cv_scores))
-            models.append(deepcopy(self.model.fit(X, y)))
-            print(f'Finish target {trg_idx+1}/{n_trg} in {time.time()-time1} seconds.')
+            pred_dict['score'][trg_idx] = scores_tmp
+            pred_dict['model'][trg_idx] = deepcopy(self.model.fit(X, y))
 
-        pred_dict = {
-            'score': np.array(scores),
-            'model': np.array(models)
-        }
+            print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
+
         return pred_dict
 
 

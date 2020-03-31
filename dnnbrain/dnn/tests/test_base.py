@@ -1,5 +1,6 @@
 import os
 import cv2
+import copy
 import torch
 import pytest
 import numpy as np
@@ -9,7 +10,7 @@ from os.path import join as pjoin
 from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score
 from torchvision import transforms
-from dnnbrain.dnn.base import ImageSet, VideoSet, ImageProcessor, cross_val_confusion
+from dnnbrain.dnn import base as db_base
 
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
@@ -26,7 +27,7 @@ class TestImageSet:
         img_dir = pjoin(DNNBRAIN_TEST, 'image', 'images')
         img_ids = ['n01443537_2819.JPEG', 'n01531178_2651.JPEG']
 
-        dataset = ImageSet(img_dir, img_ids)
+        dataset = db_base.ImageSet(img_dir, img_ids)
 
         # test dir ids labels
         assert dataset.img_dir == img_dir
@@ -45,7 +46,7 @@ class TestImageSet:
         transform = transforms.Compose([transforms.Resize((224, 224)),
                                         transforms.ToTensor()])
     
-        dataset = ImageSet(img_dir, img_ids, labels, transform)
+        dataset = db_base.ImageSet(img_dir, img_ids, labels, transform)
         
         assert np.all(dataset.labels == np.array([1, 11]))
         
@@ -65,7 +66,7 @@ class TestImageSet:
         transform = transforms.Compose([transforms.Resize((224, 224)),
                                         transforms.ToTensor()])
         
-        dataset = ImageSet(img_dir, img_ids, labels, transform)
+        dataset = db_base.ImageSet(img_dir, img_ids, labels, transform)
         
         # test indice int
         indices = 3
@@ -102,7 +103,7 @@ class TestImageSet:
             image_new = torch.cat((image_new, img_tmp))
 
         assert torch.equal(image_org, image_new)
-        assert labels_get, labels[indices]
+        np.testing.assert_equal(labels_get, labels[indices])
 
 
 class TestVideoSet:
@@ -110,7 +111,7 @@ class TestVideoSet:
     def test_init(self):
         vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
         frame_nums = list(np.random.randint(0, 148, 20))
-        dataset = VideoSet(vid_file, frame_nums)
+        dataset = db_base.VideoSet(vid_file, frame_nums)
         assert dataset.frame_nums == frame_nums
 
     # test video in each frames
@@ -120,7 +121,7 @@ class TestVideoSet:
         vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
         transform = transforms.Compose([transforms.ToTensor()])
         frame_list = [4, 6, 2, 8, 54, 23, 127]
-        dataset = VideoSet(vid_file, frame_list)
+        dataset = db_base.VideoSet(vid_file, frame_list)
         indices = slice(0, 5)
         tmpvi, _ = dataset[indices]
         for ii, i in enumerate(frame_list[indices]):
@@ -134,7 +135,7 @@ class TestVideoSet:
         # test int
         vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
         frame_nums = list(np.random.randint(0, 148, 20))
-        dataset = VideoSet(vid_file, frame_nums)
+        dataset = db_base.VideoSet(vid_file, frame_nums)
         transform = transforms.Compose([transforms.ToTensor()])
         for i in range(len(frame_nums)):
             tmp_video, _ = dataset[i]
@@ -149,7 +150,7 @@ class TestVideoSet:
         vid_file = pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')
         transform = transforms.Compose([transforms.ToTensor()])
         frame_list = [2, 8, 54, 127, 128, 129, 130]
-        dataset = VideoSet(vid_file, frame_list)
+        dataset = db_base.VideoSet(vid_file, frame_list)
         indices = [1, 2, 4, 5]
         tmpvi, _ = dataset[indices]
         for ii, i in enumerate([frame_list[i] for i in indices]):
@@ -164,7 +165,7 @@ class TestVideoSet:
 class TestImageProcessor:
 
     image = np.random.randint(0, 256, (3, 5, 5), np.uint8)
-    ip = ImageProcessor()
+    ip = db_base.ImageProcessor()
 
     def test_to_array(self):
 
@@ -390,8 +391,83 @@ def test_cross_val_confusion():
     cv = 3
 
     accs_true = cross_val_score(svc, X, y, cv=cv, scoring='accuracy')
-    conf_ms, accs_test = cross_val_confusion(svc, X, y, cv)
+    conf_ms, accs_test = db_base.cross_val_confusion(svc, X, y, cv)
     np.testing.assert_equal(accs_test, accs_true)
+
+
+class TestUnivariatePredictionModel:
+
+    def test_predict(self):
+        uv = db_base.UnivariatePredictionModel()
+        cv = 3
+        n_trg = 1
+        n_label = 2
+        X = np.random.randn(30, 5)
+        y_c = np.random.randint(0, n_label, (30, n_trg))
+        y_r = np.random.randn(30, n_trg)
+        keys = ['max_score', 'max_loc', 'max_model', 'score', 'conf_m']
+
+        # test corr
+        uv.set('corr')
+        pred_dict_corr = uv.predict(X, y_r)
+        assert sorted(keys[:2]) == sorted(pred_dict_corr.keys())
+        for v in pred_dict_corr.values():
+            assert v.shape == (n_trg,)
+
+        # test regressor
+        uv.set('glm', cv)
+        pred_dict_r = uv.predict(X, y_r)
+        assert sorted(keys[:4]) == sorted(pred_dict_r.keys())
+        for k, v in pred_dict_r.items():
+            if k == 'score':
+                assert v.shape == (n_trg, cv)
+            else:
+                assert v.shape == (n_trg,)
+
+        # test classifier
+        uv.set('lrc', cv)
+        pred_dict_c = uv.predict(X, y_c)
+        assert sorted(keys) == sorted(pred_dict_c.keys())
+        for k, v in pred_dict_c.items():
+            if k == 'score':
+                assert v.shape == (n_trg, cv)
+            elif k == 'conf_m':
+                assert v.shape == (n_trg, cv)
+                assert v[0][0].shape == (n_label, n_label)
+            else:
+                assert v.shape == (n_trg,)
+
+
+class TestMultivariatePredictionModel:
+
+    def test_predict(self):
+        mv = db_base.MultivariatePredictionModel()
+        cv = 3
+        n_trg = 2
+        n_label = 2
+        X = np.random.randn(30, 5)
+        Y_c = np.random.randint(0, n_label, (30, n_trg))
+        Y_r = np.random.randn(30, n_trg)
+
+        # test classifier
+        mv.set('svc', cv)
+        pred_dict_c = mv.predict(X, Y_c)
+        for trg_idx in range(n_trg):
+            conf_ms_true, accs_true = db_base.cross_val_confusion(mv.model, X, Y_c[:, trg_idx], cv)
+            np.testing.assert_equal(pred_dict_c['score'][trg_idx], accs_true)
+            for cv_idx in range(cv):
+                np.testing.assert_equal(pred_dict_c['conf_m'][trg_idx, cv_idx], conf_ms_true[cv_idx])
+            coef_test = copy.deepcopy(mv.model).fit(X, Y_c[:, trg_idx]).coef_
+            np.testing.assert_equal(pred_dict_c['model'][trg_idx].coef_, coef_test)
+
+        # test regressor
+        mv.set('glm', cv)
+        pred_dict_r = mv.predict(X, Y_r)
+        for trg_idx in range(n_trg):
+            scores_true = cross_val_score(mv.model, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
+            np.testing.assert_equal(pred_dict_r['score'][trg_idx], scores_true)
+            coef_test = copy.deepcopy(mv.model).fit(X, Y_r[:, trg_idx]).coef_
+            np.testing.assert_equal(pred_dict_r['model'][trg_idx].coef_, coef_test)
 
 
 if __name__ == '__main__':
