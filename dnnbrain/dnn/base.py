@@ -1,5 +1,6 @@
 import os
 import cv2
+import copy
 import time
 import torch
 import numpy as np
@@ -467,6 +468,7 @@ def cross_val_confusion(classifier, X, y, cv=None):
     # calculate CV metrics
     conf_ms = []
     accuracies = []
+    classifier = copy.deepcopy(classifier)
     skf = StratifiedKFold(n_splits=cv)
     for train_indices, test_indices in skf.split(X, y):
         # fit and prediction
@@ -643,7 +645,7 @@ class UnivariatePredictionModel:
                 pred_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
                 pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
 
-            print(f'Finish target {trg_idx + 1}/{n_trg} in {time.time() - time1} seconds.')
+            print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
         return pred_dict
 
@@ -672,16 +674,16 @@ class MultivariatePredictionModel:
             pass
         elif model_name == 'lrc':
             self.model = LogisticRegression()
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'svc':
             self.model = SVC(kernel='linear', C=0.025)
-            self.score_evl = 'accuracy'
+            self.model_type = 'classifier'
         elif model_name == 'glm':
             self.model = LinearRegression()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         elif model_name == 'lasso':
             self.model = Lasso()
-            self.score_evl = 'explained_variance'
+            self.model_type = 'regressor'
         else:
             raise ValueError('unsupported model:', model_name)
 
@@ -699,31 +701,53 @@ class MultivariatePredictionModel:
 
         Return:
         ------
-        pred_dict[dict]:
-            score[ndarray]: shape=(n_target,)
-            model[ndarray]: shape=(n_target,)
+        If model_type == 'classifier',
+            pred_dict[dict]:
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains accuracies of each cross validation folds,
+                    when using all features to predict the corresponding target.
+                model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by all features and the corresponding target.
+                conf_m[ndarray]: shape=(n_target, cv)
+                    Each row contains confusion matrices (n_label, n_label) of
+                    each cross validation folds, when using all features to
+                    predict the corresponding target.
+        If model_type == 'regressor',
+            pred_dict[dict]:
+                score[ndarray]: shape=(n_target, cv)
+                    Each row contains explained variances of each cross validation folds,
+                    when using all features to predict the corresponding target.
+                model[ndarray]: shape=(n_target,)
+                    Each element is a model fitted by all features and the corresponding target.
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
         assert X.shape[0] == Y.shape[0], 'X and Y must have the ' \
                                          'same number of samples!'
         n_trg = Y.shape[1]
-        scores = []
-        models = []
+        # initialize prediction dict
+        pred_dict = {
+            'score': np.zeros((n_trg, self.cv)),
+            'model': np.zeros((n_trg,), dtype=np.object)
+        }
+        if self.model_type == 'classifier':
+            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            cv_scores = cross_val_score(self.model, X, y,
-                                        scoring=self.score_evl, cv=self.cv)
+            if self.model_type == 'classifier':
+                conf_ms, scores_tmp = cross_val_confusion(self.model, X, y, self.cv)
+                pred_dict['conf_m'][trg_idx] = conf_ms
+            else:
+                scores_tmp = cross_val_score(self.model, X, y,
+                                             scoring='explained_variance', cv=self.cv)
             # recording
-            scores.append(np.mean(cv_scores))
-            models.append(deepcopy(self.model.fit(X, y)))
-            print(f'Finish target {trg_idx+1}/{n_trg} in {time.time()-time1} seconds.')
+            pred_dict['score'][trg_idx] = scores_tmp
+            pred_dict['model'][trg_idx] = deepcopy(self.model.fit(X, y))
 
-        pred_dict = {
-            'score': np.array(scores),
-            'model': np.array(models)
-        }
+            print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
+
         return pred_dict
 
 

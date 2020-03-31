@@ -1,5 +1,6 @@
 import os
 import cv2
+import copy
 import torch
 import pytest
 import numpy as np
@@ -435,6 +436,38 @@ class TestUnivariatePredictionModel:
                 assert v[0][0].shape == (n_label, n_label)
             else:
                 assert v.shape == (n_trg,)
+
+
+class TestMultivariatePredictionModel:
+
+    def test_predict(self):
+        mv = db_base.MultivariatePredictionModel()
+        cv = 3
+        n_trg = 2
+        n_label = 2
+        X = np.random.randn(30, 5)
+        Y_c = np.random.randint(0, n_label, (30, n_trg))
+        Y_r = np.random.randn(30, n_trg)
+
+        # test classifier
+        mv.set('svc', cv)
+        pred_dict_c = mv.predict(X, Y_c)
+        for trg_idx in range(n_trg):
+            conf_ms_true, accs_true = db_base.cross_val_confusion(mv.model, X, Y_c[:, trg_idx], cv)
+            np.testing.assert_equal(pred_dict_c['score'][trg_idx], accs_true)
+            for cv_idx in range(cv):
+                np.testing.assert_equal(pred_dict_c['conf_m'][trg_idx, cv_idx], conf_ms_true[cv_idx])
+            coef_test = copy.deepcopy(mv.model).fit(X, Y_c[:, trg_idx]).coef_
+            np.testing.assert_equal(pred_dict_c['model'][trg_idx].coef_, coef_test)
+
+        # test regressor
+        mv.set('glm', cv)
+        pred_dict_r = mv.predict(X, Y_r)
+        for trg_idx in range(n_trg):
+            scores_true = cross_val_score(mv.model, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
+            np.testing.assert_equal(pred_dict_r['score'][trg_idx], scores_true)
+            coef_test = copy.deepcopy(mv.model).fit(X, Y_r[:, trg_idx]).coef_
+            np.testing.assert_equal(pred_dict_r['model'][trg_idx].coef_, coef_test)
 
 
 if __name__ == '__main__':
