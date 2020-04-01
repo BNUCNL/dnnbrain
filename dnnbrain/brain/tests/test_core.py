@@ -112,22 +112,22 @@ class TestBrainEncoder:
     def test_encode_behavior(self):
 
         # prepare behavior data
-        beh_data = np.random.randn(10, 1)
+        cv = 2
+        beh_data = np.random.randn(self.n_sample, 1)
+        encoder = BrainEncoder(self.brain_activ, 'uv', 'corr', cv)
 
-        # test uv
-        encoder = BrainEncoder(self.brain_activ, 'uv', 'lasso')
-        pred_dict = encoder.encode_behavior(beh_data)
-        assert sorted(pred_dict.keys()) == sorted(['score', 'model', 'location'])
-        assert np.all(pred_dict['location'] == 0)
-        for v in pred_dict.values():
-            assert v.shape == (self.brain_activ.shape[1],)
+        # test uv/corr
+        encode_dict = encoder.encode_behavior(beh_data)
+        assert sorted(encode_dict.keys()) == sorted(['max_score', 'max_loc'])
+        assert encode_dict['max_score'].shape == (self.n_meas,)
+        assert np.all(encode_dict['max_loc'] == 0)
 
-        # test mv
-        encoder.set(model_type='mv', model_name='lasso')
-        pred_dict = encoder.encode_behavior(beh_data)
-        assert sorted(pred_dict.keys()) == sorted(['score', 'model'])
-        for v in pred_dict.values():
-            assert v.shape == (self.brain_activ.shape[1],)
+        # test mv/lasso
+        encoder.set(model_type='mv', model_name='lasso', cv=cv)
+        encode_dict = encoder.encode_behavior(beh_data)
+        assert sorted(encode_dict.keys()) == sorted(['score', 'model'])
+        assert encode_dict['score'].shape == (self.n_meas, cv)
+        assert encode_dict['model'].shape == (self.n_meas,)
 
 
 class TestBrainDecoder:

@@ -481,23 +481,31 @@ class BrainEncoder:
 
         Return:
         ------
-        pred_dict[dict]:
+        encode_dict[dict]:
             ---for uv---
-            score[ndarray]: max scores
-                shape=(n_meas,)
-            model[ndarray]: fitted models of the max scores
-                shape=(n_meas,)
-            location[ndarray]: locations of behavior indicators with max scores
-                shape=(n_meas,)
-            ---for mv---
-            score[ndarray]: prediction scores
-                shape=(n_meas,)
-            model[ndarray]: fitted models
-                shape=(n_meas,)
-        """
-        pred_dict = self.model.predict(beh_data, self.brain_activ)
+            layer:
+                max_score[ndarray]: shape=(n_meas,)
+                    max scores at each iteration
+                max_loc[ndarray]: shape=(n_meas,)
+                    max locations of the max scores
+                max_model[ndarray]: shape=(n_meas,)
+                    fitted models of the max scores
+                    Note: only exists when model is regressor
+                score[ndarray]: shape=(n_meas, cv)
+                    The second dimension means scores of each cross validation folds of the max scores
+                    Note: only exists when model is regressor
 
-        return pred_dict
+            ---for mv---
+            layer:
+                score[ndarray]: shape=(n_meas, cv)
+                    The second dimension means scores of each cross validation folds
+                    at each measurement
+                model[ndarray]: shape=(n_meas,)
+                    Each element is a model fitted at the corresponding measurement.
+        """
+        encode_dict = self.model.predict(beh_data, self.brain_activ)
+
+        return encode_dict
 
 
 class BrainDecoder:
