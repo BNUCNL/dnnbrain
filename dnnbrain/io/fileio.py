@@ -76,14 +76,19 @@ class StimulusFile:
         data = OrderedDict()
         for idx, key in enumerate(data_keys):
             if key == 'stimID':
-                dtype = np.str if stimuli['type'] == 'image' else np.int
+                if stimuli['type'] == 'image':
+                    dtype = np.str
+                else:
+                    var_data[idx] = np.float64(var_data[idx])
+                    dtype = np.int
             elif key == 'label':
+                var_data[idx] = np.float64(var_data[idx])
                 dtype = np.int
             elif key == 'condition':
                 dtype = np.str
             else:
                 dtype = np.float
-            data[key] = np.array(var_data[idx], dtype=dtype)
+            data[key] = np.asarray(var_data[idx], dtype=dtype)
         stimuli['data'] = data
 
         return stimuli
