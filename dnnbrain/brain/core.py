@@ -637,20 +637,36 @@ class BrainDecoder:
 
         Return:
         ------
-        pred_dict[dict]:
+        decode_dict[dict]:
             ---for uv---
-            score[ndarray]: max scores
-                shape=(n_beh,)
-            model[ndarray]: fitted models of the max scores
-                shape=(n_beh,)
-            location[ndarray]: locations of measurement indicators with max scores
-                shape=(n_beh,)
-            ---for mv---
-            score[ndarray]: prediction scores
-                shape=(n_beh,)
-            model[ndarray]: fitted models
-                shape=(n_beh,)
-        """
-        pred_dict = self.model.predict(self.brain_activ, beh_data)
+            layer:
+                max_score[ndarray]: shape=(n_beh,)
+                    max scores
+                max_loc[ndarray]: shape=(n_beh,)
+                    locations of measurement indicators with max scores
+                max_model[ndarray]: shape=(n_beh,)
+                    fitted models of the max scores
+                    Note: only exists when model is classifier or regressor
+                score[ndarray]: shape=(n_beh, cv)
+                    The second dimension means scores of each cross validation folds of the max scores
+                    Note: only exists when model is classifier or regressor
+                conf_m[ndarray]: shape=(n_beh, cv)
+                    The second dimension means confusion matrices (n_label, n_label) of
+                    each cross validation folds of the max scores
+                    Note: only exists when model is classifier
 
-        return pred_dict
+            ---for mv---
+            layer:
+                score[ndarray]: shape=(n_beh, cv)
+                    The second dimension means scores of each cross validation folds
+                    at each behavior
+                model[ndarray]: shape=(n_beh,)
+                    Each element is a model fitted at the corresponding behavior.
+                conf_m[ndarray]: shape=(n_beh, cv)
+                    The second dimension means confusion matrices (n_label, n_label) of
+                    each cross validation folds of the max scores
+                    Note: only exists when model is classifier
+        """
+        decode_dict = self.model.predict(self.brain_activ, beh_data)
+
+        return decode_dict

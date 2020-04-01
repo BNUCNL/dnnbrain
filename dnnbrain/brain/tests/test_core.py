@@ -174,21 +174,26 @@ class TestBrainDecoder:
     def test_decode_behavior(self):
 
         # prepare behavior data
-        beh_data = np.random.randint(1, 3, (10, 1))
+        cv = 2
+        n_beh = 2
+        beh_r = np.random.randn(self.n_sample, n_beh)
+        beh_c = np.random.randint(1, 3, (self.n_sample, n_beh))
+        decoder = BrainDecoder(self.brain_activ, 'uv', 'corr', cv)
 
-        # test uv
-        decoder = BrainDecoder(self.brain_activ, 'uv', 'lrc')
-        pred_dict = decoder.decode_behavior(beh_data)
-        assert sorted(pred_dict.keys()) == sorted(['score', 'model', 'location'])
-        for v in pred_dict.values():
-            assert v.shape == (beh_data.shape[1],)
+        # test uv/corr
+        decode_dict = decoder.decode_behavior(beh_r)
+        assert sorted(decode_dict.keys()) == sorted(['max_score', 'max_loc'])
+        assert np.all(decode_dict['max_loc'] == 0)
+        for v in decode_dict.values():
+            assert v.shape == (n_beh,)
 
-        # test mv
-        decoder.set(model_type='mv', model_name='lrc')
-        pred_dict = decoder.decode_behavior(beh_data)
-        assert sorted(pred_dict.keys()) == sorted(['score', 'model'])
-        for v in pred_dict.values():
-            assert v.shape == (beh_data.shape[1],)
+        # test mv/lrc
+        decoder.set(model_type='mv', model_name='lrc', cv=cv)
+        decode_dict = decoder.decode_behavior(beh_c)
+        assert sorted(decode_dict.keys()) == sorted(['score', 'model', 'conf_m'])
+        assert decode_dict['score'].shape == (n_beh, cv)
+        assert decode_dict['model'].shape == (n_beh,)
+        assert decode_dict['conf_m'].shape == (n_beh, cv)
 
 
 if __name__ == '__main__':
