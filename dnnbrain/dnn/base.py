@@ -593,7 +593,7 @@ class UnivariatePredictionModel:
         # initialize prediction dict
         pred_dict = {
             'max_score': np.zeros((n_trg,)),
-            'max_loc': np.zeros((n_trg,))
+            'max_loc': np.zeros((n_trg,), dtype=np.int)
         }
         if self.model_type == 'classifier':
             pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)

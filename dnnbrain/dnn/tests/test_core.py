@@ -429,36 +429,44 @@ class TestMask:
 class TestDnnProbe:
 
     # Prepare DNN activation
+    n_sample = 30
     dnn_activ = dcore.Activation()
-    dnn_activ.set('conv5', np.random.randn(10, 2, 3, 3))
-    dnn_activ.set('fc3', np.random.randn(10, 10, 1, 1))
+    dnn_activ.set('conv5', np.random.randn(n_sample, 1, 3, 3))
+    dnn_activ.set('fc3', np.random.randn(n_sample, 10, 1, 1))
 
     def test_probe(self):
 
-        # prepare behavior data
-        beh_data = np.random.randint(1, 3, (10, 1))
+        # prepare data
+        cv = 2
+        n_beh = 2
+        beh_c = np.random.randint(1, 3, (self.n_sample, n_beh))
+        beh_r = np.random.randn(self.n_sample, n_beh)
+        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'corr', cv)
 
-        # test uv and iter_axis=None
-        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'lrc')
-        pred_dict = probe.probe(beh_data)
-        assert list(pred_dict.keys()) == self.dnn_activ.layers
-        v1_keys = sorted(['score', 'model', 'chn_loc', 'row_loc', 'col_loc'])
-        for k1, v1 in pred_dict.items():
+        # test uv/corr and iter_axis=None
+        probe_dict1 = probe.probe(beh_r)
+        assert list(probe_dict1.keys()) == self.dnn_activ.layers
+        v1_keys = sorted(['max_score', 'max_loc'])
+        for k1, v1 in probe_dict1.items():
             assert sorted(v1.keys()) == v1_keys
-            assert np.all(v1['chn_loc'] == 1)
-            for v2 in v1.values():
-                assert v2.shape == (1, beh_data.shape[1])
+            assert v1['max_score'].shape == (1, n_beh)
+            if k1 == 'conv5':
+                assert np.all(v1['max_loc'][..., 0] == 1)
+            elif k1 == 'fc3':
+                assert np.all(v1['max_loc'][..., 1] == 1)
+                assert np.all(v1['max_loc'][..., 2] == 1)
 
-        # test mv and iter_axis=channel
-        probe.set(model_type='mv', model_name='lrc')
-        pred_dict = probe.probe(beh_data, 'channel')
-        assert list(pred_dict.keys()) == self.dnn_activ.layers
-        v1_keys = sorted(['score', 'model'])
-        for k1, v1 in pred_dict.items():
+        # test mv/lrc and iter_axis=channel
+        probe.set(model_type='mv', model_name='lrc', cv=cv)
+        probe_dict2 = probe.probe(beh_c, 'channel')
+        assert list(probe_dict2.keys()) == self.dnn_activ.layers
+        v1_keys = sorted(['score', 'model', 'conf_m'])
+        for k1, v1 in probe_dict2.items():
             assert sorted(v1.keys()) == v1_keys
             n_chn = self.dnn_activ.get(k1).shape[1]
-            for v2 in v1.values():
-                assert v2.shape == (n_chn, beh_data.shape[1])
+            assert v1['score'].shape == (n_chn, n_beh, cv)
+            assert v1['model'].shape == (n_chn, n_beh)
+            assert v1['conf_m'].shape == (n_chn, n_beh, cv)
 
 
 if __name__ == '__main__':
