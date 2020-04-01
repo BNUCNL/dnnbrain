@@ -841,6 +841,6 @@ class DnnProbe:
                     for k, v in data.items():
                         probe_dict[layer][k][iter_idx] = v
 
-                    print(f'Layer-{layer} iter-{iter_idx+1}/{n_iter}')
+                    print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
 
         return probe_dict

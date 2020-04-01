@@ -72,35 +72,42 @@ class TestROI:
 class TestBrainEncoder:
 
     # Prepare brain activation
-    brain_activ = np.random.randn(10, 2)
+    n_sample = 30
+    n_meas = 2
+    brain_activ = np.random.randn(n_sample, n_meas)
 
     def test_encode_dnn(self):
 
         # prepare dnn activation
+        cv = 2
         dnn_activ = Activation()
-        dnn_activ.set('conv5', np.random.randn(10, 2, 3, 3))
-        dnn_activ.set('fc3', np.random.randn(10, 10, 1, 1))
+        dnn_activ.set('conv5', np.random.randn(self.n_sample, 1, 3, 3))
+        dnn_activ.set('fc3', np.random.randn(self.n_sample, 10, 1, 1))
+        encoder = BrainEncoder(self.brain_activ, 'uv', 'corr', cv)
 
-        # test uv and iter_axis=None
-        encoder = BrainEncoder(self.brain_activ, 'uv', 'glm')
-        pred_dict = encoder.encode_dnn(dnn_activ)
-        assert list(pred_dict.keys()) == dnn_activ.layers
-        v1_keys = sorted(['score', 'model', 'chn_loc', 'row_loc', 'col_loc'])
-        for k1, v1 in pred_dict.items():
+        # test uv/corr and iter_axis=None
+        encode_dict = encoder.encode_dnn(dnn_activ)
+        assert list(encode_dict.keys()) == dnn_activ.layers
+        v1_keys = sorted(['max_score', 'max_loc'])
+        for k1, v1 in encode_dict.items():
             assert sorted(v1.keys()) == v1_keys
-            for v2 in v1.values():
-                assert v2.shape == (1, self.brain_activ.shape[1])
+            assert v1['max_score'].shape == (1, self.n_meas)
+            if k1 == 'conv5':
+                assert np.all(v1['max_loc'][..., 0] == 1)
+            elif k1 == 'fc3':
+                assert np.all(v1['max_loc'][..., 1] == 1)
+                assert np.all(v1['max_loc'][..., 2] == 1)
 
-        # test mv and iter_axis=channel
-        encoder.set(model_type='mv', model_name='glm')
-        pred_dict = encoder.encode_dnn(dnn_activ, 'channel')
-        assert list(pred_dict.keys()) == dnn_activ.layers
+        # test mv/glm and iter_axis=channel
+        encoder.set(model_type='mv', model_name='glm', cv=cv)
+        encode_dict = encoder.encode_dnn(dnn_activ, 'channel')
+        assert list(encode_dict.keys()) == dnn_activ.layers
         v1_keys = sorted(['score', 'model'])
-        for k1, v1 in pred_dict.items():
+        for k1, v1 in encode_dict.items():
             assert sorted(v1.keys()) == v1_keys
             n_chn = dnn_activ.get(k1).shape[1]
-            for v2 in v1.values():
-                assert v2.shape == (n_chn, self.brain_activ.shape[1])
+            assert v1['score'].shape == (n_chn, self.n_meas, cv)
+            assert v1['model'].shape == (n_chn, self.n_meas)
 
     def test_encode_behavior(self):
 

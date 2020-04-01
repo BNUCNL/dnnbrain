@@ -375,29 +375,32 @@ class BrainEncoder:
 
         Return:
         ------
-        pred_dict[dict]:
+        encode_dict[dict]:
             ---for uv---
             layer:
-                score[ndarray]: max scores
-                    shape=(n_iter, n_meas)
-                model[ndarray]: fitted models of the max scores
-                    shape=(n_iter, n_meas)
-                chn_loc[ndarray]: channel locations of the max scores
-                    shape=(n_iter, n_meas)
-                row_loc[ndarray]: row locations of the max scores
-                    shape=(n_iter, n_meas)
-                col_loc[ndarray]: column locations of the max scores
-                    shape=(n_iter, n_meas)
+                max_score[ndarray]: shape=(n_iter, n_meas)
+                    max scores at each iteration
+                max_loc[ndarray]: shape=(n_iter, n_meas, 3)
+                    max locations of the max scores, the size 3 of the third dimension means
+                    channel, row and column locations respectively.
+                max_model[ndarray]: shape=(n_iter, n_meas)
+                    fitted models of the max scores
+                    Note: only exists when model is regressor
+                score[ndarray]: shape=(n_iter, n_meas, cv)
+                    The third dimension means scores of each cross validation folds of the max scores
+                    Note: only exists when model is regressor
+
             ---for mv---
             layer:
-                score[ndarray]: prediction scores
-                    shape=(n_iter, n_meas)
-                model[ndarray]: fitted models
-                    shape=(n_iter, n_meas)
+                score[ndarray]: shape=(n_iter, n_meas, cv)
+                    The third dimension means scores of each cross validation folds
+                    at each iteration and measurement
+                model[ndarray]: shape=(n_iter, n_meas)
+                    Each element is a model fitted at the corresponding iteration and measurement.
         """
-        n_samp, n_meas = self.brain_activ.shape
+        _, n_meas = self.brain_activ.shape
 
-        pred_dict = dict()
+        encode_dict = dict()
         for layer in dnn_activ.layers:
             # get DNN activation and reshape it to 3D
             activ = dnn_activ.get(layer)
@@ -417,55 +420,56 @@ class BrainEncoder:
             n_stim, n_iter, n_elem = activ.shape
 
             # start encoding
-            score_arr = np.zeros((n_iter, n_meas), dtype=np.float)
-            model_arr = np.zeros_like(score_arr, dtype=np.object)
             if isinstance(self.model, UnivariatePredictionModel):
-                channel_arr = np.zeros_like(score_arr, dtype=np.int)
-                row_arr = np.zeros_like(score_arr, dtype=np.int)
-                column_arr = np.zeros_like(score_arr, dtype=np.int)
+                # prepare layer dict
+                encode_dict[layer] = {
+                    'max_score': np.zeros((n_iter, n_meas)),
+                    'max_loc': np.zeros((n_iter, n_meas, 3), dtype=np.int),
+                    'max_model': np.zeros((n_iter, n_meas), dtype=np.object),
+                    'score': np.zeros((n_iter, n_meas, self.model.cv))
+                }
+                # start iteration
                 for iter_idx in range(n_iter):
                     data = self.model.predict(activ[:, iter_idx, :], self.brain_activ)
-                    score_arr[iter_idx] = data['score']
-                    model_arr[iter_idx] = data['model']
-                    for meas_idx, loc in enumerate(data['location']):
-                        # transform location
-                        if iter_axis is None:
-                            chn_idx = loc // n_row_col
-                            row_idx = loc % n_row_col // n_col
-                            col_idx = loc % n_row_col % n_col
-                        elif iter_axis == 'channel':
-                            chn_idx = iter_idx
-                            row_idx = loc // n_col
-                            col_idx = loc % n_col
+                    for k, v in data.items():
+                        if k == 'max_loc':
+                            if iter_axis is None:
+                                chn_idx = v // n_row_col
+                                row_idx = v % n_row_col // n_col
+                                col_idx = v % n_row_col % n_col
+                            elif iter_axis == 'channel':
+                                chn_idx = iter_idx
+                                row_idx = v // n_col
+                                col_idx = v % n_col
+                            else:
+                                chn_idx = v
+                                row_idx = iter_idx // n_col
+                                col_idx = iter_idx % n_col
+                            encode_dict[layer][k][iter_idx, :, 0] = chn_idx + 1
+                            encode_dict[layer][k][iter_idx, :, 1] = row_idx + 1
+                            encode_dict[layer][k][iter_idx, :, 2] = col_idx + 1
                         else:
-                            chn_idx = loc
-                            row_idx = iter_idx // n_col
-                            col_idx = iter_idx % n_col
-
-                        channel_arr[iter_idx, meas_idx] = chn_idx + 1
-                        row_arr[iter_idx, meas_idx] = row_idx + 1
-                        column_arr[iter_idx, meas_idx] = col_idx + 1
-                    print(f'Layer-{layer} iter-{iter_idx+1}/{n_iter}')
-
-                pred_dict[layer] = {
-                    'score': score_arr,
-                    'model': model_arr,
-                    'chn_loc': channel_arr,
-                    'row_loc': row_arr,
-                    'col_loc': column_arr
-                }
+                            encode_dict[layer][k][iter_idx] = v
+                    print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
+                # clear layer dict
+                if self.model.model_type == 'corr':
+                    encode_dict[layer].pop('max_model')
+                    encode_dict[layer].pop('score')
             else:
+                # prepare layer dict
+                encode_dict[layer] = {
+                    'score': np.zeros((n_iter, n_meas, self.model.cv)),
+                    'model': np.zeros((n_iter, n_meas), dtype=np.object)
+                }
+                # start iteration
                 for iter_idx in range(n_iter):
                     data = self.model.predict(activ[:, iter_idx, :], self.brain_activ)
-                    score_arr[iter_idx] = data['score']
-                    model_arr[iter_idx] = data['model']
-                    print(f'Layer-{layer} iter-{iter_idx + 1}/{n_iter}')
+                    for k, v in data.items():
+                        encode_dict[layer][k][iter_idx] = v
 
-                pred_dict[layer] = {
-                    'score': score_arr,
-                    'model': model_arr
-                }
-        return pred_dict
+                    print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
+
+        return encode_dict
 
     def encode_behavior(self, beh_data):
         """
