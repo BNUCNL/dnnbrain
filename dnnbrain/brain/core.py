@@ -485,7 +485,7 @@ class BrainEncoder:
             ---for uv---
             layer:
                 max_score[ndarray]: shape=(n_meas,)
-                    max scores at each iteration
+                    max scores
                 max_loc[ndarray]: shape=(n_meas,)
                     max locations of the max scores
                 max_model[ndarray]: shape=(n_meas,)
@@ -578,23 +578,37 @@ class BrainDecoder:
 
         Return:
         ------
-        pred_dict[dict]:
+        decode_dict[dict]:
             ---for uv---
             layer:
-                score[ndarray]: max scores
-                    shape=(n_chn, n_row, n_col)
-                model[ndarray]: fitted models of the max scores
-                    shape=(n_chn, n_row, n_col)
-                location[ndarray]: locations of measurement indicators with max scores
-                    shape=(n_chn, n_row, n_col)
+                max_score[ndarray]: shape=(n_chn, n_row, n_col)
+                    max scores
+                max_loc[ndarray]: shape=(n_chn, n_row, n_col)
+                    locations of measurement indicators with max scores
+                max_model[ndarray]: shape=(n_chn, n_row, n_col)
+                    fitted models of the max scores
+                    Note: only exists when model is classifier or regressor
+                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
+                    The forth dimension means scores of each cross validation folds of the max scores
+                    Note: only exists when model is classifier or regressor
+                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
+                    The forth dimension means confusion matrices (n_label, n_label) of
+                    each cross validation folds of the max scores
+                    Note: only exists when model is classifier
+
             ---for mv---
             layer:
-                score[ndarray]: prediction scores
-                    shape=(n_chn, n_row, n_col)
-                model[ndarray]: fitted models
-                    shape=(n_chn, n_row, n_col)
+                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
+                    The forth dimension means scores of each cross validation folds
+                    at each unit
+                model[ndarray]: shape=(n_chn, n_row, n_col)
+                    Each element is a model fitted at the corresponding unit.
+                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
+                    The forth dimension means confusion matrices (n_label, n_label) of
+                    each cross validation folds at the corresponding unit.
+                    Note: only exists when model is classifier
         """
-        pred_dict = dict()
+        decode_dict = dict()
         for layer in dnn_activ.layers:
             # get DNN activation
             activ = dnn_activ.get(layer)
@@ -602,14 +616,16 @@ class BrainDecoder:
             activ = activ.reshape((n_stim, -1))
 
             data = self.model.predict(self.brain_activ, activ)
-            data['score'] = data['score'].reshape(shape)
-            data['model'] = data['model'].reshape(shape)
-            if isinstance(self.model, UnivariatePredictionModel):
-                data['location'] = data['location'].reshape(shape)
-            pred_dict[layer] = data
-            print(f'Layer-{layer} finished.')
+            for k, v in data.items():
+                if k in ('score', 'conf_m'):
+                    data[k] = v.reshape(shape+[self.model.cv])
+                else:
+                    data[k] = v.reshape(shape)
+            decode_dict[layer] = data
 
-        return pred_dict
+            print('Layer-{} finished.'.format(layer))
+
+        return decode_dict
 
     def decode_behavior(self, beh_data):
         """
