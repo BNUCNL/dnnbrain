@@ -139,7 +139,7 @@ def main():
                 df = pd.DataFrame(v, columns=args.beh)
                 df.to_csv(pjoin(trg_dir, '{}.csv'.format(k)), index=False)
             else:
-                np.save(pjoin(trg_dir, '{}.npy'.format(k)), v)
+                np.save(pjoin(trg_dir, k), v)
 
         print('Finish save {}.'.format(layer))
     # -save out end-

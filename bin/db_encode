@@ -140,12 +140,12 @@ def main():
     # -prediction start-
     time1 = time.time()
     encoder = BrainEncoder(Y, args.anal, args.model, args.cv)
-    pred_dict = encoder.encode_dnn(activation, args.iteraxis)
-    print(f'Finish prediction: cost {time.time()-time1} seconds.')
+    encode_dict = encoder.encode_dnn(activation, args.iteraxis)
+    print('Finish prediction: cost {} seconds.'.format(time.time()-time1))
     # -prediction end-
 
     # -save out start-
-    for layer, data in pred_dict.items():
+    for layer, data in encode_dict.items():
         # prepare directory
         trg_dir = pjoin(args.out, layer)
         if not os.path.isdir(trg_dir):
@@ -157,42 +157,44 @@ def main():
 
         # save files
         if args.resp.endswith('.roi.h5'):
-            # save score
-            score_df = pd.DataFrame(data['score'], columns=roi.rois)
-            score_df.to_csv(pjoin(trg_dir, 'score.csv'), index=False)
-
-            # save location
-            if args.anal == 'uva':
-                chn_loc_df = pd.DataFrame(data['chn_loc'], columns=roi.rois)
-                chn_loc_df.to_csv(pjoin(trg_dir, 'chn_location.csv'), index=False)
-                row_loc_df = pd.DataFrame(data['row_loc'], columns=roi.rois)
-                row_loc_df.to_csv(pjoin(trg_dir, 'row_location.csv'), index=False)
-                col_loc_df = pd.DataFrame(data['col_loc'], columns=roi.rois)
-                col_loc_df.to_csv(pjoin(trg_dir, 'col_location.csv'), index=False)
+            for k, v in data.items():
+                if k == 'max_score':
+                    df = pd.DataFrame(v, columns=roi.rois)
+                    df.to_csv(pjoin(trg_dir, '{}.csv'.format(k)), index=False)
+                else:
+                    np.save(pjoin(trg_dir, k), v)
 
         elif args.resp.endswith('.nii') or args.resp.endswith('.nii.gz'):
             resp_suffix = '.'.join(args.resp.split('.')[1:])
 
-            # save score
-            score_img = np.zeros((data['score'].shape[0], *bshape))
-            score_img[:, bmask] = data['score']
-            save_brainimg(pjoin(trg_dir, f'score.{resp_suffix}'),
-                          score_img, header)
+            bshape_pos = list(range(1, len(bshape)+1))
+            for k, v in data.items():
+                if k == 'max_score':
+                    img = np.zeros((v.shape[0], *bshape))
+                    img[:, bmask] = v
+                    save_brainimg(pjoin(trg_dir, '{}.{}'.format(k, resp_suffix)), img, header)
+                elif 'model' in k:
+                    arr = np.zeros((v.shape[0], *bshape), dtype=np.object)
+                    arr[:, bmask] = v
+                    arr = arr.transpose((*bshape_pos, 0))
+                    np.save(pjoin(trg_dir, k), arr)
+                elif k == 'max_loc':
+                    arr = np.zeros((v.shape[0], *bshape, v.shape[-1]))
+                    arr[:, bmask, :] = v
+                    arr = arr.transpose((*bshape_pos, 0, -1))
+                    np.save(pjoin(trg_dir, k), arr)
+                elif k == 'score':
+                    # save all cross validation scores
+                    arr = np.zeros((v.shape[0], *bshape, v.shape[-1]))
+                    arr[:, bmask, :] = v
+                    arr = arr.transpose((*bshape_pos, 0, -1))
+                    np.save(pjoin(trg_dir, k), arr)
+                    # save mean scores of each cross validation
+                    img = np.zeros((v.shape[0], *bshape))
+                    img[:, bmask] = np.mean(v, 2)
+                    save_brainimg(pjoin(trg_dir, '{}.{}'.format(k, resp_suffix)), img, header)
 
-            # save location
-            if args.anal == 'uva':
-                chn_loc_img = np.zeros_like(score_img, dtype=np.int)
-                chn_loc_img[:, bmask] = data['chn_loc']
-                save_brainimg(pjoin(trg_dir, 'chn_location.' + resp_suffix), chn_loc_img, header)
-                row_loc_img = np.zeros_like(score_img, dtype=np.int)
-                row_loc_img[:, bmask] = data['row_loc']
-                save_brainimg(pjoin(trg_dir, 'row_location.' + resp_suffix), row_loc_img, header)
-                col_loc_img = np.zeros_like(score_img, dtype=np.int)
-                col_loc_img[:, bmask] = data['col_loc']
-                save_brainimg(pjoin(trg_dir, 'col_location.' + resp_suffix), col_loc_img, header)
-
-        np.save(pjoin(trg_dir, 'model.npy'), data['model'], allow_pickle=True)
-        print(f'Finish save {layer}.')
+        print('Finish save {}.'.format(layer))
     # -save out end-
 
 
