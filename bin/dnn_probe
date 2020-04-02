@@ -75,12 +75,13 @@ def main():
                         metavar='Model',
                         required=True,
                         type=str,
-                        choices=('glm', 'lasso', 'svc', 'lrc'),
+                        choices=('glm', 'lasso', 'svc', 'lrc', 'corr'),
                         help='Select a model to do prediction. '
                              'Use glm (general linear model) for regression. '
                              'Use lasso (lasso regression) for regression. '
                              'Use svc (support vector machine) for classification. '
-                             'Use lrc (logistic regression) for classification.')
+                             'Use lrc (logistic regression) for classification.'
+                             'Use corr (pearson correlation) for correlation analysis.')
     parser.add_argument('-cv',
                         metavar='FoldNumber',
                         type=int,
@@ -118,12 +119,12 @@ def main():
     # -probe start-
     time1 = time.time()
     probe = DnnProbe(activation, args.anal, args.model, args.cv)
-    pred_dict = probe.probe(beh_data, args.iteraxis)
-    print(f'Finish probe: cost {time.time() - time1} seconds.')
+    probe_dict = probe.probe(beh_data, args.iteraxis)
+    print('Finish probe: cost {} seconds.'.format(time.time()-time1))
     # -probe end-
 
     # -save out start-
-    for layer, data in pred_dict.items():
+    for layer, data in probe_dict.items():
         # prepare directory
         trg_dir = pjoin(args.out, layer)
         if not os.path.isdir(trg_dir):
@@ -133,21 +134,14 @@ def main():
             if not os.path.isdir(trg_dir):
                 os.makedirs(trg_dir)
 
-        # save score and model
-        score_df = pd.DataFrame(data['score'], columns=args.beh)
-        score_df.to_csv(pjoin(trg_dir, 'score.csv'), index=False)
-        np.save(pjoin(trg_dir, 'model.npy'), data['model'], allow_pickle=True)
+        for k, v in data.items():
+            if k == 'max_score':
+                df = pd.DataFrame(v, columns=args.beh)
+                df.to_csv(pjoin(trg_dir, '{}.csv'.format(k)), index=False)
+            else:
+                np.save(pjoin(trg_dir, k), v)
 
-        # save location
-        if args.anal == 'uv':
-            chn_loc_df = pd.DataFrame(data['chn_loc'], columns=args.beh)
-            chn_loc_df.to_csv(pjoin(trg_dir, 'chn_location.csv'), index=False)
-            row_loc_df = pd.DataFrame(data['row_loc'], columns=args.beh)
-            row_loc_df.to_csv(pjoin(trg_dir, 'row_location.csv'), index=False)
-            col_loc_df = pd.DataFrame(data['col_loc'], columns=args.beh)
-            col_loc_df.to_csv(pjoin(trg_dir, 'col_location.csv'), index=False)
-
-        print(f'Finish save {layer}.')
+        print('Finish save {}.'.format(layer))
     # -save out end-
 
 
