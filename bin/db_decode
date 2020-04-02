@@ -127,23 +127,22 @@ def main():
     # -prediction start-
     time1 = time.time()
     decoder = BrainDecoder(Y, args.anal, args.model, args.cv)
-    pred_dict = decoder.decode_dnn(activation)
-    print(f'Finish prediction: cost {time.time() - time1} seconds.')
+    decode_dict = decoder.decode_dnn(activation)
+    print('Finish prediction: cost {} seconds.'.format(time.time()-time1))
     # -prediction end-
 
     # -save out start-
-    for layer, data in pred_dict.items():
+    for layer, data in decode_dict.items():
         # prepare directory
         trg_dir = pjoin(args.out, layer)
         if not os.path.isdir(trg_dir):
             os.makedirs(trg_dir)
 
         # save files
-        np.save(pjoin(trg_dir, 'score.npy'), data['score'])
-        np.save(pjoin(trg_dir, 'model.npy'), data['model'], allow_pickle=True)
-        if args.anal == 'uva':
-            np.save(pjoin(trg_dir, 'location.npy'), data['location'])
-        print(f'Finish save {layer}.')
+        for k, v in data.items():
+            np.save(pjoin(trg_dir, k), v)
+
+        print('Finish save {}.'.format(layer))
     # -save out end-
 
 
