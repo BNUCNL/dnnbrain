@@ -68,7 +68,14 @@ class TestAlexNet:
         rf.close()
 
     def test_get_kernel(self):
-        pass
+        # ground truth
+        conv5_shape = torch.tensor((256, 256, 3, 3))
+        conv5_1_0 = torch.tensor([[0.0045, -0.0077, -0.0150],
+                                  [-0.0303, -0.0441, -0.0176],
+                                  [-0.0143, -0.0367, -0.0520]])
+        dnn = db_models.AlexNet()
+        torch.equal(conv5_shape, torch.tensor(dnn.get_kernel('conv5').shape))
+        torch.equal(conv5_1_0, dnn.get_kernel('conv5', 1)[0])
 
     def test_ablate(self):
         pass

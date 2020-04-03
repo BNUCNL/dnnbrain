@@ -272,10 +272,11 @@ class DNN:
         ----------
         layer[str]: layer name
         kernels[int|list]: serial numbers of kernels
+            start from 1
 
         Return:
         ------
-        weights[array]: kernel weights
+        weights[tensor]: kernel weights
         """
         # get the module
         module = self.layer2module(layer)
@@ -283,9 +284,14 @@ class DNN:
         # get the weights
         weights = module.weight
         if kernels is not None:
+            # deal with kernel numbers
+            kernels = np.asarray(kernels)
+            assert np.all(kernels > 0), 'The kernel number should start from 1.'
+            kernels = kernels - 1
+            # get part of weights
             weights = weights[kernels]
 
-        return weights.detach().numpy()
+        return weights
 
     def ablate(self, layer, channels=None):
         """
