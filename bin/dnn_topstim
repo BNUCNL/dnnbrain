@@ -1,98 +1,108 @@
 #! /usr/bin/env python
-import numpy as np
-import os, copy, argparse
-from dnnbrain.dnn.base import array_statistic
-from dnnbrain.dnn.core import Stimulus, Mask
-from dnnbrain.dnn import models as db_models # Use eval to import DNN model
 
-# For specific layer and channel in DNN network,
-# select topK stimulus from a set of stimulus.
+"""
+For maximizing activation of a specific layer and channel in DNN network,
+selecting the topK stimuli from a stimulus set. Meanwhile, save their activation.
+"""
+
+import os
+import copy
+import argparse
+import numpy as np
+
+from os.path import join as pjoin
+from dnnbrain.dnn.base import array_statistic
+from dnnbrain.dnn.core import Stimulus
+from dnnbrain.utils.util import gen_dmask
+from dnnbrain.dnn import models as db_models  # Use eval to import DNN model
 
 
 def main():
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-model',
-                        metavar='Name of DNN Model',
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-net',
+                        metavar='Net',
                         type=str, required=True,
-                        help='Name of DNN Model, which should be placed in system variable '
-                                'DNNBRAIN_MODEL_DIR with format *.pth. ')
-
+                        help='Name of DNN Model, which should be placed in '
+                             '$DNNBRAIN_DATA/models with format *.pth.')
     parser.add_argument('-top',
-                        metavar='Number of Top Stimulus',
+                        metavar='TopNumber',
                         type=int, required=True,
-                        help='Number of top stimulus.For example, assign top = 5, and top 5 '
-                        'image for each <layer,channel> pair will be generated. ')
-
+                        help='Number of top stimulus. For example, assign top=5, and top 5 '
+                        'image for each <layer,channel> pair will be selected.')
     parser.add_argument('-stim',
-                        metavar='Path of Stimulus',
+                        metavar='Stimulus',
                         type=str, required=True,
-                        help='A *.stim.csv file contained stimuli to calculate. ')
-
-    parser.add_argument('-dmask',
-                        metavar='Path of Dmask',
-                        type=str, required=True,
-                        help='A *.dmask.csv list of interested layers and channels. ')
-
+                        help='a .stim.csv file which contains stimulus information')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        required=True,
+                        type=str,
+                        nargs='+',
+                        help="names of the layers used to specify where activation is extracted from "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer.")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        required=True,
+                        type=int,
+                        nargs='+',
+                        help="Channel numbers used to specify where activation is extracted from")
+    parser.add_argument('-cuda',
+                        action='store_true',
+                        help='Use GPU or not')
     parser.add_argument('-out',
-                        metavar='Path of Output',
+                        metavar='OutputDir',
                         type=str, required=True,
                         help='Output directory to save .stim.csv for top stimulus, '
-                                'and associated .act.hd5 file. ')
-
+                             'and associated .act.hd5 file.')
     args = parser.parse_args()
 
-    # Load Neuro Network Model
-    model = eval('db_models.{}()'.format(args.model))
+    # Load Neural Network Model
+    dnn = eval('db_models.{}()'.format(args.net))
 
-    # Load Stim Dict (*.stim.csv)
+    # Load Stimulus (*.stim.csv)
     stim = Stimulus()
     stim.load(args.stim)
 
     # Load Dmask File (*.dmask.csv)
-    dmask = Mask(args.dmask)
+    dmask = gen_dmask(args.layer, args.chn, None)
 
     # Extract Activation
-    activation = model.compute_activation(stim, dmask)
+    activation = dnn.compute_activation(stim, dmask, cuda=args.cuda)
 
     # Create the Output File if Inexistent
     if not os.path.exists(args.out):
-        os.mkdir(args.out)
+        os.makedirs(args.out)
 
     # Below Count the Activation to Select Top Stimulus
-    for current_layer in activation.layers:
-        current_activation = activation.get(current_layer)
-        top_activation = np.zeros(current_activation.shape)[0:args.top, :, :, :]
+    for layer in activation.layers:
+        activ = activation.get(layer)
+        activ_top = np.zeros((args.top, *activ.shape[1:]))
 
         # Use Array_statistic in dnn.base to Do Max-pooling
-        pooled_act = array_statistic(current_activation, 'max', axis=(2, 3), keepdims=False).T
+        activ_pool = array_statistic(activ, 'max', axis=(2, 3), keepdims=False)
 
         # Do Sorting and Arg-sorting
-        act_sort = np.argsort(-pooled_act, axis=1, kind='heapsort')
-        act_sort = act_sort[:, 0:args.top]
-        pooled_act = -np.sort(-pooled_act, axis=1, kind='heapsort')
-        pooled_act = pooled_act[:, 0:args.top]
+        indices_top = np.argsort(-activ_pool, axis=0)[:args.top]
 
-        for channel_id, channel in enumerate(dmask.get(current_layer)['chn']):
+        for chn_idx, chn in enumerate(dmask.get(layer)['chn']):
+            # set top stimuli information for each channel
+            stim_top = stim[indices_top[:, chn_idx].tolist()]
+            stim_top.set('value', activ_pool[indices_top[:, chn_idx], chn_idx])
 
-            # Set .stim.csv Activation Information
-            channel_stim = copy.deepcopy(stim)
-            channel_csv_name = current_layer + '_channel' + str(channel) + '_top' + str(args.top) + '.stim.csv'
-            channel_stim.set('stimID', stim.get('stimID')[act_sort[channel_id, :]])
+            # save to .stim.csv
+            out_file = '{}_chn{}_top{}.stim.csv'.format(layer, chn, args.top)
+            stim_top.save(pjoin(args.out, out_file))
 
-            # Save .stim.csv Activation Information
-            channel_stim.set('value', pooled_act[channel_id, :])
-            out_stim_path = os.path.join(args.out, channel_csv_name)
-            channel_stim.save(out_stim_path)
-            top_activation[:, channel_id, :, :] = \
-                current_activation[act_sort[channel_id, :], channel_id, :, :]
+            # get top activation
+            activ_top[:, chn_idx, :, :] = \
+                activ[indices_top[:, chn_idx], chn_idx, :, :]
 
         # Set .act.h5 Activation File for Each Layer with Each Channel
-        activation.set(current_layer, top_activation)
+        activation.set(layer, activ_top)
 
     # Set .act.h5 Activation File for All
-    out_act_path = os.path.join(args.out, 'result.act.h5')
+    out_act_path = pjoin(args.out, 'top{}.act.h5'.format(args.top))
     activation.save(out_act_path)
 
 
