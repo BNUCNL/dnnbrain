@@ -27,8 +27,8 @@ def main():
     parser.add_argument('-top',
                         metavar='TopNumber',
                         type=int, required=True,
-                        help='Number of top stimulus. For example, assign top = 5, and top 5 '
-                        'image for each <layer,channel> pair will be generated. ')
+                        help='Number of top stimulus. For example, assign top=5, and top 5 '
+                        'image for each <layer,channel> pair will be selected.')
     parser.add_argument('-stim',
                         metavar='Stimulus',
                         type=str, required=True,
@@ -40,22 +40,21 @@ def main():
                         nargs='+',
                         help="names of the layers used to specify where activation is extracted from "
                              "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. ")
+                             "'fc1' represents the first full connection layer.")
     parser.add_argument('-chn',
                         metavar='Channel',
                         required=True,
                         type=int,
                         nargs='+',
-                        help="Channel numbers used to specify where activation is extracted from "
-                             "Default is extracting all channels of each layer specified by -layer.")
+                        help="Channel numbers used to specify where activation is extracted from")
     parser.add_argument('-cuda',
                         action='store_true',
                         help='Use GPU or not')
     parser.add_argument('-out',
-                        metavar='Path of Output',
+                        metavar='OutputDir',
                         type=str, required=True,
                         help='Output directory to save .stim.csv for top stimulus, '
-                                'and associated .act.hd5 file. ')
+                             'and associated .act.hd5 file.')
     args = parser.parse_args()
 
     # Load Neural Network Model
