@@ -553,9 +553,10 @@ class SynthesisImage(Algorithm):
             # precondition
             init_image = self.precondition_metric(GB_radius)
            
-        # offset the loss for one less count
+        # compute act_loss for one more time as the loss 
+        # we computed in each iteration is for the previous pic
         self.dnn.model(self.optimal_image)
-        loss_end = self.activ_loss + regular_lambda * self.regular_metric()   
+        self.regular_metric()   
                 
         # remove hook
         handle.remove()
@@ -571,8 +572,7 @@ class MaskedImage(Algorithm):
     Generate masked gray picture for images according to activation changes
     '''
     
-    def __init__(self,dnn, layer=None, channel=None,
-             initial_image=None,unit=None, 
+    def __init__(self,dnn, layer=None, channel=None, unit=None, 
              stdev_size_thr=1.0,filter_sigma=1.0,target_reduction_ratio=0.9):
         """
         Parameters:
@@ -584,34 +584,25 @@ class MaskedImage(Algorithm):
         unit[tuple]: position of the target unit
         """
         super(MaskedImage, self).__init__(dnn, layer, channel)
+        self.set_parameters(unit, stdev_size_thr, filter_sigma, target_reduction_ratio)
         self.activ = None
         self.masked_image = None
-        
         self.activ_type = None
         self.row =None
         self.column=None
                 
-    def set_parameters(self,initial_image=None,unit=None,stdev_size_thr=1.0,
-                          filter_sigma=1.0,target_reduction_ratio=0.9):
+    def set_parameters(self, unit=None, stdev_size_thr=1.0,
+                          filter_sigma=1.0, target_reduction_ratio=0.9):
         """
         Set parameters for mask
         
         Parameters
         ----------
-        initial_image[ndarray]: initial image waits for masking
         unit[tuple]: position of the target unit
         stdev_size_thr[float]: fraction of standard dev threshold for size of blobs,default 1.0
         filter_sigma[float]: sigma for final gaussian blur, default 1.0
         target_reduction_ratio[float]; reduction ratio to achieve for tightening the mask,default 0.9
-        """
-        if isinstance(initial_image,np.ndarray):
-            if len(initial_image.shape) in [2,3]:
-                self.initial_image = initial_image
-            else: 
-                raise AssertionError('Check initial_image, only two or three dimentions can be set!')
-        else:
-            raise AssertionError('Check initial_image to be np.ndarray')
-            
+        """            
         if isinstance(unit,tuple) and len(unit) == 2:    
             self.row,self.column = unit
             self.activ_type = 'unit'
@@ -619,7 +610,6 @@ class MaskedImage(Algorithm):
             self.activ_type = 'channel'
         else: 
             raise AssertionError('Check unit must be 2-dimentional tuple,like(27,27)')
-            
         self.stdev_size_thr = stdev_size_thr
         self.filter_sigma = filter_sigma
         self.target_reduction_ratio = target_reduction_ratio
@@ -664,23 +654,31 @@ class MaskedImage(Algorithm):
 
         return handle
              
-    def put_mask(self,maxiteration=100):
+    def put_mask(self, initial_image, maxiteration=100):
         '''
         Put mask on image
        
         Parameter:
         --------
+        initial_image[ndarray]: initial image waits for masking
         maxiteration[int]: the max number of iterations to sto
         
         Return
         -------
-            [ndarray] the masked image with shape as (n_chn, height, width)
+        masked_image[ndarray]: the masked image with shape as (n_chn, height, width)
         '''
+        if isinstance(initial_image,np.ndarray):
+            if len(initial_image.shape) in [2,3]:
+                img = initial_image
+            else: 
+                raise AssertionError('Check initial_image, only two or three dimentions can be set!')
+        else:
+            raise AssertionError('Check initial_image to be np.ndarray')
+        #define hooks for recording act_loss
         self.activ_trace = [] 
         handle = self.register_hooks()
         
-        img = self.initial_image.copy()
-        
+        #transpose axis
         if len(img.shape) == 3 and img.shape[0] == 3:        
             img = img.transpose((1,2,0))
         

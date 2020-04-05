@@ -167,13 +167,11 @@ class TestMaskedImage:
         
         dnn = AlexNet()
         
-        int_img = np.random.rand(3,224,224)
         mask_img = d_algo.MaskedImage(dnn,'conv2',240)
         unit =(29,29)
-        mask_img.set_parameters(initial_image=int_img,unit=unit)
+        mask_img.set_parameters(unit=unit)
         
         #assert 
-        assert mask_img.initial_image.all() == int_img.all()
         assert mask_img.row == unit[0] and mask_img.column ==unit[1]
         
             
@@ -189,8 +187,8 @@ class TestMaskedImage:
         int_img = syn_img.synthesize(n_iter = 500,unit=unit,step=100)
 
         mask_img = d_algo.MaskedImage(dnn,'conv2',100)
-        mask_img.set_parameters(initial_image=int_img,unit=unit)        
-        img_out = mask_img.put_mask(maxiteration=200)
+        mask_img.set_parameters(unit=unit)        
+        img_out = mask_img.put_mask(int_img, maxiteration=200)
         
         #assert 2
         assert img_out.shape ==  (3, *dnn.img_size)
