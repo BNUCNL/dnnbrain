@@ -1,10 +1,12 @@
 import os
+import pytest
 import numpy as np
 
 from os.path import join as pjoin
 from PIL import Image
 from matplotlib import pyplot as plt
 from dnnbrain.dnn import algo as d_algo
+from dnnbrain.dnn.base import ip
 from dnnbrain.dnn.models import AlexNet
 from dnnbrain.utils.util import normalize
 
@@ -147,9 +149,9 @@ class TestSynthesisImage:
         
         syn_img = d_algo.SynthesisImage(dnn, 'fc3', 276)
         syn_img.set_metric(activ_metric='mean', regular_metric='TV',
-                   precondition_metric='GB')
-        syn_img.set_utiliz(save_out_interval=True, print_inter_loss=True)
-        img_out = syn_img.synthesize(n_iter = 150,save_path='/nfs/s2/userhome/gongzhengxin/workingdir/Images',save_interval =30, GB_radius = 1.2, step = 30)
+                   precondition_metric='GB', smooth_metric='Fourier')
+        syn_img.set_utiliz(save_out_interval=False, print_inter_loss=True)
+        img_out = syn_img.synthesize(n_iter = 150, save_path = '.', save_interval =30, GB_radius = 1.2, step = 30)
         
         # assert
         assert img_out.shape == (3, *dnn.img_size)
@@ -182,7 +184,7 @@ class TestMaskedImage:
         unit =(14,14)
         syn_img = d_algo.SynthesisImage(dnn, 'conv2', 100)
         syn_img.set_metric(activ_metric='mean', regular_metric='TV',
-                   precondition_metric='GB')
+                   precondition_metric='GB', smooth_metric='Fourier')
         syn_img.set_utiliz(save_out_interval=False, print_inter_loss=True)
         int_img = syn_img.synthesize(n_iter = 500,unit=unit,step=100)
 
@@ -196,10 +198,124 @@ class TestMaskedImage:
         plt.imshow(img_out.transpose((1,2,0)))
         
         plt.show()
+  
+      
+class TestMinimalParcelImage:
         
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+        
+    def test_generate_minimal_image(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+
+        # prepare image
+        self.image.show()
+        
+        #prepare m_img
+        m_img = d_algo.MinimalParcelImage(dnn)
+        m_img.set_layer('conv5', 125)
+        
+        #test minimal image of conv5
+        m_img.felzenszwalb_decompose(np.asarray(self.image)) 
+        img_out = m_img.generate_minimal_image()
+        assert img_out.shape == (*self.image.size, 3) 
+        
+        #visualize image
+        plt.figure()
+        plt.imshow(img_out)   
+        
+        plt.show()
+        
+
+class TestOccluderDiscrepancyMapping:
+    
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+        
+    def test_compute(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+
+        # prepare image
+        self.image.show()
+        
+        #prepare occulder map
+        oc_map = d_algo.OccluderDiscrepancyMapping(dnn)
+        oc_map.set_layer('conv4', 27)
+        
+        #compute discrepancy map
+        discrepancy_map = oc_map.compute(np.asarray(self.image))
+        assert discrepancy_map.shape == (107,107) 
+        
+        #visualize image
+        plt.figure()
+        plt.imshow(discrepancy_map)   
+        
+        plt.show()
+
+    
+class TestUpsamplingActivationMapping:
+    
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+        
+    def test_compute(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+
+        # prepare image
+        self.image.show()
+        
+        #test upsampling mapping
+        up_map = d_algo.UpsamplingActivationMapping(dnn)
+        up_map.set_layer('conv3', 45)
+        upsampling_map = up_map.compute(np.asarray(self.image))
+        assert upsampling_map.shape == (dnn.img_size) 
+        
+        #visualize image
+        plt.figure()
+        plt.imshow(upsampling_map)   
+        
+        plt.show()
+    
+    
+class TestEmpiricalReceptiveField:
+    
+    image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
+        
+    def test_generate_rf(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+
+        # prepare image
+        self.image.show()
+        
+        #prepare emp_rf
+        emp_rf = d_algo.EmpiricalReceptiveField(dnn)
+        emp_rf.set_layer('conv3', 45)
+        emp_rf.set_params()
+        
+        #empirical receptive field size
+        img = ip.resize(np.asarray(self.image).transpose(2,0,1), dnn.img_size)
+        emp_rf_size = emp_rf.generate_rf(img)
+        assert emp_rf_size > 99
+  
+
+class TestTheoreticalReceptiveField:
+            
+    def test_compute(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+        
+        #test theoretical receptive field
+        the_rf = d_algo.TheoreticalReceptiveField(dnn)
+        the_rf.set_layer('conv3', 45)
+        the_rf_size = the_rf.compute()
+        assert the_rf_size == 99
         
         
 if __name__ == '__main__':
-    tmp = TestMaskedImage()
-    tmp.test_put_mask()
-
+    pytest.main()

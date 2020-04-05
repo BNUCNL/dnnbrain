@@ -1,17 +1,20 @@
 import abc
+import cv2
 import copy
 import torch
 import numpy as np
 
+from os import remove
 from torch.optim import Adam
 from os.path import join as pjoin
+from matplotlib import pyplot as plt
+from torch.nn.functional import interpolate
 from dnnbrain.dnn.core import Mask
 from dnnbrain.dnn.base import ip
-from scipy.ndimage import label
-from skimage.morphology import convex_hull_image,erosion, square
 from scipy.ndimage.filters import gaussian_filter
-from skimage import filters
+from skimage import filters, segmentation
 from skimage.color import rgb2gray
+from skimage.morphology import convex_hull_image,erosion, square
 
 
 class Algorithm(abc.ABC):
@@ -414,7 +417,7 @@ class SynthesisImage(Algorithm):
         precond_image = copy.deepcopy(precond_image)
         return precond_image
 
-    def _smooth_default(self):
+    def _smooth_default(self, factor):
         pass
 
     def _smooth_fourier(self, factor):
@@ -448,7 +451,7 @@ class SynthesisImage(Algorithm):
 
     def center_bias(self):
         pass
-
+        
     def register_hooks(self,unit=None):
         """
         Define register hook and register them to specific layer and channel.
@@ -505,15 +508,14 @@ class SynthesisImage(Algorithm):
         ------
             [ndarray]: the synthesized image with shape as (n_chn, height, width)
         """
-                
-        
         # Hook the selected layer
         handle = self.register_hooks(unit)
 
         # prepare initialized image
         if init_image is None:
             # Generate a random image
-            init_image = np.random.rand(3, *self.dnn.img_size)
+            init_image = np.random.normal(loc=[0.485, 0.456, 0.406], scale=[0.229, 0.224, 0.225], 
+                                          size=(*self.dnn.img_size, 3)).transpose(2,0,1)
             init_image = ip.to_tensor(init_image).float()
             init_image = copy.deepcopy(init_image)
         else:
@@ -522,7 +524,7 @@ class SynthesisImage(Algorithm):
 
         self.activ_losses = []
         self.regular_losses = []
-
+        
         # prepare for loss
         for i in range(n_iter):
             self.optimal_image = init_image.unsqueeze(0)
@@ -536,7 +538,7 @@ class SynthesisImage(Algorithm):
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
             # computer loss
-            loss = self.activ_loss + regular_lambda * self.regular_metric()           
+            loss = self.activ_loss + regular_lambda * self.regular_metric()
             # zero gradients
             optimizer.zero_grad()
             # Backward
@@ -550,7 +552,11 @@ class SynthesisImage(Algorithm):
             self.print_inter_loss(i, step, n_iter, loss)
             # precondition
             init_image = self.precondition_metric(GB_radius)
-
+           
+        # offset the loss for one less count
+        self.dnn.model(self.optimal_image)
+        loss_end = self.activ_loss + regular_lambda * self.regular_metric()   
+                
         # remove hook
         handle.remove()
 
@@ -560,17 +566,14 @@ class SynthesisImage(Algorithm):
         return final_image
     
     
-    
-    
 class MaskedImage(Algorithm):
     '''
-   
     Generate masked gray picture for images according to activation changes
-   
     '''
-    def __int__(self,dnn, layer=None, channel=None,
+    
+    def __init__(self,dnn, layer=None, channel=None,
              initial_image=None,unit=None, 
-             stdev_size_thr=None,filter_sigma=None,target_reduction_ratio=None):
+             stdev_size_thr=1.0,filter_sigma=1.0,target_reduction_ratio=0.9):
         """
         Parameters:
         ----------
@@ -580,22 +583,19 @@ class MaskedImage(Algorithm):
         initial_image[ndarray]: initial image waits for masking
         unit[tuple]: position of the target unit
         """
-       
         super(MaskedImage, self).__init__(dnn, layer, channel)
-        self.set_parameters(initial_image,unit,stdev_size_thr,filter_sigma,target_reduction_ratio)
         self.activ = None
         self.masked_image = None
         
         self.activ_type = None
         self.row =None
         self.column=None
-        
-        
-
+                
     def set_parameters(self,initial_image=None,unit=None,stdev_size_thr=1.0,
                           filter_sigma=1.0,target_reduction_ratio=0.9):
         """
         Set parameters for mask
+        
         Parameters
         ----------
         initial_image[ndarray]: initial image waits for masking
@@ -627,6 +627,7 @@ class MaskedImage(Algorithm):
     def prepare_test(self,masked_image):
         '''
         transfer pic to tenssor for dnn activation
+        
         Parameters:
         -----------
         masked_image [ndarray]: masked image waits for dnn activation
@@ -663,7 +664,6 @@ class MaskedImage(Algorithm):
 
         return handle
              
-
     def put_mask(self,maxiteration=100):
         '''
         Put mask on image
@@ -727,4 +727,527 @@ class MaskedImage(Algorithm):
         masked_image = test_image[0].detach().numpy()
         return  masked_image
     
-         
+        
+class MinimalParcelImage(Algorithm):
+    """
+    A class to generate minimal image for target channels from a DNN model 
+    """
+    
+    def __init__(self, dnn, layer=None, channel=None, activaiton_criterion='max', search_criterion='max'):
+        """
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where you focus on
+        channel[int]: sequence number of the channel where you focus on
+        activaiton_criterion[str]: the criterion of how to pooling activaiton
+        search_criterion[str]: the criterion of how to search minimal image
+        """
+        super(MinimalParcelImage, self).__init__(dnn, layer, channel)
+        self.set_params(activaiton_criterion, search_criterion)
+        self.parcel = None
+       
+    def set_params(self, activaiton_criterion='max', search_criterion='max'):
+        """
+        Set parameter for searching minmal image
+        
+        Parameter:
+        ---------
+        activaiton_criterion[str]: the criterion of how to pooling activaiton, choices=(max, mean, median, L1, L2)
+        search_criterion[str]: the criterion of how to search minimal image, choices=(max, fitting curve)
+        """
+        self.activaiton_criterion = activaiton_criterion
+        self.search_criterion = search_criterion
+
+    def _generate_decompose_parcel(self, image, segments):
+        """
+        Decompose image to multiple parcels using the given segments and
+        put each parcel into a separated image with a black background
+        
+        Parameter:
+        ---------
+        image[ndarray]: shape (height,width,n_chn) 
+        segments[ndarray]: shape (width, height).Integer mask indicating segment labels.
+        
+        Return:
+        ---------
+        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        """
+        self.parcel = np.zeros((np.max(segments)+1,image.shape[0],image.shape[1],3),dtype=np.uint8)
+        #generate parcel
+        for label in np.unique(segments):
+            self.parcel[label][segments == label] = image[segments == label]
+        return self.parcel
+        
+    def felzenszwalb_decompose(self, image, scale=100, sigma=0.5, min_size=50):
+        """
+        Decompose image to multiple parcels using felzenszwalb method and
+        put each parcel into a separated image with a black background
+        
+        Parameter:
+        ---------
+        image[ndarray] : shape (height,width,n_chn) 
+        
+        Return:
+        ---------
+        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        """
+        #decompose image
+        segments = segmentation.felzenszwalb(image, scale, sigma, min_size)
+        #generate parcel
+        self.parcel = self._generate_decompose_parcel(image, segments)
+        return self.parcel
+
+    def slic_decompose(self, image, n_segments=250, compactness=10, sigma=1):
+        """
+        Decompose image to multiple parcels using slic method and
+        put each parcel into a separated image with a black background  
+        
+        Parameter:
+        ---------
+        image[ndarray] : shape (height,width,n_chn) 
+        meth[str]: method to decompose images
+        
+        Return:
+        ---------
+        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        """
+        #decompose image
+        segments = segmentation.slic(image, n_segments, compactness, sigma)
+        #generate parcel
+        self.parcel = self._generate_decompose_parcel(image, segments)
+        return self.parcel
+
+    def quickshift_decompose(self, image, kernel_size=3, max_dist=6, ratio=0.5):
+        """
+        Decompose image to multiple parcels using quickshift method and
+        put each parcel into a separated image with a black background
+        
+        Parameter:
+        ---------
+        image[ndarray] : shape (height,width,n_chn) 
+        meth[str]: method to decompose images
+        
+        Return:
+        ---------
+        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        """
+        #decompose image
+        segments = segmentation.quickshift(image, kernel_size, max_dist, ratio)
+        #generate parcel
+        self.parcel = self._generate_decompose_parcel(image, segments)
+        return self.parcel
+    
+    def sort_parcel(self, order='descending'):
+        """
+        sort the parcel according the activation of dnn. 
+        
+        Parameter:
+        ---------
+        order[str]: ascending or descending
+        
+        Return:
+        ---------
+        parcel[ndarray]: shape (n_parcel,height,width,n_chn) parcel after sorted
+        """
+        #change its shape(n_parcel,n_chn,height,width)
+        parcel = self.parcel.transpose((0,3,1,2))
+        #compute activation
+        dnn_acts = self.dnn.compute_activation(parcel, self.mask).pool(self.activaiton_criterion).get(self.mask.layers[0])
+        act_all = dnn_acts.flatten()
+        #sort the activation in order
+        if order == 'descending':
+            self.parcel = self.parcel[np.argsort(-act_all)]
+        else:
+            self.parcel = self.parcel[np.argsort(act_all)]
+        return self.parcel
+        
+    def combine_parcel(self, indices):
+        """
+        combine the indexed parcel into a image
+        
+        Parameter:
+        ---------
+        indices[list|slice]: subscript indices
+        
+        Return:
+        -----
+        image_container[ndarray]: shape (n_chn,height,width)
+        """
+        #compose parcel correaspond with indices
+        if isinstance(indices, (list,slice)):
+            image_compose = np.sum(self.parcel[indices],axis=0)
+        else:
+            raise AssertionError('Only list and slice indices are supported')
+        return image_compose
+    
+    def generate_minimal_image(self):
+        """
+        Generate minimal image. We first sort the parcel by the activiton and 
+        then iterate to find the combination of the parcels which can maximally
+        activate the target channel.
+        
+        Note: before call this method, you should call xx_decompose method to 
+        decompose the image into parcels. 
+        
+        Return:
+        ---------
+        image_min[ndarray]: final minimal images in shape (height,width,n_chn)
+        """
+        if self.parcel is None: 
+            raise AssertionError('Please run decompose method to '
+                                 'decompose the image into parcels')
+        # sort the image
+        self.sort_parcel()
+        # iterater combine image to get activation
+        parcel_add = np.zeros((self.parcel.shape[0],self.parcel.shape[1],self.parcel.shape[2],3),dtype=np.uint8)
+        for index in range(self.parcel.shape[0]):
+            parcel_mix = self.combine_parcel(slice(index+1))
+            parcel_add[index] = parcel_mix[np.newaxis,:,:,:]
+        # change its shape(n_parcel,n_chn,height,width) to fit dnn_activation
+        parcel_add = parcel_add.transpose((0,3,1,2))
+        # get activation
+        dnn_act = self.dnn.compute_activation(parcel_add, self.mask).pool(self.activaiton_criterion).get(self.mask.layers[0])
+        act_add = dnn_act.flatten()
+        # generate minmal image according to the search_criterion
+        if self.search_criterion == 'max':
+            image_min = parcel_add[np.argmax(act_add)]
+            image_min = np.squeeze(image_min).transpose(1,2,0)
+        else:
+            pass
+        return image_min
+        
+class MinimalComponentImage(Algorithm):
+    """
+    A class to generate minmal image for a CNN model using a specific part 
+    decomposer and optimization criterion
+    """
+
+    def set_params(self,  meth='pca', criterion='max'):
+        """Set parameter for the estimator"""
+        self.meth = meth
+        self.criterion = criterion
+        
+    def pca_decompose(self):
+        pass
+    
+    def ica_decompose(self):
+        pass
+    
+    def sort_componet(self, order='descending'):
+        """
+        sort the component according the activation of dnn. 
+        order[str]: ascending or descending
+        """
+        pass
+    
+    def combine_component(self, index):
+        """combine the indexed component into a image"""
+        pass 
+    
+    def generate_minimal_image(self):
+        """
+        Generate minimal image. We first sort the component by the activiton and 
+        then iterate to find the combination of the components which can maximally
+        activate the target channel.
+        
+        Note: before call this method, you should call xx_decompose method to 
+        decompose the image into parcels. 
+        
+        Parameters:
+        ---------
+        stim[Stimulus]: stimulus
+        
+        Returns:
+        ------
+        """
+        pass
+    
+        
+class OccluderDiscrepancyMapping(Algorithm):
+    """
+    An Class to Compute Activation for Each Pixel
+    in an Image Using Slide-Occluder
+    """
+
+    def __init__(self, dnn, layer=None, channel=None, window=(11, 11), stride=(2, 2), metric='max'):
+        """
+        Set necessary parameters for the estimator.
+
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where you focus on
+        channel[int]: sequence number of the channel where you focus on
+        window[list]: The size of sliding window, which form should be [int, int].
+        stride[list]: The move step if sliding window, which form should be step for [row, column]
+        metric[str]: The metric to measure how feature map change, max or mean.
+        """
+        super(OccluderDiscrepancyMapping, self).__init__(dnn, layer, channel)
+        self.set_params(window, stride, metric)
+        
+    def set_params(self, window=(11, 11), stride=(2, 2), metric='max'):
+        """
+        Set parameter for occluder discrepancy mapping
+
+        Parameters:
+        ---------
+        window[list]: The size of sliding window, which form should be [int, int].
+        stride[list]: The move step if sliding window, which form should be step for [row, column]
+        metric[str]: The metric to measure how feature map change, max or mean.
+        """        
+        self.window = window
+        self.stride = stride
+        self.metric = metric
+
+    def compute(self, image):
+        """
+        Compute discrepancy map of the target image using a occluder moving from top-left to bottom-right
+        
+        Parameter:
+        ---------
+        image[ndarray] : shape (height,width,n_chn) 
+        
+        Return:
+        ---------
+        discrepancy_map[ndarray]: shape (n_parcel,height,width,n_chn)
+        """        
+        cropped_img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
+        cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
+        #init paras
+        column_num = int((cropped_img.shape[2] - self.window[0]) / self.stride[0] + 1)
+        row_num = int((cropped_img.shape[3] - self.window[1]) / self.stride[0] + 1)
+        discrepancy_map = np.zeros((column_num, row_num))
+        discrepancy_map_whole = np.max(self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]))
+        #start computing by moving occluders
+        current_num = 1
+        for i in range(0, column_num):
+            for j in range(0, row_num):
+                current_occluded_pic = copy.deepcopy(cropped_img)
+                current_occluded_pic[self.stride[0] * i:self.stride[0] * i + self.window[0],
+                                     self.stride[1] * j:self.stride[1] * j + self.window[1], :] = 0
+                max_act = np.max(self.dnn.compute_activation(current_occluded_pic, self.mask).get(self.mask.layers[0]))
+                discrepancy_map[i, j] = discrepancy_map_whole - max_act
+                #print feedback info
+                print(current_num, 'in', column_num * row_num,
+                      'finished. Discrepancy: %.1f' % abs(discrepancy_map[i, j]))
+                current_num = current_num + 1
+        return discrepancy_map
+
+
+class UpsamplingActivationMapping(Algorithm):
+    """
+    A Class to Compute Activation for Each Pixel
+    in an Image Using Upsampling Method with Specific
+    Method Assigned
+    """
+
+    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=0.68):
+        """
+        Set necessary parameters for upsampling estimator.
+
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where you focus on
+        channel[int]: sequence number of the channel where you focus on
+        interp_meth[str]: Algorithm used for upsampling are
+                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
+                          'trilinear' | 'area'   | 'bicubic' (Default)
+        interp_threshold[int]: The threshold to filter the feature map,
+                               which you should assign between 0 - 99.
+        """
+        super(UpsamplingActivationMapping, self).__init__(dnn, layer, channel)
+        self.set_params(interp_meth, interp_threshold)
+
+    def set_params(self, interp_meth='bicubic', interp_threshold=0.68):
+        """
+        Set necessary parameters for upsampling estimator.
+
+        Parameter:
+        ---------
+        interp_meth[str]: Algorithm used for upsampling are
+                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
+                          'trilinear' | 'area'   | 'bicubic' (Default)
+        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        """
+        self.interp_meth = interp_meth
+        self.interp_threshold = interp_threshold
+
+    def compute(self, image):
+        """
+        Do Real Computation for Pixel Activation Based on Upsampling Feature Mapping.
+
+        Parameter:
+        ---------
+        image[ndarray] : shape (height,width,n_chn) 
+        
+        Return:
+        ---------
+        thresed_img_act[ndarray] : image after upsampling, shape:(height,width) 
+        """
+        #prepare image
+        cropped_img = cv2.resize(image, self.dnn.img_size, interpolation=cv2.INTER_CUBIC)
+        cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
+        #compute activation
+        img_act = self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]).squeeze()
+        img_act = torch.from_numpy(img_act)[np.newaxis, np.newaxis, ...]
+        img_act = interpolate(img_act, size=cropped_img.shape[2:4],
+                              mode=self.interp_meth, align_corners=True)
+        img_act = np.squeeze(np.asarray(img_act))
+        #define region of rf
+        thresed_img_act = copy.deepcopy(img_act)
+        thresed_img_act[thresed_img_act < np.percentile(thresed_img_act, self.interp_threshold * 100)] = 0
+        thresed_img_act = thresed_img_act / np.max(thresed_img_act)
+        return thresed_img_act
+
+
+class EmpiricalReceptiveField(Algorithm):
+    """
+    A Class to Estimate Empirical Receptive Field (RF) of a DNN Model.
+    """
+
+    def __init__(self, dnn, layer=None, channel=None, threshold=0.3921):
+        """
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where you focus on
+        channel[int]: sequence number of the channel where you focus on
+        threshold[int]: The threshold to filter the synthesized
+                      receptive field, which you should assign
+                      between 0 - 1.
+        """
+        super(EmpiricalReceptiveField, self).__init__(dnn, layer, channel)
+        self.set_params(threshold)
+
+    def set_params(self, threshold=0.3921):
+        """
+        Set necessary parameters for upsampling estimator.
+
+        Parameter:
+        ---------
+        interp_meth[str]: Algorithm used for upsampling are
+                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
+                          'trilinear' | 'area'   | 'bicubic' (Default)
+        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        """
+        self.threshold = threshold
+
+    def generate_rf(self, all_thresed_act):
+        """
+        Compute RF on Given Image for Target Layer and Channel
+
+        Parameter:
+        ---------
+        all_thresed_act[ndarray]: shape must be (n_chn, dnn.img_size)
+        
+        Return:
+        ---------
+        empirical_rf_size[np.float64] : empirical rf size of specific image     
+        """
+        #init variables
+        self.all_thresed_act = all_thresed_act
+        sum_act = np.zeros([self.all_thresed_act.shape[0],
+                            self.dnn.img_size[0] * 2 - 1, self.dnn.img_size[1] * 2 - 1])
+        #compute act of image
+        for current_layer in range(self.all_thresed_act.shape[0]):
+
+            cx = int(np.mean(np.where(self.all_thresed_act[current_layer, :, :] ==
+                                      np.max(self.all_thresed_act[current_layer, :, :]))[0]))
+
+            cy = int(np.mean(np.where(self.all_thresed_act[current_layer, :, :] ==
+                                      np.max(self.all_thresed_act[current_layer, :, :]))[1]))
+
+            sum_act[current_layer,
+                    self.dnn.img_size[0] - 1 - cx:2 * self.dnn.img_size[0] - 1 - cx,
+                    self.dnn.img_size[1] - 1 - cy:2 * self.dnn.img_size[1] - 1 - cy] = \
+                self.all_thresed_act[current_layer, :, :]
+
+        sum_act = np.sum(sum_act, 0)[int(self.dnn.img_size[0] / 2):int(self.dnn.img_size[0] * 3 / 2),
+                                     int(self.dnn.img_size[1] / 2):int(self.dnn.img_size[1] * 3 / 2)]
+        #get region of receptive field
+        plt.imsave('tmp.png', sum_act, cmap='gray')
+        rf = cv2.imread('tmp.png', cv2.IMREAD_GRAYSCALE)
+        remove('tmp.png')
+        rf = cv2.medianBlur(rf, 31)
+        _, th = cv2.threshold(rf, self.threshold * 255, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        rf_contour = np.vstack((np.array(contours)[0].squeeze(1),np.array(contours)[1].squeeze(1)))
+        empirical_rf_area = 0
+        #compute size of rf
+        for i in np.unique(rf_contour[:, 0]):
+            empirical_rf_area = empirical_rf_area + max(rf_contour[rf_contour[:, 0] == i, 1]) - \
+                min(rf_contour[rf_contour[:, 0] == i, 1])
+        empirical_rf_size = np.sqrt(empirical_rf_area)
+        return empirical_rf_size
+
+
+class TheoreticalReceptiveField(Algorithm):
+    """
+    A Class to Count Theoretical Receptive Field.
+    Note: Currently only AlexNet, Vgg16, Vgg19 are supported.
+    (All these net are linear structure.)
+    """
+    
+    def __init__(self, dnn, layer=None, channel=None):
+        """
+        Parameter:
+        ---------
+        dnn[DNN]: dnnbrain's DNN object
+        layer[str]: name of the layer where you focus on
+        channel[int]: sequence number of the channel where you focus on
+        """
+        super(TheoreticalReceptiveField, self).__init__(dnn, layer, channel)
+        
+    def compute(self):
+        if self.dnn.__class__.__name__ == 'AlexNet':
+            self.net_struct = {}
+            self.net_struct['net'] = [[11, 4, 0], [3, 2, 0], [5, 1, 2], [3, 2, 0],
+                                      [3, 1, 1], [3, 1, 1], [3, 1, 1], [3, 2, 0]]
+            self.net_struct['name'] = ['conv1', 'pool1', 'conv2', 'pool2', 'conv3',
+                                       'conv4', 'conv5', 'pool5']
+
+        if self.dnn.__class__.__name__ == 'Vgg11':
+            self.net_struct = {}
+            self.net_struct['net'] = [[3, 1, 1], [2, 2, 0], [3, 1, 1], [2, 2, 0],
+                                      [3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
+                                      [2, 2, 0]]
+            self.net_struct['name'] = ['conv1', 'pool1', 'conv2', 'pool2',
+                                       'conv3_1', 'conv3_2', 'pool3', 'conv4_1',
+                                       'conv4_2', 'pool4', 'conv5_1', 'conv5_2',
+                                       'pool5']
+
+        if self.dnn.__class__.__name__ == 'Vgg16':
+            self.net_struct['net'] = [[3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0]]
+            self.net_struct['name'] = ['conv1_1', 'conv1_2', 'pool1', 'conv2_1',
+                                       'conv2_2', 'pool2', 'conv3_1', 'conv3_2',
+                                       'conv3_3', 'pool3', 'conv4_1', 'conv4_2',
+                                       'conv4_3', 'pool4', 'conv5_1', 'conv5_2',
+                                       'conv5_3', 'pool5']
+
+        if self.dnn.__class__.__name__ == 'Vgg19':
+            self.net_struct['net'] = [[3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
+                                      [3, 1, 1], [2, 2, 0], [3, 1, 1], [3, 1, 1],
+                                      [3, 1, 1], [3, 1, 1], [2, 2, 0], [3, 1, 1],
+                                      [3, 1, 1], [3, 1, 1], [3, 1, 1], [2, 2, 0],
+                                      [3, 1, 1], [3, 1, 1], [3, 1, 1], [3, 1, 1],
+                                      [2, 2, 0]]
+            self.net_struct['name'] = ['conv1_1', 'conv1_2', 'pool1', 'conv2_1',
+                                       'conv2_2', 'pool2', 'conv3_1', 'conv3_2',
+                                       'conv3_3', 'conv3_4', 'pool3', 'conv4_1',
+                                       'conv4_2', 'conv4_3', 'conv4_4', 'pool4',
+                                       'conv5_1', 'conv5_2', 'conv5_3', 'conv5_4',
+                                       'pool5']
+
+        theoretical_rf_size = 1
+        #compute size based on net info
+        for layer in reversed(range(self.net_struct['name'].index(self.mask.layers[0]) + 1)):
+            kernel_size, stride, padding = self.net_struct['net'][layer]
+            theoretical_rf_size = ((theoretical_rf_size - 1) * stride) + kernel_size
+        return theoretical_rf_size
