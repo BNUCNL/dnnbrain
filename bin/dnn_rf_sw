@@ -5,7 +5,14 @@ Estimate receptive field using slide-window(sw) occulding method
 for interested channels. The method work for both conv and fc layers
 """
 
-import argparse
+import numpy as np
+import os, cv2, argparse
+from os.path import exists as pexist
+from os.path import join as pjoin
+from matplotlib import pyplot as plt
+from dnnbrain.dnn.core import Stimulus
+from dnnbrain.dnn import models as db_models # Use eval to import DNN model
+from dnnbrain.dnn.algo import OccluderDiscrepancyMapping
 
 
 def main():
@@ -16,20 +23,20 @@ def main():
                         type = str,
                         required = True,
                         metavar='Name of target DNN',
-                        choices=['alexnet','vgg11','vgg16','vgg19'],
+                        choices=['AlexNet','vgg11','vgg16','vgg19'],
                         help = 'Name of interested DNN')
     parser.add_argument('-layer',
-                        nargs='+',
-                        metavar='Layer id list',
                         type=str,
+                        required=True,
+                        metavar='The layer of top stimulus',
                         help='Layers of interest. '
                              'conv, relu, pool, fc represents convolution, reLU, '
                              'pooling, and fc layer, respectively.The top stimulis '
                              'are selected for all layers and channels default.')
     parser.add_argument('-channel',
-                        nargs='+',
-                        metavar='Channel id list',
-                        type=str,
+                        type=int,
+                        required=True,
+                        metavar='The channel of top stimulus',
                         help='Channel of interest.If no channels are specificied, '
                         'each channel will be processed. The layer and channel '
                         'should be paired together.')
@@ -40,23 +47,20 @@ def main():
                         'estimate receptive field.',
                         help='The file provide path of the top stimuli images '
                         'used to estimate receptive field.')
-    parser.add_argument('-dmask',
-                        metavar='.dmask.csv dnnmask file',
-                        required=True,
-                        type=str,
-                        help='A .dmask.csv file in which layers and channel of '
-                        'interest are listed')
     parser.add_argument('-wsize',
+                        type=tuple,
                         metavar='Window size',
-                        required=True,
-                        help='Windows size in pixel unit. default is 5x5')
+                        required=False,
+                        help='Windows size in pixel unit. default is 11x11')
     parser.add_argument('-stride',
+                        type=tuple,
                         metavar='Stride in moving window',
-                        required=True,
-                        help='Stride used in moving windows')
+                        required=False,
+                        help='Stride used in moving windows. default is 2x2')
     parser.add_argument('-dist',
+                        type=str,
                         metavar='Metric of discrpancy',
-                        required=True,
+                        required=False,
                         choices=['max','mean','L1','L2'],
                         help='Discripancy metric to measure the differnce between '
                         'original activation and activation from occulding.')
@@ -68,37 +72,29 @@ def main():
     
     args = parser.parse_args()
     
-        # prepare dmask
-    if args.dmask is not None and args.layer is not None:
-        raise exception('dmask and layer options cannot be used at the same time')
-    if args.dmask is None and args.layer is None:
-        raise exception('Please use dmask or layer and channel pair to  '
-                        'specifiy target layers and channels')
-           
-    dmask = dio.DnnMask('mymask')
-    if args.dmask is not None:
-            dmask.load(args.dmask)
-    else:
-            dmask.set(layer,channel)
+    #Load net/stim
+    dnn = eval('db_models.{}()'.format(args.net))
+    stimuli = Stimulus()
+    stimuli.load(args.stim)
     
-    # load stim
-    stim = dio.Stim(args.stim)
-    transform = dio.Transforms('resize',net.img_size)
-    stim = ImgData(stim, transform)
-    
-    # make ooculded image for each stim
-    stim_oc = stim.occulde(stim,kernel_size,stride)
+    # Create output file if inexistent
+    if not pexist(args.outdir):
+        os.mkdir(args.outdir)
+        
+    #Prepare the upsampling calss
+    oc_estimator = OccluderDiscrepancyMapping(dnn, args.layer, args.channel)
+    oc_estimator.set_params(window=args.wsize, stride=args.stride, metric=args.dist)
 
-    # calcualte difference map for each stim, and save it to disk
-    net = analyzer.Net(args.net)
-    for s in stim:
-        act = net.test(stim, dmask) 
-        dm = act(1:end) - act(0)
-        dm = pooling(dm,metric)
-        dm.save('myfile')
+    #Compute maps
+    for img_id in stimuli.get('stimID'):
+        current_pic_path = pjoin(stimuli.header['path'], img_id)
+        current_pic = cv2.imread(current_pic_path)
+        oc_activation_maps =  oc_estimator.compute(current_pic)
 
+        #Save out
+        plt.imsave(pjoin(args.outdir, 'rf_' + args.layer + '_chn' + str(args.channel) + '.png'),
+                   oc_activation_maps, cmap='gray')
 
-    
     
 if __name__ == '__main__':
     main()

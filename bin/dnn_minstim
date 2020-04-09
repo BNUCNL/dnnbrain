@@ -1,5 +1,7 @@
 #! /usr/bin/env python
-import os, argparse,time
+import os
+import argparse
+import time
 from os.path import exists as pexist
 from os.path import join as pjoin
 from PIL import Image
@@ -7,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dnnbrain.dnn.core import Stimulus
 from dnnbrain.dnn import models as db_models
-from dnnbrain.dnn.algo_mi import MinmalParcelImage
+from dnnbrain.dnn.algo import MinimalParcelImage
 
 """
 Simplify a stimulus into a minimal part which could cause equivalent activation
@@ -59,17 +61,16 @@ def main():
         os.mkdir(args.out)
         
     # Create the minimal image class
-    minimal_image = MinmalParcelImage(dnn, args.layer, args.chn)
-    minimal_image.set_params()
+    minimal_image = MinimalParcelImage(dnn, args.layer, args.chn)
     
     for img_id in stim.get('stimID'):
         #load image
-        image = Image.open(pjoin(stim.header['path'], img_id))
+        image = Image.open(pjoin(stim.header['path'], img_id)).convert('RGB')
         image = np.asarray(image)
         #decompose image
         minimal_image.felzenszwalb_decompose(image) 
         # generate the minimal image
-        image_min = minimal_image.generate_minmal_image()
+        image_min = minimal_image.generate_minimal_image()
         # save the minimal image
         plt.imsave(pjoin(args.out, 'mi_'+str(args.layer)+'_chn'+str(args.chn)+'_'+str(img_id)),image_min)
         plt.axis('off')
