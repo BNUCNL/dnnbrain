@@ -368,6 +368,29 @@ class TestImageProcessor:
         assert isinstance(pil1, Image.Image)
         np.testing.assert_equal(pil1, pil2)
 
+    def test_translate(self):
+
+        #prepare image
+        img = np.random.normal(size=(3,50,50))
+        bkg = np.zeros((3,224,224))
+        
+        #prepare parameters
+        startpoint = (20,20)
+        endpoint = (20,50)
+        stride = 2
+        
+        img_tran = self.ip.translate(img, bkg, startpoint, endpoint, stride)
+        
+        # assert shape
+        num = int((endpoint[1]-startpoint[1])/stride)+1
+        assert img_tran.shape[0] == num
+        assert (img_tran.shape[2],img_tran.shape[3]) == (bkg.shape[1], bkg.shape[2])
+        
+        # assert pixel
+        pic = img_tran[15]
+        pixel = pic[0,30,40]
+        assert pixel == 0
+    
     def test_norm(self):
 
         # assert L1
