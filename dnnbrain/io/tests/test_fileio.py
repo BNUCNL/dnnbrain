@@ -169,5 +169,51 @@ class TestRoiFile:
         rf.close()
 
 
+class TestRdmFile:
+
+    def test_read(self):
+
+        n_iter = 2
+        n_elem = 6
+
+        # test bRDM
+        rdm_type = 'bRDM'
+        rdm_dict = {
+            1: np.random.randn(n_elem),
+            3: np.random.randn(n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        wf = h5py.File(rdm_file, 'w')
+        wf.attrs['type'] = rdm_type
+        for k, v in rdm_dict.items():
+            wf.create_dataset(str(k), data=v)
+        wf.close()
+
+        rdm_type_test, rdm_dict_test = fio.RdmFile(rdm_file).read()
+        assert rdm_type_test == rdm_type
+        assert sorted(rdm_dict_test.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm_dict_test[k])
+
+        # test dRDM
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv5': np.random.randn(n_iter, n_elem),
+            'fc3': np.random.randn(n_iter, n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        wf = h5py.File(rdm_file, 'w')
+        wf.attrs['type'] = rdm_type
+        for k, v in rdm_dict.items():
+            wf.create_dataset(k, data=v)
+        wf.close()
+
+        rdm_type_test, rdm_dict_test = fio.RdmFile(rdm_file).read()
+        assert rdm_type_test == rdm_type
+        assert sorted(rdm_dict_test.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm_dict_test[k])
+
+
 if __name__ == '__main__':
     pytest.main()
