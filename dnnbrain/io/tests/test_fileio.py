@@ -179,14 +179,14 @@ class TestRdmFile:
         # test bRDM
         rdm_type = 'bRDM'
         rdm_dict = {
-            1: np.random.randn(n_elem),
-            3: np.random.randn(n_elem)
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
         }
         rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
         wf = h5py.File(rdm_file, 'w')
         wf.attrs['type'] = rdm_type
         for k, v in rdm_dict.items():
-            wf.create_dataset(str(k), data=v)
+            wf.create_dataset(k, data=v)
         wf.close()
 
         rdm_type_test, rdm_dict_test = fio.RdmFile(rdm_file).read()
@@ -213,6 +213,43 @@ class TestRdmFile:
         assert sorted(rdm_dict_test.keys()) == sorted(rdm_dict.keys())
         for k, v in rdm_dict.items():
             np.testing.assert_equal(v, rdm_dict_test[k])
+
+    def test_write(self):
+
+        n_iter = 2
+        n_elem = 6
+
+        # test bRDM
+        rdm_type = 'bRDM'
+        rdm_dict = {
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        fio.RdmFile(rdm_file).write(rdm_type, rdm_dict)
+
+        rf = h5py.File(rdm_file, 'r')
+        assert rf.attrs['type'] == rdm_type
+        assert sorted(rf.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rf[k][:])
+        rf.close()
+
+        # test dRDM
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv5': np.random.randn(n_iter, n_elem),
+            'fc3': np.random.randn(n_iter, n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        fio.RdmFile(rdm_file).write(rdm_type, rdm_dict)
+
+        rf = h5py.File(rdm_file, 'r')
+        assert rf.attrs['type'] == rdm_type
+        assert sorted(rf.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rf[k][:])
+        rf.close()
 
 
 if __name__ == '__main__':
