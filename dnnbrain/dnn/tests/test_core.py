@@ -490,7 +490,7 @@ class TestRDM:
         rdm._rdm_dict = rdm_dict_tril
         for k, v in rdm_dict.items():
             np.testing.assert_equal(v, rdm.get(k, False))
-            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k, True))
 
         # test dRDM
         rdm_dict = {
@@ -506,7 +506,60 @@ class TestRDM:
         rdm._rdm_dict = rdm_dict_tril
         for k, v in rdm_dict.items():
             np.testing.assert_equal(v, rdm.get(k, False))
-            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k, True))
+
+    def test_set(self):
+        # ---test bRDM---
+        rdm_dict = {
+            '1': np.array([[0, 0, 0], [1, 0, 0], [2, 3, 0]]),
+            '3': np.array([[0, 0, 0], [4, 0, 0], [5, 6, 0]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[np.tri(*v.shape, k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'bRDM'
+
+        # test non-tril
+        for k, v in rdm_dict.items():
+            rdm.set(k, v, False)
+        assert rdm_dict.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test tril
+        for k, v in rdm_dict_tril.items():
+            rdm.set(k, v, True)
+        assert rdm_dict_tril.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test dRDM
+        rdm_dict = {
+            'conv5': np.array([[[0, 0, 0], [1, 0, 0], [2, 3, 0]]]),
+            'fc3': np.array([[[0, 0, 0], [4, 0, 0], [5, 6, 0]]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[:, np.tri(v.shape[1], k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'dRDM'
+
+        # test non-tril
+        for k, v in rdm_dict.items():
+            rdm.set(k, v, False)
+        assert rdm_dict.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test tril
+        for k, v in rdm_dict_tril.items():
+            rdm.set(k, v, True)
+        assert rdm_dict_tril.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
 
     def test_keys(self):
         n_elem = 3
