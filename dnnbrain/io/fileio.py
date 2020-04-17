@@ -327,6 +327,96 @@ class RoiFile:
         wf.close()
 
 
+class RdmFile:
+    """
+    a class to read/write representation distance matrices from/to .rdm.h5 file
+    For saving time and space, DNNBrain only hold on the lower triangle of each RDM.
+    We can use np.tri(n_item, k=-1, dtype=np.bool) to get the index matrix of the lower triangle.
+    The index matrix can help us to restore RDM from the lower triangle whose shape is ((n_item^2-n_item)/2,).
+    """
+
+    def __init__(self, fname):
+        """
+        Parameter:
+        ---------
+        fname[str]: file name with suffix as .rdm.h5
+        """
+        assert fname.endswith('.rdm.h5'), "the file's suffix must be .rdm.h5"
+        self.fname = fname
+
+    def read(self):
+        """
+        Read RDMs from .rdm.h5 file
+
+        Return:
+        ------
+        rdm_type[str]: choices=(bRDM, dRDM)
+            bRDM: RDM for brain activation
+            dRDM: RDM for DNN activation
+        rdm_dict[dict]:
+            If rdm_type is bRDM:
+                The keys of rdm_dict are labels of brain ROIs;
+                The values of rdm_dict are arrays with shape as ((n_item^2-n_item)/2,)
+            If rdm_type is dRDM:
+                The keys of rdm_dict are layer names;
+                The values of rdm_dict are arrays with shape as (n_iter, (n_item^2-n_item)/2)
+        """
+        rf = h5py.File(self.fname, 'r')
+
+        # check
+        rdm_type = rf.attrs['type']
+        if rdm_type == 'bRDM':
+            for v in rf.values():
+                assert v.ndim == 1, "bRDM's shape must be ((n_item^2-n_item)/2,)"
+        elif rdm_type == 'dRDM':
+            for v in rf.values():
+                assert v.ndim == 2, "dRDM's shape must be (n_iter, (n_item^2-n_item)/2)"
+        else:
+            raise TypeError("RDM type must be one of (bRDM, dRDM)")
+
+        # get data
+        rdm_dict = dict()
+        for k, v in rf.items():
+            rdm_dict[k] = v[:]
+
+        rf.close()
+        return rdm_type, rdm_dict
+
+    def write(self, rdm_type, rdm_dict):
+        """
+        write RDMs to .rdm.h5 file
+
+        Parameters:
+        ----------
+        rdm_type[str]: choices=(bRDM, dRDM)
+            bRDM: RDM for brain activation
+            dRDM: RDM for DNN activation
+        rdm_dict[dict]:
+            If rdm_type is bRDM:
+                The keys of rdm_dict are labels of brain ROIs;
+                The values of rdm_dict are arrays with shape as ((n_item^2-n_item)/2,)
+            If rdm_type is dRDM:
+                The keys of rdm_dict are layer names;
+                The values of rdm_dict are arrays with shape as (n_iter, (n_item^2-n_item)/2)
+        """
+        # check
+        if rdm_type == 'bRDM':
+            for v in rdm_dict.values():
+                assert v.ndim == 1, "bRDM's shape must be ((n_item^2-n_item)/2,)"
+        elif rdm_type == 'dRDM':
+            for v in rdm_dict.values():
+                assert v.ndim == 2, "dRDM's shape must be (n_iter, (n_item^2-n_item)/2)"
+        else:
+            raise TypeError("RDM type must be one of (bRDM, dRDM)")
+
+        # write
+        wf = h5py.File(self.fname, 'w')
+        wf.attrs['type'] = rdm_type
+        for k, v in rdm_dict.items():
+            wf.create_dataset(k, data=v)
+        wf.close()
+
+
 class ImageFile():
     """a class to read and write image file """
     def __init__(self, file_path):        
