@@ -683,6 +683,40 @@ class RDM:
         """
         fio.RdmFile(fname).write(self.rdm_type, self._rdm_dict)
 
+    def get(self, key, tril=True):
+        """
+        Get RDM according its key.
+
+        Parameters:
+        ----------
+        key[str]: the key of the RDM
+        tril[bool]:
+            If True, get RDM as the lower triangle vector.
+            If False, get RDM as the square matrix.
+
+        Return:
+        ------
+        rdm_arr[ndarray]: RDM
+            If rdm_type is bRDM:
+                Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
+            If rdm_type is dRDM:
+                Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
+        """
+        rdm_arr = self._rdm_dict[key]
+        if not tril:
+            idx_mat = np.tri(self.n_item, k=-1, dtype=np.bool)
+            if self.rdm_type == 'bRDM':
+                rdm_tmp = np.zeros((self.n_item, self.n_item))
+                rdm_tmp[idx_mat] = rdm_arr
+            elif self.rdm_type == 'dRDM':
+                rdm_tmp = np.zeros((rdm_arr.shape[0], self.n_item, self.n_item))
+                rdm_tmp[:, idx_mat] = rdm_arr
+            else:
+                raise TypeError("Set rdm_type to bRDM or dRDM at first!")
+            rdm_arr = rdm_tmp
+
+        return rdm_arr
+
     @property
     def keys(self):
         """
@@ -715,7 +749,7 @@ class RDM:
             n = self._rdm_dict[k].shape[1]
         else:
             raise TypeError("Set rdm_type to bRDM or dRDM at first!")
-        n_item = (1 + np.sqrt(1+8*n)) / 2
+        n_item = int((1 + np.sqrt(1+8*n)) / 2)
 
         return n_item
 

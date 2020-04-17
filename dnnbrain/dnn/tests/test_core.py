@@ -475,6 +475,39 @@ class TestRDM:
             np.testing.assert_equal(v, rf[k][:])
         rf.close()
 
+    def test_get(self):
+        # test bRDM
+        rdm_dict = {
+            '1': np.array([[0, 0, 0], [1, 0, 0], [2, 3, 0]]),
+            '3': np.array([[0, 0, 0], [4, 0, 0], [5, 6, 0]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[np.tri(*v.shape, k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'bRDM'
+        rdm._rdm_dict = rdm_dict_tril
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm.get(k, False))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k))
+
+        # test dRDM
+        rdm_dict = {
+            'conv5': np.array([[[0, 0, 0], [1, 0, 0], [2, 3, 0]]]),
+            'fc3': np.array([[[0, 0, 0], [4, 0, 0], [5, 6, 0]]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[:, np.tri(v.shape[1], k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'dRDM'
+        rdm._rdm_dict = rdm_dict_tril
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm.get(k, False))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k))
+
     def test_keys(self):
         n_elem = 3
         rdm_dict = {
