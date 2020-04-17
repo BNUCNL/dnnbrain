@@ -660,6 +660,30 @@ class Mask:
         return list(self._dmask.keys())
 
 
+class RDM:
+    """representation distance matrix"""
+
+    def __init__(self):
+        self.rdm_type = None
+        self.rdm_dict = dict()
+
+    def load(self, fname):
+        """
+        Parameter:
+        ---------
+        fname[str]: file name with suffix as .rdm.h5
+        """
+        self.rdm_type, self.rdm_dict = fio.RdmFile(fname).read()
+
+    def save(self, fname):
+        """
+        Parameter:
+        ---------
+        fname[str]: file name with suffix as .rdm.h5
+        """
+        fio.RdmFile(fname).write(self.rdm_type, self.rdm_dict)
+
+
 class DnnProbe:
     """
     Decode DNN activation to behavior data. As a result,

@@ -426,6 +426,56 @@ class TestMask:
             assert dmask.get(layer) == dmask_dict[layer]
 
 
+class TestRDM:
+
+    def test_load(self):
+        n_elem = 6
+
+        # test bRDM
+        rdm_type = 'bRDM'
+        rdm_dict = {
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        wf = h5py.File(rdm_file, 'w')
+        wf.attrs['type'] = rdm_type
+        for k, v in rdm_dict.items():
+            wf.create_dataset(k, data=v)
+        wf.close()
+
+        rdm = dcore.RDM()
+        rdm.load(rdm_file)
+        assert rdm.rdm_type == rdm_type
+        assert sorted(rdm.rdm_dict.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm.rdm_dict[k])
+
+    def test_save(self):
+
+        n_iter = 2
+        n_elem = 6
+
+        # test dRDM
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv5': np.random.randn(n_iter, n_elem),
+            'fc3': np.random.randn(n_iter, n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        rdm = dcore.RDM()
+        rdm.rdm_type = rdm_type
+        rdm.rdm_dict = rdm_dict
+        rdm.save(rdm_file)
+
+        rf = h5py.File(rdm_file, 'r')
+        assert rf.attrs['type'] == rdm_type
+        assert sorted(rf.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rf[k][:])
+        rf.close()
+
+
 class TestDnnProbe:
 
     # Prepare DNN activation
