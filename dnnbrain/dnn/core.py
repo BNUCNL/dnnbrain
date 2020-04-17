@@ -665,7 +665,7 @@ class RDM:
 
     def __init__(self):
         self.rdm_type = None
-        self.rdm_dict = dict()
+        self._rdm_dict = dict()
 
     def load(self, fname):
         """
@@ -673,7 +673,7 @@ class RDM:
         ---------
         fname[str]: file name with suffix as .rdm.h5
         """
-        self.rdm_type, self.rdm_dict = fio.RdmFile(fname).read()
+        self.rdm_type, self._rdm_dict = fio.RdmFile(fname).read()
 
     def save(self, fname):
         """
@@ -681,7 +681,43 @@ class RDM:
         ---------
         fname[str]: file name with suffix as .rdm.h5
         """
-        fio.RdmFile(fname).write(self.rdm_type, self.rdm_dict)
+        fio.RdmFile(fname).write(self.rdm_type, self._rdm_dict)
+
+    @property
+    def keys(self):
+        """
+        Get keys of RDM dictionary
+
+        Return:
+        ------
+        keys[list]: the list of keys
+        """
+        if self._rdm_dict:
+            keys = list(self._rdm_dict.keys())
+        else:
+            raise ValueError("The RDM dictionary is empty.")
+
+        return keys
+
+    @property
+    def n_item(self):
+        """
+        Get the number of items of RDM
+
+        Return:
+        ------
+        n_item[int]: the number of items
+        """
+        k = self.keys[0]
+        if self.rdm_type == 'bRDM':
+            n = self._rdm_dict[k].shape[0]
+        elif self.rdm_type == 'dRDM':
+            n = self._rdm_dict[k].shape[1]
+        else:
+            raise TypeError("Set rdm_type to bRDM or dRDM at first!")
+        n_item = (1 + np.sqrt(1+8*n)) / 2
+
+        return n_item
 
 
 class DnnProbe:

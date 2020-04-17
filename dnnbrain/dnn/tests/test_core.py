@@ -447,9 +447,9 @@ class TestRDM:
         rdm = dcore.RDM()
         rdm.load(rdm_file)
         assert rdm.rdm_type == rdm_type
-        assert sorted(rdm.rdm_dict.keys()) == sorted(rdm_dict.keys())
+        assert sorted(rdm._rdm_dict.keys()) == sorted(rdm_dict.keys())
         for k, v in rdm_dict.items():
-            np.testing.assert_equal(v, rdm.rdm_dict[k])
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
 
     def test_save(self):
 
@@ -465,7 +465,7 @@ class TestRDM:
         rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
         rdm = dcore.RDM()
         rdm.rdm_type = rdm_type
-        rdm.rdm_dict = rdm_dict
+        rdm._rdm_dict = rdm_dict
         rdm.save(rdm_file)
 
         rf = h5py.File(rdm_file, 'r')
@@ -474,6 +474,26 @@ class TestRDM:
         for k, v in rdm_dict.items():
             np.testing.assert_equal(v, rf[k][:])
         rf.close()
+
+    def test_keys(self):
+        n_elem = 3
+        rdm_dict = {
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
+        }
+        rdm = dcore.RDM()
+        rdm._rdm_dict = rdm_dict
+        assert list(rdm_dict.keys()) == rdm.keys
+
+    def test_n_item(self):
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv1': np.random.randn(2, 1)
+        }
+        rdm = dcore.RDM()
+        rdm.rdm_type = rdm_type
+        rdm._rdm_dict = rdm_dict
+        assert rdm.n_item == 2
 
 
 class TestDnnProbe:
