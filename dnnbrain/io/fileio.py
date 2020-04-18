@@ -413,7 +413,7 @@ class RdmFile:
         wf = h5py.File(self.fname, 'w')
         wf.attrs['type'] = rdm_type
         for k, v in rdm_dict.items():
-            wf.create_dataset(k, data=v)
+            wf.create_dataset(k, data=v, compression='gzip')
         wf.close()
 
 
