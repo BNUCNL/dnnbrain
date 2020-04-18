@@ -1,0 +1,112 @@
+#! /usr/bin/env python
+
+"""
+Characterise DNN activation's representation dissimilarity matrix.
+"""
+
+import time
+import argparse
+import numpy as np
+
+from scipy.spatial.distance import cdist
+from dnnbrain.dnn.core import Activation, RDM
+from dnnbrain.utils.util import gen_dmask
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-act',
+                        metavar='Activation',
+                        required=True,
+                        type=str,
+                        help='DNN activation file')
+    parser.add_argument('-layer',
+                        metavar='Layer',
+                        type=str,
+                        nargs='+',
+                        help="layer names of interest "
+                             "For example, 'conv1' represents the first convolution layer, and "
+                             "'fc1' represents the first full connection layer. ")
+    parser.add_argument('-chn',
+                        metavar='Channel',
+                        type=int,
+                        nargs='+',
+                        help="channel numbers of interest "
+                             "Default is using all channels of each layer specified by -layer.")
+    parser.add_argument('-dmask',
+                        metavar='DnnMask',
+                        type=str,
+                        help='a .dmask.csv file in which layers of interest are listed '
+                             'with their own channels, rows and columns of interest.')
+    parser.add_argument('-iteraxis',
+                        type=str,
+                        metavar='Axis',
+                        choices=('channel', 'row_col'),
+                        help="Iterate along the specified axis. "
+                             "channel: Do rsa on each channel. "
+                             "row_col: Do rsa on each location (row_idx, col_idx). "
+                             "default: Do rsa on the whole layer.")
+    # parser.add_argument('-cate',
+    #                     metavar='Category',
+    #                     type=str,
+    #                     help='a .stim.csv file which contains category information '
+    #                          'If used, do rsa category-wise.')
+    parser.add_argument('-metric',
+                        metavar='Metric',
+                        type=str,
+                        default='euclidean',
+                        help="Specify metric used to calculate distance.")
+    parser.add_argument('-out',
+                        metavar='Output',
+                        required=True,
+                        type=str,
+                        help='an output filename with suffix .rdm.h5')
+    args = parser.parse_args()
+
+    # -load activation start-
+    # initialize DNN mask
+    if args.layer is None and args.dmask is None:
+        dmask = None
+    else:
+        channels = 'all' if args.chn is None else args.chn
+        dmask = gen_dmask(args.layer, channels, args.dmask)
+    activation = Activation()
+    activation.load(args.act, dmask)
+    print('Finish loading activation: ', args.act)
+    # -load activation end-
+
+    rdm = RDM()
+    rdm.rdm_type = 'dRDM'
+    for layer in activation.layers:
+        time1 = time.time()
+        # get DNN activation and reshape it to 3D
+        activ = activation.get(layer)
+        n_stim, n_chn, n_row, n_col = activ.shape
+        n_row_col = n_row * n_col
+        activ = activ.reshape((n_stim, n_chn, n_row_col))
+
+        # transpose axis to make activ's shape as (n_stimulus, n_iterator, n_element)
+        if args.iteraxis is None:
+            activ = activ.reshape((n_stim, 1, -1))
+        elif args.iteraxis == 'row_col':
+            activ = activ.transpose((0, 2, 1))
+        elif args.iteraxis == 'channel':
+            pass
+        else:
+            raise ValueError("Unsupported iter_axis:", args.iteraxis)
+        n_stim, n_iter, n_elem = activ.shape
+
+        # calculate RDM
+        rdm_arr = np.zeros((n_iter, n_stim, n_stim))
+        for iter_idx in range(n_iter):
+            X = activ[:, iter_idx, :]
+            rdm_arr[iter_idx] = cdist(X, X, metric=args.metric)
+        rdm.set(layer, rdm_arr, tril=False)
+        print('Finished layer-{}: cost {} seconds'.format(layer, time.time() - time1))
+
+    # save
+    rdm.save(args.out)
+
+
+if __name__ == '__main__':
+    main()

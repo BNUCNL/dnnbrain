@@ -426,6 +426,162 @@ class TestMask:
             assert dmask.get(layer) == dmask_dict[layer]
 
 
+class TestRDM:
+
+    def test_load(self):
+        n_elem = 6
+
+        # test bRDM
+        rdm_type = 'bRDM'
+        rdm_dict = {
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        wf = h5py.File(rdm_file, 'w')
+        wf.attrs['type'] = rdm_type
+        for k, v in rdm_dict.items():
+            wf.create_dataset(k, data=v)
+        wf.close()
+
+        rdm = dcore.RDM()
+        rdm.load(rdm_file)
+        assert rdm.rdm_type == rdm_type
+        assert sorted(rdm._rdm_dict.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+    def test_save(self):
+
+        n_iter = 2
+        n_elem = 6
+
+        # test dRDM
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv5': np.random.randn(n_iter, n_elem),
+            'fc3': np.random.randn(n_iter, n_elem)
+        }
+        rdm_file = pjoin(TMP_DIR, 'test.rdm.h5')
+        rdm = dcore.RDM()
+        rdm.rdm_type = rdm_type
+        rdm._rdm_dict = rdm_dict
+        rdm.save(rdm_file)
+
+        rf = h5py.File(rdm_file, 'r')
+        assert rf.attrs['type'] == rdm_type
+        assert sorted(rf.keys()) == sorted(rdm_dict.keys())
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rf[k][:])
+        rf.close()
+
+    def test_get(self):
+        # test bRDM
+        rdm_dict = {
+            '1': np.array([[0, 0, 0], [1, 0, 0], [2, 3, 0]]),
+            '3': np.array([[0, 0, 0], [4, 0, 0], [5, 6, 0]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[np.tri(*v.shape, k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'bRDM'
+        rdm._rdm_dict = rdm_dict_tril
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm.get(k, False))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k, True))
+
+        # test dRDM
+        rdm_dict = {
+            'conv5': np.array([[[0, 0, 0], [1, 0, 0], [2, 3, 0]]]),
+            'fc3': np.array([[[0, 0, 0], [4, 0, 0], [5, 6, 0]]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[:, np.tri(v.shape[1], k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'dRDM'
+        rdm._rdm_dict = rdm_dict_tril
+        for k, v in rdm_dict.items():
+            np.testing.assert_equal(v, rdm.get(k, False))
+            np.testing.assert_equal(rdm_dict_tril[k], rdm.get(k, True))
+
+    def test_set(self):
+        # ---test bRDM---
+        rdm_dict = {
+            '1': np.array([[0, 0, 0], [1, 0, 0], [2, 3, 0]]),
+            '3': np.array([[0, 0, 0], [4, 0, 0], [5, 6, 0]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[np.tri(*v.shape, k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'bRDM'
+
+        # test non-tril
+        for k, v in rdm_dict.items():
+            rdm.set(k, v, False)
+        assert rdm_dict.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test tril
+        for k, v in rdm_dict_tril.items():
+            rdm.set(k, v, True)
+        assert rdm_dict_tril.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test dRDM
+        rdm_dict = {
+            'conv5': np.array([[[0, 0, 0], [1, 0, 0], [2, 3, 0]]]),
+            'fc3': np.array([[[0, 0, 0], [4, 0, 0], [5, 6, 0]]])
+        }
+        rdm_dict_tril = dict()
+        for k, v in rdm_dict.items():
+            rdm_dict_tril[k] = v[:, np.tri(v.shape[1], k=-1, dtype=np.bool)]
+
+        rdm = dcore.RDM()
+        rdm.rdm_type = 'dRDM'
+
+        # test non-tril
+        for k, v in rdm_dict.items():
+            rdm.set(k, v, False)
+        assert rdm_dict.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+        # test tril
+        for k, v in rdm_dict_tril.items():
+            rdm.set(k, v, True)
+        assert rdm_dict_tril.keys() == rdm._rdm_dict.keys()
+        for k, v in rdm_dict_tril.items():
+            np.testing.assert_equal(v, rdm._rdm_dict[k])
+
+    def test_keys(self):
+        n_elem = 3
+        rdm_dict = {
+            '1': np.random.randn(n_elem),
+            '3': np.random.randn(n_elem)
+        }
+        rdm = dcore.RDM()
+        rdm._rdm_dict = rdm_dict
+        assert list(rdm_dict.keys()) == rdm.keys
+
+    def test_n_item(self):
+        rdm_type = 'dRDM'
+        rdm_dict = {
+            'conv1': np.random.randn(2, 1)
+        }
+        rdm = dcore.RDM()
+        rdm.rdm_type = rdm_type
+        rdm._rdm_dict = rdm_dict
+        assert rdm.n_item == 2
+
+
 class TestDnnProbe:
 
     # Prepare DNN activation
