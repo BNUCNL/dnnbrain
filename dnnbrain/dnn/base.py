@@ -272,9 +272,9 @@ class ImageProcessor:
         image[ndarray|Tensor|PIL.Image]: image data
         bkg[ndarray|Tensor|PIL.Image]: same type with image.Remember bkg must bigger than image
         startpoint[tuple]: the start point of translating in upper left position
-            as a (x_axis,y_axis)-tuple
+            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
         endpoint[tuple]: the end point of translating in upper left position
-            as a (x_axis,y_axis)-tuple
+            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
         stride[int]: stride of each translation
         
         Return:
@@ -292,10 +292,10 @@ class ImageProcessor:
             #Juage axis
             if startpoint[0] == endpoint[0]:
                 num = (endpoint[1]-startpoint[1])/stride
-                axis = 'X'
+                axis = 'Y'
             elif startpoint[1] == endpoint[1]:
                 num = (endpoint[0]-startpoint[0])/stride
-                axis = 'Y'
+                axis = 'X'
             else:
                 raise ValueError("only support translating in one axis now!")
             if int(num) - num != 0:
@@ -305,7 +305,7 @@ class ImageProcessor:
             image_tran = np.zeros((num, 3, bkg.shape[1], bkg.shape[2]))
             for tr in range(num):
                 bkg_new = copy.deepcopy(bkg)
-                if axis == 'X':
+                if axis == 'Y':
                     bkg_new[:, startpoint[0]+tr*stride:startpoint[0]+tr*stride+image.shape[1], 
                         startpoint[1]:startpoint[1]+image.shape[2]] = image
                 else:

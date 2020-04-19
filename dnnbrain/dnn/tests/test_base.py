@@ -11,7 +11,7 @@ from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score
 from torchvision import transforms
 from dnnbrain.dnn import base as db_base
-
+import matplotlib.pyplot as plt
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -388,6 +388,8 @@ class TestImageProcessor:
         
         # assert pixel
         pic = img_tran[15]
+        plt.imshow(pic.transpose(1,2,0))
+        print(pic[:,50,20])
         pixel = pic[0,30,40]
         assert pixel == 0
     

@@ -10,7 +10,7 @@ from os.path import join as pjoin
 from matplotlib import pyplot as plt
 from torch.nn.functional import interpolate
 from dnnbrain.dnn.core import Mask
-from dnnbrain.dnn.base import ip
+from dnnbrain.dnn.base import ip, array_statistic
 from scipy.ndimage.filters import gaussian_filter
 from skimage import filters, segmentation
 from skimage.color import rgb2gray
@@ -1004,11 +1004,13 @@ class OccluderDiscrepancyMapping(Algorithm):
         
         Parameter:
         ---------
-        image[ndarray] : shape (height,width,n_chn) 
+        image[ndarray] : shape (height, width, n_chn) 
         
         Return:
         ---------
-        discrepancy_map[ndarray]: shape (n_parcel,height,width,n_chn)
+        discrepancy_map[ndarray]: row = (img_height-window_height)/stride_height
+                                  column = (img_width-window_width)/stride_width
+                                  shape (row,column)
         """        
         cropped_img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
         cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
@@ -1016,15 +1018,17 @@ class OccluderDiscrepancyMapping(Algorithm):
         column_num = int((cropped_img.shape[2] - self.window[0]) / self.stride[0] + 1)
         row_num = int((cropped_img.shape[3] - self.window[1]) / self.stride[0] + 1)
         discrepancy_map = np.zeros((column_num, row_num))
-        discrepancy_map_whole = np.max(self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]))
+        discrepancy_map_whole = array_statistic(self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]),
+                                                self.metric)
         #start computing by moving occluders
         current_num = 1
         for i in range(0, column_num):
             for j in range(0, row_num):
                 current_occluded_pic = copy.deepcopy(cropped_img)
-                current_occluded_pic[self.stride[0] * i:self.stride[0] * i + self.window[0],
-                                     self.stride[1] * j:self.stride[1] * j + self.window[1], :] = 0
-                max_act = np.max(self.dnn.compute_activation(current_occluded_pic, self.mask).get(self.mask.layers[0]))
+                current_occluded_pic[:, :, self.stride[0] * i:self.stride[0] * i + self.window[0],
+                                     self.stride[1] * j:self.stride[1] * j + self.window[1]] = 0
+                max_act = array_statistic(self.dnn.compute_activation(current_occluded_pic, self.mask).get(self.mask.layers[0]),
+                                          self.metric)
                 discrepancy_map[i, j] = discrepancy_map_whole - max_act
                 #print feedback info
                 print(current_num, 'in', column_num * row_num,

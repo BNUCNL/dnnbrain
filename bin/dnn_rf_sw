@@ -28,15 +28,15 @@ def main():
     parser.add_argument('-layer',
                         type=str,
                         required=True,
-                        metavar='The layer of top stimulus',
+                        metavar='layer of top stimulus',
                         help='Layers of interest. '
                              'conv, relu, pool, fc represents convolution, reLU, '
                              'pooling, and fc layer, respectively.The top stimulis '
                              'are selected for all layers and channels default.')
-    parser.add_argument('-channel',
+    parser.add_argument('-chn',
                         type=int,
                         required=True,
-                        metavar='The channel of top stimulus',
+                        metavar='channel of top stimulus',
                         help='Channel of interest.If no channels are specificied, '
                         'each channel will be processed. The layer and channel '
                         'should be paired together.')
@@ -48,19 +48,21 @@ def main():
                         help='The file provide path of the top stimuli images '
                         'used to estimate receptive field.')
     parser.add_argument('-wsize',
-                        type=tuple,
+                        type=int,
+                        nargs=2,
                         metavar='Window size',
-                        required=False,
+                        required=True,
                         help='Windows size in pixel unit. default is 11x11')
     parser.add_argument('-stride',
-                        type=tuple,
+                        type=int,
+                        nargs=2,
                         metavar='Stride in moving window',
-                        required=False,
+                        required=True,
                         help='Stride used in moving windows. default is 2x2')
-    parser.add_argument('-dist',
+    parser.add_argument('-metric',
                         type=str,
                         metavar='Metric of discrpancy',
-                        required=False,
+                        required=True,
                         choices=['max','mean','L1','L2'],
                         help='Discripancy metric to measure the differnce between '
                         'original activation and activation from occulding.')
@@ -82,8 +84,8 @@ def main():
         os.mkdir(args.outdir)
         
     #Prepare the upsampling calss
-    oc_estimator = OccluderDiscrepancyMapping(dnn, args.layer, args.channel)
-    oc_estimator.set_params(window=args.wsize, stride=args.stride, metric=args.dist)
+    oc_estimator = OccluderDiscrepancyMapping(dnn, args.layer, args.chn)
+    oc_estimator.set_params(window=tuple(args.wsize), stride=tuple(args.stride), metric=args.metric)
 
     #Compute maps
     for img_id in stimuli.get('stimID'):
@@ -92,7 +94,7 @@ def main():
         oc_activation_maps =  oc_estimator.compute(current_pic)
 
         #Save out
-        plt.imsave(pjoin(args.outdir, 'rf_' + args.layer + '_chn' + str(args.channel) + '.png'),
+        plt.imsave(pjoin(args.outdir, 'rf_sw_' + args.layer + '_chn' + str(args.chn) + '_' + img_id),
                    oc_activation_maps, cmap='gray')
 
     

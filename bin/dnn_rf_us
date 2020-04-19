@@ -37,16 +37,16 @@ def main():
     parser.add_argument('-layer',
                         type=str,
                         required=True,
-                        metavar='The layer of top stimulus',
+                        metavar='layer of top stimulus',
                         help='Layers of interest. '
                              'conv, relu, pool, fc represents convolution, relu, '
                              'pooling, and fc layer, respectively.The top stimulis '
                              'are selected for all layers and channels default.')
 
-    parser.add_argument('-channel',
+    parser.add_argument('-chn',
                         type=int,
                         required=True,
-                        metavar='The channel of top stimulus',
+                        metavar='channel of top stimulus',
                         help='Channel of interest.If no channels are specified, '
                         'each channel will be processed. The layer and channel '
                         'should be paired together.')
@@ -81,7 +81,7 @@ def main():
         os.mkdir(args.outdir)
         
     #Prepare the upsampling calss
-    up_estimator = UpsamplingActivationMapping(dnn, args.layer, args.channel)
+    up_estimator = UpsamplingActivationMapping(dnn, args.layer, args.chn)
     up_estimator.set_params(interp_meth=args.ip_metric, interp_threshold=args.up_thres)
 
     #Compute maps
@@ -91,7 +91,7 @@ def main():
         up_activation_maps = up_estimator.compute(current_pic)
 
         #Save out
-        plt.imsave(pjoin(args.outdir, 'rf_' + args.layer + '_chn' + str(args.channel) + '.png'),
+        plt.imsave(pjoin(args.outdir, 'rf_us_' + args.layer + '_chn' + str(args.chn) + '_' + img_id),
                    up_activation_maps, cmap='gray')
 
 
