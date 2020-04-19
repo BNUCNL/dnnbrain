@@ -262,6 +262,62 @@ class ImageProcessor:
 
         return image
 
+    def translate(self, image, bkg, startpoint, endpoint, stride):
+        """
+        Translate image on a background based on given startpoint and stride,
+        only support one axis now
+
+        Parameters:
+        ----------
+        image[ndarray|Tensor|PIL.Image]: image data
+        bkg[ndarray|Tensor|PIL.Image]: same type with image.Remember bkg must bigger than image
+        startpoint[tuple]: the start point of translating in upper left position
+            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
+        endpoint[tuple]: the end point of translating in upper left position
+            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
+        stride[int]: stride of each translation
+        
+        Return:
+        ------
+        image_tran[ndarray|Tensor|PIL.Image]: image data after translating,
+                    which add a dim in the first axis meaning n_stim.
+        """
+        self._check_image(image)
+        self._check_image(bkg)
+        if type(image) != type(bkg):
+            raise TypeError("image and bkg must be the same type!")
+        if isinstance(image, np.ndarray):
+            if image.shape[1]>bkg.shape[1] | image.shape[2]>bkg.shape[2]:
+                raise ValueError("the size of bkg must bigger than image!")
+            #Juage axis
+            if startpoint[0] == endpoint[0]:
+                num = (endpoint[1]-startpoint[1])/stride
+                axis = 'Y'
+            elif startpoint[1] == endpoint[1]:
+                num = (endpoint[0]-startpoint[0])/stride
+                axis = 'X'
+            else:
+                raise ValueError("only support translating in one axis now!")
+            if int(num) - num != 0:
+                raise ValueError("length must be divisible by stride!")
+            #Start translating
+            num = int(num) + 1
+            image_tran = np.zeros((num, 3, bkg.shape[1], bkg.shape[2]))
+            for tr in range(num):
+                bkg_new = copy.deepcopy(bkg)
+                if axis == 'Y':
+                    bkg_new[:, startpoint[0]+tr*stride:startpoint[0]+tr*stride+image.shape[1], 
+                        startpoint[1]:startpoint[1]+image.shape[2]] = image
+                else:
+                    bkg_new[:, startpoint[0]:startpoint[0]+image.shape[1], 
+                        startpoint[1]+tr*stride:startpoint[1]+tr*stride+image.shape[2]] = image
+                image_tran[tr] = bkg_new
+        elif isinstance(image, Image.Image):
+            pass
+        else:
+            pass            
+        return image_tran
+
     def norm(self, image, ord):
         """
         Calculate norms of the image by the following formula

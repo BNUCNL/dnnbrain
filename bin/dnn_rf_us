@@ -5,12 +5,13 @@ Estimate RF with up-sampling method.
 """
 
 import numpy as np
-import argparse, cv2
+import os, cv2, argparse
+from os.path import exists as pexist
 from os.path import join as pjoin
 from matplotlib import pyplot as plt
 from dnnbrain.dnn.core import Stimulus
 from dnnbrain.dnn import models as db_models # Use eval to import DNN model
-from dnnbrain.dnn.algo_rf import UpsamplingActivationMap, UpsamplingEmpiricalReceptiveField
+from dnnbrain.dnn.algo import UpsamplingActivationMapping
 
 
 def main():
@@ -36,16 +37,16 @@ def main():
     parser.add_argument('-layer',
                         type=str,
                         required=True,
-                        metavar='The layer of top stimulus',
+                        metavar='layer of top stimulus',
                         help='Layers of interest. '
                              'conv, relu, pool, fc represents convolution, relu, '
                              'pooling, and fc layer, respectively.The top stimulis '
                              'are selected for all layers and channels default.')
 
-    parser.add_argument('-channel',
+    parser.add_argument('-chn',
                         type=int,
                         required=True,
-                        metavar='The channel of top stimulus',
+                        metavar='channel of top stimulus',
                         help='Channel of interest.If no channels are specified, '
                         'each channel will be processed. The layer and channel '
                         'should be paired together.')
@@ -58,15 +59,9 @@ def main():
 
     parser.add_argument('-up_thres',
                         metavar='A threshold for activation',
-                        type=int,
+                        type=float,
                         required=True,
-                        help='The threshold is in the range of 0-1. Default is 0.5')
-
-    parser.add_argument('-rf_thres',
-                        metavar='A threshold for activation',
-                        type=int,
-                        required=True,
-                        help='The threshold is in the range of 0-1. Default is 0.5')
+                        help='The threshold is in the range of 0-1. Default is 0.68')
 
     parser.add_argument('-outdir',
                         type=str,
@@ -75,26 +70,29 @@ def main():
                         help='Output directory to save RF images.')
 
     args = parser.parse_args()
-
+    
+    #Load net/stim
+    dnn = eval('db_models.{}()'.format(args.net))
     stimuli = Stimulus()
     stimuli.load(args.stim)
+    
+    # Create output file if inexistent
+    if not pexist(args.outdir):
+        os.mkdir(args.outdir)
+        
+    #Prepare the upsampling calss
+    up_estimator = UpsamplingActivationMapping(dnn, args.layer, args.chn)
+    up_estimator.set_params(interp_meth=args.ip_metric, interp_threshold=args.up_thres)
 
-    up_activation_maps = np.zeros([len(stimuli.get('stimID')), 224, 224])
-
-    up_estimator = UpsamplingActivationMap(args.net, args.layer, args.channel)
-    up_estimator.set_params(ip_metric=args.ip_metric, up_thres=args.up_thres)
-
-    rf_estimator = UpsamplingEmpiricalReceptiveField(args.net, args.layer, args.channel)
-    rf_estimator.set_params(rf_thres=args.rf_thres)
-
-    for i in range(len(stimuli.get('stimID'))):
-        current_pic_path = pjoin(stimuli.meta['path'], stimuli.get('stimID')[i])
+    #Compute maps
+    for img_id in stimuli.get('stimID'):
+        current_pic_path = pjoin(stimuli.header['path'], img_id)
         current_pic = cv2.imread(current_pic_path)
-        up_activation_maps[i, :, :] = up_estimator.compute(current_pic)
+        up_activation_maps = up_estimator.compute(current_pic)
 
-    up_activation_receptive_field = rf_estimator.compute(up_activation_maps)
-    plt.imsave(pjoin(args.outdir, 'rf_' + args.layer + '_chn' + str(args.channel) + '.png'),
-               up_activation_receptive_field, cmap='gray')
+        #Save out
+        plt.imsave(pjoin(args.outdir, 'rf_us_' + args.layer + '_chn' + str(args.chn) + '_' + img_id),
+                   up_activation_maps, cmap='gray')
 
 
 if __name__ == '__main__':
