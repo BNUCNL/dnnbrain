@@ -329,10 +329,10 @@ class RoiFile:
 
 class RdmFile:
     """
-    a class to read/write representation distance matrices from/to .rdm.h5 file
-    For saving time and space, DNNBrain only hold on the lower triangle of each RDM.
-    We can use np.tri(n_item, k=-1, dtype=np.bool) to get the index matrix of the lower triangle.
-    The index matrix can help us to restore RDM from the lower triangle whose shape is ((n_item^2-n_item)/2,).
+    a class to read/write representation distance matrices (RDMs) from/to .rdm.h5 file
+    For saving time and space, DNNBrain only hold on the upper triangle of each RDM.
+    We can use np.tri(n_item, k=-1, dtype=np.bool).T to get the index array of the upper triangle.
+    The index array can help us to restore RDM from the upper triangle whose shape is ((n_item^2-n_item)/2,).
     """
 
     def __init__(self, fname):

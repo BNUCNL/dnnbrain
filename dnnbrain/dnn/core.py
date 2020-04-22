@@ -683,15 +683,15 @@ class RDM:
         """
         fio.RdmFile(fname).write(self.rdm_type, self._rdm_dict)
 
-    def get(self, key, tril=False):
+    def get(self, key, triu=False):
         """
         Get RDM according its key.
 
         Parameters:
         ----------
         key[str]: the key of the RDM
-        tril[bool]:
-            If True, get RDM as the lower triangle vector.
+        triu[bool]:
+            If True, get RDM as the upper triangle vector.
             If False, get RDM as the square matrix.
 
         Return:
@@ -703,21 +703,21 @@ class RDM:
                 Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
         """
         rdm_arr = self._rdm_dict[key]
-        if not tril:
-            idx_mat = np.tri(self.n_item, k=-1, dtype=np.bool)
+        if not triu:
+            idx_arr = np.tri(self.n_item, k=-1, dtype=np.bool).T
             if self.rdm_type == 'bRDM':
                 rdm_tmp = np.zeros((self.n_item, self.n_item))
-                rdm_tmp[idx_mat] = rdm_arr
+                rdm_tmp[idx_arr] = rdm_arr
             elif self.rdm_type == 'dRDM':
                 rdm_tmp = np.zeros((rdm_arr.shape[0], self.n_item, self.n_item))
-                rdm_tmp[:, idx_mat] = rdm_arr
+                rdm_tmp[:, idx_arr] = rdm_arr
             else:
                 raise TypeError("Set rdm_type to bRDM or dRDM at first!")
             rdm_arr = rdm_tmp
 
         return rdm_arr
 
-    def set(self, key, rdm_arr, tril=False):
+    def set(self, key, rdm_arr, triu=False):
         """
         Set RDM according its key.
 
@@ -729,28 +729,28 @@ class RDM:
                 Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
             If rdm_type is dRDM:
                 Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
-        tril[bool]:
-            If True, RDM will be regarded as the lower triangle vector.
+        triu[bool]:
+            If True, RDM will be regarded as the upper triangle vector.
             If False, RDM will be regarded as the square matrix.
         """
         if self.rdm_type == 'bRDM':
-            if tril:
+            if triu:
                 assert rdm_arr.ndim == 1, \
-                    "If tril is True, bRDM's shape must be ((n_item^2-n_item)/2,)."
+                    "If triu is True, bRDM's shape must be ((n_item^2-n_item)/2,)."
                 self._rdm_dict[key] = rdm_arr
             else:
                 assert rdm_arr.ndim == 2 and rdm_arr.shape[0] == rdm_arr.shape[1], \
-                    "If tril is False, bRDM's shape must be (n_item, n_item)."
-                self._rdm_dict[key] = rdm_arr[np.tri(*rdm_arr.shape, k=-1, dtype=np.bool)]
+                    "If triu is False, bRDM's shape must be (n_item, n_item)."
+                self._rdm_dict[key] = rdm_arr[np.tri(rdm_arr.shape[0], k=-1, dtype=np.bool).T]
         elif self.rdm_type == 'dRDM':
-            if tril:
+            if triu:
                 assert rdm_arr.ndim == 2, \
-                    "If tril is True, dRDM's shape must be (n_iter, (n_item^2-n_item)/2)."
+                    "If triu is True, dRDM's shape must be (n_iter, (n_item^2-n_item)/2)."
                 self._rdm_dict[key] = rdm_arr
             else:
                 assert rdm_arr.ndim == 3 and rdm_arr.shape[1] == rdm_arr.shape[2], \
-                    "If tril is False, dRDM's shape must be (n_iter, n_item, n_item)."
-                self._rdm_dict[key] = rdm_arr[:, np.tri(rdm_arr.shape[1], k=-1, dtype=np.bool)]
+                    "If triu is False, dRDM's shape must be (n_iter, n_item, n_item)."
+                self._rdm_dict[key] = rdm_arr[:, np.tri(rdm_arr.shape[1], k=-1, dtype=np.bool).T]
         else:
             raise TypeError("Set rdm_type to bRDM or dRDM at first!")
 

@@ -8,7 +8,7 @@ import time
 import argparse
 import numpy as np
 
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import pdist
 from dnnbrain.dnn.core import Activation, RDM
 from dnnbrain.utils.util import gen_dmask
 
@@ -97,11 +97,12 @@ def main():
         n_stim, n_iter, n_elem = activ.shape
 
         # calculate RDM
-        rdm_arr = np.zeros((n_iter, n_stim, n_stim))
+        N = int((n_stim**2-n_stim)/2)
+        rdm_arr = np.zeros((n_iter, N))
         for iter_idx in range(n_iter):
             X = activ[:, iter_idx, :]
-            rdm_arr[iter_idx] = cdist(X, X, metric=args.metric)
-        rdm.set(layer, rdm_arr, tril=False)
+            rdm_arr[iter_idx] = pdist(X, metric=args.metric)
+        rdm.set(layer, rdm_arr, triu=True)
         print('Finished layer-{}: cost {} seconds'.format(layer, time.time() - time1))
 
     # save
