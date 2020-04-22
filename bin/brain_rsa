@@ -8,7 +8,7 @@ import time
 import argparse
 import numpy as np
 
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import pdist
 from dnnbrain.brain.io import load_brainimg
 from dnnbrain.dnn.core import RDM
 
@@ -64,8 +64,8 @@ def main():
     for label in labels:
         time1 = time.time()
         X = data[:, bmask == label]
-        rdm_arr = cdist(X, X, metric=args.metric)
-        rdm.set(str(label), rdm_arr, tril=False)
+        rdm_arr = pdist(X, metric=args.metric)
+        rdm.set(str(label), rdm_arr, triu=True)
         print('Finished label{}: cost {} seconds'.format(
             label, time.time() - time1))
 
