@@ -634,7 +634,7 @@ class UnivariatePredictionModel:
         If model_type == 'corr',
             pred_dict[dict]:
                 max_score[ndarray]: shape=(n_target,)
-                    Each element is the maximal R square
+                    Each element is the maximal pearson r
                     among all features correlating to the corresponding target.
                 max_loc[ndarray]: shape=(n_target,)
                     Each element is a location of the feature which makes the max score.

@@ -72,7 +72,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='R square and location saved in an output directory')
+                        help='Pearson r and location saved in an output directory')
     args = parser.parse_args()
 
     # -Load response start-
