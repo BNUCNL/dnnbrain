@@ -6,12 +6,17 @@ nav:
         - Using command line:
             - dnn_act: 'usage/cmd/dnn_act.md'
             - dnn_minstim: 'usage/cmd/dnn_minstim.md'
+            - dnn_rf_sw: 'usage/cmd/dnn_rf_sw.md'
+            - dnn_rf_us: 'usage/cmd/dnn_rf_us.md'
             - dnn_topstim: 'usage/cmd/dnn_topstim.md'
             - dnn_saliency: 'usage/cmd/dnn_saliency.md'
         - Using python lib:
             - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
             - saliency_image: 'usage/pylib/saliency_image.md'
             - synthesis_image: 'usage/pylib/synthesis_image.md'
+            - minimal_image: 'usage/pylib/minimal_image.md'
+            - rf_occluding: 'usage/pylib/rf_occluding.md'
+            - rf_upsampling: 'usage/pylib/rf_upsampling.md'
     - API: 'API/TBD.md'
     - Citing DNNBrain: 'citing.md'
 theme: readthedocs
