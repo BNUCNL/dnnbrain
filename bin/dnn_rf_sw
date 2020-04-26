@@ -66,7 +66,7 @@ def main():
                         choices=['max','mean','L1','L2'],
                         help='Discripancy metric to measure the differnce between '
                         'original activation and activation from occulding.')
-    parser.add_argument('-outdir',
+    parser.add_argument('-out',
                         type = str,
                         required = True,
                         metavar='Outputdir',
@@ -80,12 +80,12 @@ def main():
     stimuli.load(args.stim)
     
     # Create output file if inexistent
-    if not pexist(args.outdir):
-        os.mkdir(args.outdir)
+    if not pexist(args.out):
+        os.mkdir(args.out)
         
     #Prepare the upsampling calss
     oc_estimator = OccluderDiscrepancyMapping(dnn, args.layer, args.chn)
-    oc_estimator.set_params(window=tuple(args.wsize), stride=tuple(args.stride), metric=args.metric)
+    oc_estimator.set_params(window=args.wsize, stride=args.stride, metric=args.metric)
 
     #Compute maps
     for img_id in stimuli.get('stimID'):
@@ -94,7 +94,7 @@ def main():
         oc_activation_maps =  oc_estimator.compute(current_pic)
 
         #Save out
-        plt.imsave(pjoin(args.outdir, 'rf_sw_' + args.layer + '_chn' + str(args.chn) + '_' + img_id),
+        plt.imsave(pjoin(args.out, 'rf_sw_' + args.layer + '_chn' + str(args.chn) + '_' + img_id),
                    oc_activation_maps, cmap='gray')
 
     
