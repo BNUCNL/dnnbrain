@@ -908,8 +908,9 @@ class MinimalParcelImage(Algorithm):
         dnn_act = self.dnn.compute_activation(parcel_add, self.mask).pool(self.activaiton_criterion).get(self.mask.layers[0])
         act_add = dnn_act.flatten()
         # generate minmal image according to the search_criterion
+        intere = 10
         if self.search_criterion == 'max':
-            image_min = parcel_add[np.argmax(act_add)]
+            image_min = parcel_add[np.argmax(act_add[0:intere])]
             image_min = np.squeeze(image_min).transpose(1,2,0)
         else:
             pass
