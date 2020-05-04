@@ -5,6 +5,10 @@ nav:
         - File format: 'usage/file_format.md'
         - Using command line:
             - dnn_act: 'usage/cmd/dnn_act.md'
+            - dnn_fe: 'usage/cmd/dnn_fe.md'
+            - dnn_view: 'usage/cmd/dnn_view.md'
+            - dnn_mask: 'usage/cmd/dnn_mask.md'
+            - dnn_pool: 'usage/cmd/dnn_pool.md'
             - dnn_minstim: 'usage/cmd/dnn_minstim.md'
             - dnn_rf_sw: 'usage/cmd/dnn_rf_sw.md'
             - dnn_rf_us: 'usage/cmd/dnn_rf_us.md'
