@@ -1,5 +1,10 @@
 # File Format
-As a software toolbox, DNNBrain have to load source data from and save result data to files inevitably. In order to regularize the data storage of DNNBrain on the hard disk, we design some file formats including .stim.csv, .dmask.csv, .act.h5, .roi.h5, and .rsm.h5.
+As a software toolbox, DNNBrain have to load source data from and save result data to files inevitably. In order to regularize the data storage of DNNBrain on the hard disk, we design some file formats including .stim.csv, .dmask.csv, .act.h5, .roi.h5, and .rdm.h5.
+
+You can check the summary information of these files by using db_info. Such as:
+```
+db_info AlexNet.act.h5
+```
 
 ## .stim.csv
 First and foremost, we have to input stimulus data before getting either DNN activation or brain response. And we design a file format which is recognized by the **dual suffix “.stim.csv”** to help DNNBrain load stimuli of interest from the specified place on the hard disk. More than that, the .stim.csv file is designed to contain other stimulus information and even behavior data. More details will be stated below (Fig. 1).  
