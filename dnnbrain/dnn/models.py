@@ -575,7 +575,7 @@ class AlexNet(DNN):
         super(AlexNet, self).__init__()
         self.model = tv_models.alexnet()
         self.model.load_state_dict(torch.load(
-            pjoin(DNNBRAIN_MODEL, 'alexnet_param.pth')))
+            pjoin(DNNBRAIN_MODEL, 'alexnet.pth')))
         self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
                           'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
                           'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
@@ -690,7 +690,7 @@ class Vgg11(DNN):
 
         self.model = tv_models.vgg11()
         self.model.load_state_dict(torch.load(
-            pjoin(DNNBRAIN_MODEL, 'vgg11_param.pth')))
+            pjoin(DNNBRAIN_MODEL, 'vgg11.pth')))
         self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
                           'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
                           'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
