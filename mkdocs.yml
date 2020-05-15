@@ -21,6 +21,7 @@ nav:
             - minimal_image: 'usage/pylib/minimal_image.md'
             - rf_occluding: 'usage/pylib/rf_occluding.md'
             - rf_upsampling: 'usage/pylib/rf_upsampling.md'
+            - transfer_learning: 'usage/pylib/transfer_learning.md'
     - API: 'API/TBD.md'
     - Citing DNNBrain: 'citing.md'
 theme: readthedocs
