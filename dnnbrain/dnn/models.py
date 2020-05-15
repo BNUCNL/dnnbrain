@@ -314,7 +314,7 @@ class DNN:
             module.weight.data[channels] = 0
 
     def train(self, data, n_epoch, task, optimizer=None, method='tradition', target=None,
-              data_train=False, data_test=None):
+              data_train=False, data_validation=None):
         """
         Train the DNN model
 
@@ -330,7 +330,7 @@ class DNN:
         task[str]: task function
             choices=('classification', 'regression').
         optimizer[object]: optimizer function
-            If is None, use Adam default.
+            If is None, use Adam to optimize all parameters in dnn.
             If is not None, it must be torch optimizer object.
         method[str]: training method, by default is 'tradition'.
             For some specific models (e.g. inception), loss needs to be calculated in another way.
@@ -339,8 +339,8 @@ class DNN:
                 Note, n_feat is the number of features of the last layer.
         data_train[bool]:
             If true, test model performance on the training data.
-        data_test[Stimulus|ndarray]: testing data
-            If is not None, test model performance on the independent tesing data.
+        data_validation[Stimulus|ndarray]: validation data
+            If is not None, test model performance on the validation data.
 
         Return:
         ------
@@ -350,7 +350,7 @@ class DNN:
                 The indices are one-to-one corresponding with the epoch_losses.
                 Each element is a list where elements are step losses of the corresponding epoch.
             score_train[list]: scores of epochs on training data
-            score_test[list]: scores of epochs on test data
+            score_validation[list]: scores of epochs on validation data
         """
         # prepare data loader
         if isinstance(data, np.ndarray):
@@ -391,7 +391,7 @@ class DNN:
         train_dict['step_loss'] = []
         train_dict['epoch_loss'] = []
         train_dict['score_train'] = []
-        train_dict['score_test'] = []
+        train_dict['score_validation'] = []
         time1 = time.time()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.train()
@@ -440,10 +440,10 @@ class DNN:
                 print(f"Score_on_train: {test_dict['score']}")
                 train_dict['score_train'].append(test_dict['score'])
                 self.model.train()
-            if data_test is not None:
-                test_dict = self.test(data_test, task, target, torch.cuda.is_available())
+            if data_validation is not None:
+                test_dict = self.test(data_validation, task, target, torch.cuda.is_available())
                 print(f"Score_on_test: {test_dict['score']}")
-                train_dict['score_test'].append(test_dict['score'])
+                train_dict['score_validation'].append(test_dict['score'])
                 self.model.train()
 
             # print time of a epoch

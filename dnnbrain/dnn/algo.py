@@ -5,16 +5,16 @@ import torch
 import numpy as np
 
 from os import remove
-from torch.optim import Adam
 from os.path import join as pjoin
-from matplotlib import pyplot as plt
+from scipy.ndimage.filters import gaussian_filter
+from torch.optim import Adam
 from torch.nn.functional import interpolate
+from matplotlib import pyplot as plt
 from dnnbrain.dnn.core import Mask
 from dnnbrain.dnn.base import ip, array_statistic
-from scipy.ndimage.filters import gaussian_filter
 from skimage import filters, segmentation
 from skimage.color import rgb2gray
-from skimage.morphology import convex_hull_image,erosion, square
+from skimage.morphology import convex_hull_image, erosion, square
 
 
 class Algorithm(abc.ABC):
@@ -915,7 +915,8 @@ class MinimalParcelImage(Algorithm):
         else:
             pass
         return image_min
-        
+
+
 class MinimalComponentImage(Algorithm):
     """
     A class to generate minmal image for a CNN model using a specific part 
