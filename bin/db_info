@@ -102,11 +102,11 @@ def main():
             print(f'RDM information for {args.name}')
             print('\ttype:' + f'{rdm.rdm_type}')
             for key in rdm.keys:
-                data = rdm.get(key)
+                data = rdm.get(key, triu=True)
                 if rdm.rdm_type == 'bRDM':
                     key_num = key.split('.')[0]
                     print('\tROI label: ' + f'{key_num}\n',
-                          '\t\tshape: ' + f'{data.shape}\n',
+                          '\t\tshape: ' + f'{rdm.get(key).shape}\n',
                           '\t\tmax: ' + '%.2f\n'%(np.max(data)),
                           '\t\tmin: ' + '%.2f\n'%(np.min(data)),
                           '\t\tmean: ' + '%.2f'%(np.mean(data)))
@@ -116,10 +116,12 @@ def main():
                     min_value = [round(np.min(data[n_iter]), 2) for n_iter in range(iter_all)]
                     mean_value = [round(np.mean(data[n_iter]), 2) for n_iter in range(iter_all)]
                     print('\tlayer: ' + f'{key}\n',
-                          '\t\tshape: ' + f'{data.shape}\n',
+                          '\t\tshape: ' + f'{rdm.get(key).shape}\n',
                           '\t\tmax: ' + f'{max_value}\n',
                           '\t\tmin: ' + f'{min_value}\n',
                           '\t\tmean: ' + f'{mean_value}')
+            print('Attention: The data shape we show here is for the square matrix,\n'
+                  '\t   but statistical info is from the upper triangle vector.')
 
 if __name__ == '__main__':
     main()
