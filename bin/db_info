@@ -1,0 +1,127 @@
+#! /usr/bin/env python
+
+"""
+Provide important information of specific net or file 
+"""
+
+import os, argparse
+import numpy as np
+
+from dnnbrain.dnn.core import Mask, Stimulus, Activation, RDM
+from dnnbrain.dnn.models import AlexNet, VggFace, Vgg11
+from dnnbrain.brain.core import ROI
+from os.path import exists as pexist
+from os.path import join as pjoin
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('name',
+                        help='Filename or netname to check information'
+                             'Only support file suffix with .stim.csv,.dmask.csv,.act.h5,.roi.h5,.rdm.h5'
+                             'or net in AlexNet, VggFace, Vgg11')
+
+    args = parser.parse_args()
+
+    # define acceptable file suffix or net name
+    file_type_all = ('.stim.csv','.dmask.csv','.act.h5','.roi.h5','.rdm.h5')
+    net_all = {'AlexNet':AlexNet(), 'VggFace':VggFace(), 'Vgg11':Vgg11()}
+    # check net
+    if '.' not in args.name:
+        if args.name not in net_all.keys():
+            raise ValueError('Check your net name first!',
+                             'Only support net in AlexNet, VggFace, Vgg11')
+        else:
+            dnn = net_all[args.name]
+            print(dnn.model,'\n',
+                  f'{args.name} layer to location info:')
+            for layer, feature in dnn.layer2loc.items():
+                print(f'\t{layer}: ' +  f'{feature}')
+    # check file
+    else:   
+        file_type = '.' + args.name.split('.')[-2] + '.' + args.name.split('.')[-1]
+        # check filepath
+        main_path = os.getcwd()
+        file = pjoin(main_path, args.name)
+        if not pexist(file):
+            raise ValueError(f'Can not find {args.name} in your current working path!'
+                             'Please check file path first!')
+        # check filename
+        if file_type not in file_type_all:
+            raise ValueError('Check your filename first!'
+                             'Only support suffix with .stim.csv,.dmask.csv,.act.h5,.roi.h5,.rdm.h5')
+        # print stimulus
+        elif file_type == '.stim.csv':
+            stim = Stimulus()
+            stim.load(file)
+            print(f'Stimulus information for {args.name}')
+            for key in stim.header.keys():
+                print(f'\t{key}: ' + f'{stim.header[key]}')
+            print('\tdata: ' + f'{stim.items}')
+            picnum = stim.get('stimID').size
+            print('\tnumber of stimuli: ' + f'{picnum}')
+        # print dmask
+        elif file_type == '.dmask.csv':
+            dmask = Mask()
+            dmask.load(file)
+            print(f'Mask information for {args.name}')
+            for layer in dmask.layers:
+                chn = dmask.get(layer)['chn']
+                row = dmask.get(layer)['row']
+                col = dmask.get(layer)['col']
+                print('\tlayer: '+ f'{layer}\n',
+                      '\t\tchn: ' + f'{chn}\n',
+                      '\t\trow: '+ f'{row}\n',
+                      '\t\tcol: ' + f'{col}')
+        # print activation
+        elif file_type == '.act.h5':
+            act = Activation()
+            act.load(file)
+            print(f'Activation information for {args.name}')
+            for layer in act.layers:
+                print('\tlayer: ' + f'{layer}\n',
+                      '\t\tshape: ' + f'{act.get(layer).shape}\n',
+                      '\t\tmax: ' + '%.2f\n'%(np.max(act.get(layer))),
+                      '\t\tmin: ' + '%.2f\n'%(np.min(act.get(layer))),
+                      '\t\tmean: ' + '%.2f'%(np.mean(act.get(layer))))
+        # print roi
+        elif file_type == '.roi.h5':
+            roi = ROI()
+            roi.load(file)
+            print(f'ROI information for {args.name}')
+            for name in roi.rois:
+                print('\tname: ' + f'{name}\n',
+                      '\t\tn_vol: ' + f'{roi.get(name).shape[0]}\n',
+                      '\t\tmax: ' + '%.2f\n'%(np.max(roi.get(name))),
+                      '\t\tmin: ' + '%.2f\n'%(np.min(roi.get(name))),
+                      '\t\tmean: ' + '%.2f'%(np.mean(roi.get(name))))
+        # print rdm
+        else:
+            rdm = RDM()
+            rdm.load(file) 
+            print(f'RDM information for {args.name}')
+            print('\ttype:' + f'{rdm.rdm_type}')
+            for key in rdm.keys:
+                data = rdm.get(key, triu=True)
+                if rdm.rdm_type == 'bRDM':
+                    key_num = key.split('.')[0]
+                    print('\tROI label: ' + f'{key_num}\n',
+                          '\t\tshape: ' + f'{rdm.get(key).shape}\n',
+                          '\t\tmax: ' + '%.2f\n'%(np.max(data)),
+                          '\t\tmin: ' + '%.2f\n'%(np.min(data)),
+                          '\t\tmean: ' + '%.2f'%(np.mean(data)))
+                else:
+                    iter_all = data.shape[0]
+                    max_value = [round(np.max(data[n_iter]), 2) for n_iter in range(iter_all)]
+                    min_value = [round(np.min(data[n_iter]), 2) for n_iter in range(iter_all)]
+                    mean_value = [round(np.mean(data[n_iter]), 2) for n_iter in range(iter_all)]
+                    print('\tlayer: ' + f'{key}\n',
+                          '\t\tshape: ' + f'{rdm.get(key).shape}\n',
+                          '\t\tmax: ' + f'{max_value}\n',
+                          '\t\tmin: ' + f'{min_value}\n',
+                          '\t\tmean: ' + f'{mean_value}')
+            print('Attention: The data shape we show here is for the square matrix,\n'
+                  '\t   but statistical info is from the upper triangle vector.')
+
+if __name__ == '__main__':
+    main()
