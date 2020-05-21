@@ -1047,69 +1047,77 @@ class OccluderDiscrepancyMapping(Algorithm):
 
 class UpsamplingActivationMapping(Algorithm):
     """
-    A Class to Compute Activation for Each Pixel
-    in an Image Using Upsampling Method with Specific
-    Method Assigned
+    Resample the target channel's feature map to the input size
+    after threshold.
     """
 
-    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=0.68):
+    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=None):
         """
-        Set necessary parameters for upsampling estimator.
+        Set necessary parameters.
 
-        Parameter:
-        ---------
+        Parameters:
+        ----------
         dnn[DNN]: dnnbrain's DNN object
         layer[str]: name of the layer where you focus on
         channel[int]: sequence number of the channel where you focus on
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map,
-                               which you should assign between 0 - 99.
+        interp_meth[str]: Algorithm used for resampling are
+                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
+                          Default: 'bicubic'
+        interp_threshold[int]: value is in [0, 1]
+            The threshold used to filter the map after resampling.
+            For example, if the threshold is 0.58, it means clip the feature map
+            with the min as the minimum of the top 42% activation.
         """
         super(UpsamplingActivationMapping, self).__init__(dnn, layer, channel)
         self.set_params(interp_meth, interp_threshold)
 
-    def set_params(self, interp_meth='bicubic', interp_threshold=0.68):
+    def set_params(self, interp_meth, interp_threshold):
         """
-        Set necessary parameters for upsampling estimator.
+        Set necessary parameters.
 
-        Parameter:
-        ---------
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        Parameters:
+        ----------
+        interp_meth[str]: Algorithm used for resampling are
+                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
+                          Default: 'bicubic'
+        interp_threshold[int]: value is in [0, 1]
+            The threshold used to filter the map after resampling.
+            For example, if the threshold is 0.58, it means clip the feature map
+            with the min as the minimum of the top 42% activation.
         """
         self.interp_meth = interp_meth
         self.interp_threshold = interp_threshold
 
     def compute(self, image):
         """
-        Do Real Computation for Pixel Activation Based on Upsampling Feature Mapping.
+        Resample the channel's feature map to input size
 
         Parameter:
         ---------
-        image[ndarray] : shape (height,width,n_chn) 
+        image[ndarray|Tensor|PIL.Image]: an input image
         
         Return:
-        ---------
-        thresed_img_act[ndarray] : image after upsampling, shape:(height,width) 
+        ------
+        img_act[ndarray]: shape=(height, width)
+            image after resampling
         """
-        #prepare image
-        cropped_img = cv2.resize(image, self.dnn.img_size, interpolation=cv2.INTER_CUBIC)
-        cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
-        #compute activation
-        img_act = self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]).squeeze()
-        img_act = torch.from_numpy(img_act)[np.newaxis, np.newaxis, ...]
-        img_act = interpolate(img_act, size=cropped_img.shape[2:4],
-                              mode=self.interp_meth, align_corners=True)
+        # preprocess image
+        image = ip.to_array(image)[None, :]
+
+        # compute activation
+        img_act = self.dnn.compute_activation(image, self.mask).get(self.mask.layers[0])
+
+        # resample
+        img_act = torch.from_numpy(img_act)
+        img_act = interpolate(img_act, size=self.dnn.img_size, mode=self.interp_meth)
         img_act = np.squeeze(np.asarray(img_act))
-        #define region of rf
-        thresed_img_act = copy.deepcopy(img_act)
-        thresed_img_act[thresed_img_act < np.percentile(thresed_img_act, self.interp_threshold * 100)] = 0
-        thresed_img_act = thresed_img_act / np.max(thresed_img_act)
-        return thresed_img_act
+
+        # threshold
+        if self.interp_threshold is not None:
+            thr = np.percentile(img_act, self.interp_threshold * 100)
+            img_act = np.clip(img_act, thr, None)
+
+        return img_act
 
 
 class EmpiricalReceptiveField(Algorithm):

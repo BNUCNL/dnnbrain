@@ -261,17 +261,14 @@ class TestUpsamplingActivationMapping:
         # prepare image
         self.image.show()
         
-        #test upsampling mapping
+        # test upsampling mapping
         up_map = d_algo.UpsamplingActivationMapping(dnn)
         up_map.set_layer('conv3', 45)
-        upsampling_map = up_map.compute(np.asarray(self.image))
-        assert upsampling_map.shape == (dnn.img_size) 
+        upsampling_map = up_map.compute(self.image)
+        assert upsampling_map.shape == dnn.img_size
         
-        #visualize image
-        plt.figure()
-        plt.imshow(upsampling_map)   
-        
-        plt.show()
+        # visualize image
+        ip.to_pil(upsampling_map, True).show()
     
     
 class TestEmpiricalReceptiveField:
