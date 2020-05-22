@@ -1,31 +1,35 @@
 site_name: DNNBrain
 nav:
-    - Installation: 'install.md'
-    - Usage notes:
-        - File format: 'usage/file_format.md'
-        - Using command line:
-            - db_info: 'usage/cmd/db_info.md'
-            - dnn_act: 'usage/cmd/dnn_act.md'
-            - dnn_fe: 'usage/cmd/dnn_fe.md'
-            - dnn_view: 'usage/cmd/dnn_view.md'
-            - dnn_mask: 'usage/cmd/dnn_mask.md'
-            - dnn_pool: 'usage/cmd/dnn_pool.md'
-            - dnn_minstim: 'usage/cmd/dnn_minstim.md'
-            - dnn_rf_sw: 'usage/cmd/dnn_rf_sw.md'
-            - dnn_rf_us: 'usage/cmd/dnn_rf_us.md'
-            - dnn_topstim: 'usage/cmd/dnn_topstim.md'
-            - dnn_saliency: 'usage/cmd/dnn_saliency.md'
-        - Using python lib:
-            - extract_dnn_activation: 'usage/pylib/extract_dnn_activation.md'
-            - saliency_image: 'usage/pylib/saliency_image.md'
-            - synthesis_image: 'usage/pylib/synthesis_image.md'
-            - minimal_image: 'usage/pylib/minimal_image.md'
-            - rf_occluding: 'usage/pylib/rf_occluding.md'
-            - rf_upsampling: 'usage/pylib/rf_upsampling.md'
-            - transfer_learning: 'usage/pylib/transfer_learning.md'
-    - API: 'API/TBD.md'
-    - Citing DNNBrain: 'citing.md'
-theme: readthedocs
+    - Get Started: 'install.md'
+    - Tutorials:
+        - Introduction: 'tutorials/intro.md'
+        - Scan DNN: 'tutorials/scan_DNN.md'
+    - Examples:
+        - Extract DNN Activation: 'examples/extract_dnn_activation.md'
+        - Saliency Image: 'examples/saliency_image.md'
+        - Synthesis Image: 'examples/synthesis_image.md'
+        - Minimal Image: 'examples/minimal_image.md'
+        - Occluder Map: 'examples/occluder_map.md'
+        - Upsampling Map: 'examples/upsampling_map.md'
+        - Transfer Learning: 'examples/transfer_learning.md'
+    - Docs:
+        - Layer to Module: 'docs/layer2module.md'
+        - File Format: 'docs/file_format.md'
+        - CLI:
+            - db_info: 'docs/cmd/db_info.md'
+            - dnn_act: 'docs/cmd/dnn_act.md'
+            - dnn_fe: 'docs/cmd/dnn_fe.md'
+            - dnn_view: 'docs/cmd/dnn_view.md'
+            - dnn_mask: 'docs/cmd/dnn_mask.md'
+            - dnn_pool: 'docs/cmd/dnn_pool.md'
+            - dnn_minstim: 'docs/cmd/dnn_minstim.md'
+            - dnn_rf_sw: 'docs/cmd/dnn_rf_sw.md'
+            - dnn_rf_us: 'docs/cmd/dnn_rf_us.md'
+            - dnn_topstim: 'docs/cmd/dnn_topstim.md'
+            - dnn_saliency: 'docs/cmd/dnn_saliency.md'
+        - Python API: 'docs/pylib/TBD.md'
+    - Cite DNNBrain: 'cite.md'
+theme: mkdocs
 markdown_extensions:
     - toc:
         permalink: "#"
