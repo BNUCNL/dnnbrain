@@ -1,5 +1,6 @@
 import abc
 import cv2
+import time
 import copy
 import torch
 import numpy as np
@@ -966,35 +967,37 @@ class MinimalComponentImage(Algorithm):
         
 class OccluderDiscrepancyMapping(Algorithm):
     """
-    An Class to Compute Activation for Each Pixel
-    in an Image Using Slide-Occluder
+    Slide a occluder window on an image, and calculate the change of
+    the target channel's activation after each step.
     """
 
-    def __init__(self, dnn, layer=None, channel=None, window=(11, 11), stride=(2, 2), metric='max'):
+    def __init__(self, dnn, layer=None, channel=None, window=(11, 11), stride=(2, 2), metric='mean'):
         """
-        Set necessary parameters for the estimator.
+        Set necessary parameters.
 
-        Parameter:
-        ---------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
-        window[list]: The size of sliding window, which form should be [int, int].
-        stride[list]: The move step if sliding window, which form should be step for [row, column]
-        metric[str]: The metric to measure how feature map change, max or mean.
+        Parameters:
+        ----------
+        dnn[DNN]: DNNBrain's DNN object
+        layer[str]: name of the layer that you focus on
+        channel[int]: sequence number of the channel that you focus on (start with 1)
+        window[tuple]: The size of sliding window - (width, height).
+        stride[tuple]: The step length of sliding window - (width_step, height_step)
+        metric[str]: max or mean
+            The metric to summarize the target channel's activation
         """
         super(OccluderDiscrepancyMapping, self).__init__(dnn, layer, channel)
         self.set_params(window, stride, metric)
         
-    def set_params(self, window=(11, 11), stride=(2, 2), metric='max'):
+    def set_params(self, window, stride, metric):
         """
         Set parameter for occluder discrepancy mapping
 
         Parameters:
-        ---------
-        window[list]: The size of sliding window, which form should be [int, int].
-        stride[list]: The move step if sliding window, which form should be step for [row, column]
-        metric[str]: The metric to measure how feature map change, max or mean.
+        ----------
+        window[tuple]: The size of sliding window - (width, height).
+        stride[tuple]: The step length of sliding window - (width_step, height_step)
+        metric[str]: max or mean
+            The metric to summarize the target channel's activation
         """        
         self.window = window
         self.stride = stride
@@ -1002,108 +1005,119 @@ class OccluderDiscrepancyMapping(Algorithm):
 
     def compute(self, image):
         """
-        Compute discrepancy map of the target image using a occluder moving from top-left to bottom-right
+        Compute discrepancy map of the image using a occluder window
+        moving from top-left to bottom-right
         
         Parameter:
         ---------
-        image[ndarray] : shape (height, width, n_chn) 
+        image[ndarray|Tensor|PIL.Image]: an original image
         
         Return:
         ---------
-        discrepancy_map[ndarray]: row = (img_height-window_height)/stride_height
-                                  column = (img_width-window_width)/stride_width
-                                  shape (row,column)
-        """        
-        cropped_img = cv2.resize(image, (224, 224), interpolation=cv2.INTER_CUBIC)
-        cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
-        #init paras
-        column_num = int((cropped_img.shape[2] - self.window[0]) / self.stride[0] + 1)
-        row_num = int((cropped_img.shape[3] - self.window[1]) / self.stride[0] + 1)
-        discrepancy_map = np.zeros((column_num, row_num))
-        discrepancy_map_whole = array_statistic(self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]),
-                                                self.metric)
-        #start computing by moving occluders
-        current_num = 1
-        for i in range(0, column_num):
-            for j in range(0, row_num):
-                current_occluded_pic = copy.deepcopy(cropped_img)
-                current_occluded_pic[:, :, self.stride[0] * i:self.stride[0] * i + self.window[0],
-                                     self.stride[1] * j:self.stride[1] * j + self.window[1]] = 0
-                max_act = array_statistic(self.dnn.compute_activation(current_occluded_pic, self.mask).get(self.mask.layers[0]),
-                                          self.metric)
-                discrepancy_map[i, j] = discrepancy_map_whole - max_act
-                #print feedback info
-                print(current_num, 'in', column_num * row_num,
-                      'finished. Discrepancy: %.1f' % abs(discrepancy_map[i, j]))
-                current_num = current_num + 1
+        discrepancy_map[ndarray]
+        """
+        # preprocess image
+        image = ip.to_array(image)
+        image = copy.deepcopy(image)[None, :]
+
+        # initialize discrepancy map
+        img_h, img_w = self.dnn.img_size
+        win_w, win_h = self.window
+        step_w, step_h = self.stride
+        n_row = int((img_h - win_h) / step_h + 1)
+        n_col = int((img_w - win_w) / step_w + 1)
+        discrepancy_map = np.zeros((n_row, n_col))
+        activ_ori = array_statistic(self.dnn.compute_activation(image, self.mask).get(self.mask.layers[0]),
+                                    self.metric)
+
+        # start computing by moving occluders
+        for i in range(n_row):
+            start = time.time()
+            for j in range(n_col):
+                occluded_img = copy.deepcopy(image)
+                occluded_img[:, :, step_h*i:step_h*i+win_h, step_w*j:step_w*j+win_w] = 0
+                activ_occ = array_statistic(self.dnn.compute_activation(
+                    occluded_img, self.mask).get(self.mask.layers[0]), self.metric)
+                discrepancy_map[i, j] = activ_ori - activ_occ
+            print('Finished: row-{0}/{1}, cost {2} seconds'.format(
+                i+1, n_row, time.time()-start))
+
         return discrepancy_map
 
 
 class UpsamplingActivationMapping(Algorithm):
     """
-    A Class to Compute Activation for Each Pixel
-    in an Image Using Upsampling Method with Specific
-    Method Assigned
+    Resample the target channel's feature map to the input size
+    after threshold.
     """
 
-    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=0.68):
+    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=None):
         """
-        Set necessary parameters for upsampling estimator.
+        Set necessary parameters.
 
-        Parameter:
-        ---------
+        Parameters:
+        ----------
         dnn[DNN]: dnnbrain's DNN object
         layer[str]: name of the layer where you focus on
         channel[int]: sequence number of the channel where you focus on
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map,
-                               which you should assign between 0 - 99.
+        interp_meth[str]: Algorithm used for resampling are
+                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
+                          Default: 'bicubic'
+        interp_threshold[int]: value is in [0, 1]
+            The threshold used to filter the map after resampling.
+            For example, if the threshold is 0.58, it means clip the feature map
+            with the min as the minimum of the top 42% activation.
         """
         super(UpsamplingActivationMapping, self).__init__(dnn, layer, channel)
         self.set_params(interp_meth, interp_threshold)
 
-    def set_params(self, interp_meth='bicubic', interp_threshold=0.68):
+    def set_params(self, interp_meth, interp_threshold):
         """
-        Set necessary parameters for upsampling estimator.
+        Set necessary parameters.
 
-        Parameter:
-        ---------
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        Parameters:
+        ----------
+        interp_meth[str]: Algorithm used for resampling are
+                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
+                          Default: 'bicubic'
+        interp_threshold[int]: value is in [0, 1]
+            The threshold used to filter the map after resampling.
+            For example, if the threshold is 0.58, it means clip the feature map
+            with the min as the minimum of the top 42% activation.
         """
         self.interp_meth = interp_meth
         self.interp_threshold = interp_threshold
 
     def compute(self, image):
         """
-        Do Real Computation for Pixel Activation Based on Upsampling Feature Mapping.
+        Resample the channel's feature map to input size
 
         Parameter:
         ---------
-        image[ndarray] : shape (height,width,n_chn) 
+        image[ndarray|Tensor|PIL.Image]: an input image
         
         Return:
-        ---------
-        thresed_img_act[ndarray] : image after upsampling, shape:(height,width) 
+        ------
+        img_act[ndarray]: shape=(height, width)
+            image after resampling
         """
-        #prepare image
-        cropped_img = cv2.resize(image, self.dnn.img_size, interpolation=cv2.INTER_CUBIC)
-        cropped_img = cropped_img.transpose(2, 0, 1)[np.newaxis, :]
-        #compute activation
-        img_act = self.dnn.compute_activation(cropped_img, self.mask).get(self.mask.layers[0]).squeeze()
-        img_act = torch.from_numpy(img_act)[np.newaxis, np.newaxis, ...]
-        img_act = interpolate(img_act, size=cropped_img.shape[2:4],
-                              mode=self.interp_meth, align_corners=True)
+        # preprocess image
+        image = ip.to_array(image)[None, :]
+
+        # compute activation
+        img_act = self.dnn.compute_activation(image, self.mask).get(self.mask.layers[0])
+
+        # resample
+        img_act = torch.from_numpy(img_act)
+        img_act = interpolate(img_act, size=self.dnn.img_size, mode=self.interp_meth)
         img_act = np.squeeze(np.asarray(img_act))
-        #define region of rf
-        thresed_img_act = copy.deepcopy(img_act)
-        thresed_img_act[thresed_img_act < np.percentile(thresed_img_act, self.interp_threshold * 100)] = 0
-        thresed_img_act = thresed_img_act / np.max(thresed_img_act)
-        return thresed_img_act
+
+        # threshold
+        if self.interp_threshold is not None:
+            thr = np.percentile(img_act, self.interp_threshold * 100)
+            img_act = np.clip(img_act, thr, None)
+
+        return img_act
 
 
 class EmpiricalReceptiveField(Algorithm):

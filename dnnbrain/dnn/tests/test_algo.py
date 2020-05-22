@@ -11,7 +11,6 @@ from dnnbrain.dnn.models import AlexNet
 from dnnbrain.utils.util import normalize
 
 
-
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
 if not os.path.isdir(TMP_DIR):
@@ -238,19 +237,16 @@ class TestOccluderDiscrepancyMapping:
         # prepare image
         self.image.show()
         
-        #prepare occulder map
+        # prepare occulder map
         oc_map = d_algo.OccluderDiscrepancyMapping(dnn)
         oc_map.set_layer('conv4', 27)
         
-        #compute discrepancy map
-        discrepancy_map = oc_map.compute(np.asarray(self.image))
-        assert discrepancy_map.shape == (107,107) 
+        # compute discrepancy map
+        discrepancy_map = oc_map.compute(self.image)
+        assert discrepancy_map.shape == (107, 107)
         
-        #visualize image
-        plt.figure()
-        plt.imshow(discrepancy_map)   
-        
-        plt.show()
+        # visualize image
+        ip.to_pil(discrepancy_map, True).show()
 
     
 class TestUpsamplingActivationMapping:
@@ -265,17 +261,14 @@ class TestUpsamplingActivationMapping:
         # prepare image
         self.image.show()
         
-        #test upsampling mapping
+        # test upsampling mapping
         up_map = d_algo.UpsamplingActivationMapping(dnn)
         up_map.set_layer('conv3', 45)
-        upsampling_map = up_map.compute(np.asarray(self.image))
-        assert upsampling_map.shape == (dnn.img_size) 
+        upsampling_map = up_map.compute(self.image)
+        assert upsampling_map.shape == dnn.img_size
         
-        #visualize image
-        plt.figure()
-        plt.imshow(upsampling_map)   
-        
-        plt.show()
+        # visualize image
+        ip.to_pil(upsampling_map, True).show()
     
     
 class TestEmpiricalReceptiveField:

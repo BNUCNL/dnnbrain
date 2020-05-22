@@ -125,7 +125,7 @@ class DNN:
 
         self.model = None
         self.layer2loc = None
-        self.img_size = None
+        self.img_size = None  # (height, width)
         self.train_transform = None
         self.test_transform = None
 
