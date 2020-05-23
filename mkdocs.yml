@@ -1,5 +1,6 @@
 site_name: DNNBrain
 nav:
+    - Home: 'index.md'
     - Get Started: 'install.md'
     - Tutorials: 'tutorials/index.md'
     - Examples: 'examples/index.md'
