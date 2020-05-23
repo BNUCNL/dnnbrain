@@ -1,7 +1,9 @@
 # DNNBrain Documentation
 
-[Layer to Module](layer2module.md)  
-[File Format](file_format.md)
+## Concepts
+**built-in DNN**: The DNN that is encapsulated in DNNBrain with corresponding attributes and methods. For these built-in DNNs, DNNBrain has defined a [mapping](layer2module.md) to help users approach to a module of DNN by a commonly used layer name.  
+
+## [File Format](file_format.md)
 
 ## Command-Line Interfaces
 
