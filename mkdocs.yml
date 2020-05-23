@@ -1,10 +1,9 @@
 site_name: DNNBrain
 nav:
-    - Home: 'index.md'
     - Get Started: 'install.md'
-    - Tutorials: 'tutorials/index.md'
-    - Examples: 'examples/index.md'
-    - Docs: 'docs/index.md'
+    - Tutorials: 'tutorials/idx.md'
+    - Examples: 'examples/idx.md'
+    - Docs: 'docs/idx.md'
     - Cite DNNBrain: 'cite.md'
 theme: mkdocs
 markdown_extensions:
