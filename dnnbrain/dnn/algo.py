@@ -19,7 +19,6 @@ from skimage.color import rgb2gray
 from skimage.morphology import convex_hull_image, erosion, square
 from torch.autograd import Variable
 from collections import OrderedDict
-import torchvision.models as models
 
 
 class Algorithm(abc.ABC):
@@ -1124,38 +1123,30 @@ class UpsamplingActivationMapping(Algorithm):
         return img_act
 
 
-class EmpiricalReceptiveField(Algorithm):
+class EmpiricalReceptiveField():
     """
     A Class to Estimate Empirical Receptive Field (RF) of a DNN Model.
     """
 
-    def __init__(self, dnn, layer=None, channel=None, interp_meth='bicubic', interp_threshold=None):
+    def __init__(self, engine=None):
         """
         Parameter:
         ---------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
-        threshold[int]: The threshold to filter the synthesized
-                      receptive field, which you should assign
-                      between 0 - 1.
+        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
+            the engine to compute empirical receptive field
         """
-        super(EmpiricalReceptiveField, self).__init__(dnn, layer, channel)
-        self.set_params(interp_meth, interp_threshold)
+        self.set_params(engine)
 
-    def set_params(self, interp_meth, interp_threshold):
+    def set_params(self, engine):
         """
-        Set necessary parameters for upsampling estimator.
+        Set engine to compute empirical receptive field
 
         Parameter:
         ---------
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
+            Must be an instance of UpsamplingActivationMapping or OccluderDiscrepancyMapping
         """
-        self.interp_meth = interp_meth
-        self.interp_threshold = interp_threshold
+        self.engine = engine
 
     def generate_rf(self, all_thresed_act):
         """
@@ -1224,15 +1215,16 @@ class EmpiricalReceptiveField(Algorithm):
         images = np.zeros((len(stimuli.get('stimID')),3,224,224), dtype=np.uint8)
         for idx, img_id in enumerate(stimuli.get('stimID')):
             image = plt.imread(pjoin(stimuli.header['path'], img_id)).transpose(2,0,1)
-            image = ip.resize(image, self.dnn.img_size)
+            image = ip.resize(image, self.engine.dnn.img_size)
             images[idx] = image
         # prepare dnn info
-        layer = self.mask.layers[0]
-        chn = self.mask.get(layer)['chn'][0]
+        dnn = self.engine.dnn
+        layer = self.engine.mask.layers[0]
+        chn = self.engine.mask.get(layer)['chn'][0]
         # prepare rf info
-        the_rf = TheoreticalReceptiveField(self.dnn, layer, chn)
+        the_rf = TheoreticalReceptiveField(dnn, layer, chn)
         rf = the_rf.receptive_field()
-        layer_int = str(int(self.dnn.layer2loc[layer][-1])+1)
+        layer_int = str(int(dnn.layer2loc[layer][-1])+1)
         kernel_size = rf[layer_int]["output_shape"][2:]
         rf_size = rf[layer_int]["r"]
         rf_all = np.zeros((images.shape[0], int(rf_size), int(rf_size)), dtype=np.float32)
@@ -1240,9 +1232,7 @@ class EmpiricalReceptiveField(Algorithm):
         for idx in range(images.shape[0]):
             pic = images[idx]
             # compute upsampling activation map
-            up_estimator = UpsamplingActivationMapping(self.dnn, layer, chn)
-            up_estimator.set_params(interp_meth=self.interp_meth, interp_threshold=self.interp_threshold)
-            img_up = up_estimator.compute(pic)
+            img_up = self.engine.compute(pic)
             img_min = np.min(img_up)
             # find the maximum activation in different theoretical rf
             act_all = {}
