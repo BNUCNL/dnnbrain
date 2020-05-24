@@ -9,13 +9,16 @@ from os import remove
 from os.path import join as pjoin
 from scipy.ndimage.filters import gaussian_filter
 from torch.optim import Adam
+import torch.nn as nn
 from torch.nn.functional import interpolate
 from matplotlib import pyplot as plt
-from dnnbrain.dnn.core import Mask
+from dnnbrain.dnn.core import Mask, Stimulus
 from dnnbrain.dnn.base import ip, array_statistic
 from skimage import filters, segmentation
 from skimage.color import rgb2gray
 from skimage.morphology import convex_hull_image, erosion, square
+from torch.autograd import Variable
+from collections import OrderedDict
 
 
 class Algorithm(abc.ABC):
@@ -1120,37 +1123,30 @@ class UpsamplingActivationMapping(Algorithm):
         return img_act
 
 
-class EmpiricalReceptiveField(Algorithm):
+class EmpiricalReceptiveField():
     """
     A Class to Estimate Empirical Receptive Field (RF) of a DNN Model.
     """
 
-    def __init__(self, dnn, layer=None, channel=None, threshold=0.3921):
+    def __init__(self, engine=None):
         """
         Parameter:
         ---------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
-        threshold[int]: The threshold to filter the synthesized
-                      receptive field, which you should assign
-                      between 0 - 1.
+        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
+            the engine to compute empirical receptive field
         """
-        super(EmpiricalReceptiveField, self).__init__(dnn, layer, channel)
-        self.set_params(threshold)
+        self.set_params(engine)
 
-    def set_params(self, threshold=0.3921):
+    def set_params(self, engine):
         """
-        Set necessary parameters for upsampling estimator.
+        Set engine to compute empirical receptive field
 
         Parameter:
         ---------
-        interp_meth[str]: Algorithm used for upsampling are
-                          'nearest'   | 'linear' | 'bilinear' | 'bicubic' |
-                          'trilinear' | 'area'   | 'bicubic' (Default)
-        interp_threshold[int]: The threshold to filter the feature map, num between 0 - 99.
+        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
+            Must be an instance of UpsamplingActivationMapping or OccluderDiscrepancyMapping
         """
-        self.threshold = threshold
+        self.engine = engine
 
     def generate_rf(self, all_thresed_act):
         """
@@ -1200,7 +1196,88 @@ class EmpiricalReceptiveField(Algorithm):
         empirical_rf_size = np.sqrt(empirical_rf_area)
         return empirical_rf_size
 
+    def compute(self, stimuli):
+        """
+        Compute empirical receptive field based on input stimulus
 
+        Parameter:
+        ---------
+        stimuli[Stimulus]: input stimuli which loaded from files on the disk.
+        
+        Return:
+        ---------
+        emp_rf[ndarray]: mean empirical receptive field of all the input images,
+                         its shape is equal to the theoretical rf size in specific layer
+        """
+        # loaded images
+        if not isinstance(stimuli, Stimulus):
+            raise TypeError('The input stimuli must be an instance of Stimulus!')
+        images = np.zeros((len(stimuli.get('stimID')),3,224,224), dtype=np.uint8)
+        for idx, img_id in enumerate(stimuli.get('stimID')):
+            image = plt.imread(pjoin(stimuli.header['path'], img_id)).transpose(2,0,1)
+            image = ip.resize(image, self.engine.dnn.img_size)
+            images[idx] = image
+        # prepare dnn info
+        dnn = self.engine.dnn
+        layer = self.engine.mask.layers[0]
+        chn = self.engine.mask.get(layer)['chn'][0]
+        # prepare rf info
+        the_rf = TheoreticalReceptiveField(dnn, layer, chn)
+        rf = the_rf.receptive_field()
+        layer_int = str(int(dnn.layer2loc[layer][-1])+1)
+        kernel_size = rf[layer_int]["output_shape"][2:]
+        rf_size = rf[layer_int]["r"]
+        rf_all = np.zeros((images.shape[0], int(rf_size), int(rf_size)), dtype=np.float32)
+        # start computing
+        for idx in range(images.shape[0]):
+            pic = images[idx]
+            # compute upsampling activation map
+            img_up = self.engine.compute(pic)
+            img_min = np.min(img_up)
+            # find the maximum activation in different theoretical rf
+            act_all = {}
+            patch_all = {}
+            range_all = {}
+            # loop to compare activations  
+            for unit_h in range(kernel_size[0]):
+                for unit_w in range(kernel_size[1]):
+                    rf_standard = np.full((int(rf_size), int(rf_size)), img_min, dtype=np.float32)
+                    unit = (unit_h, unit_w)
+                    the_rf.set_parameters(unit)
+                    rf_range = the_rf.find_region(rf)
+                    img_patch = img_up[int(rf_range[0][0]):int(rf_range[0][1]),
+                                       int(rf_range[1][0]):int(rf_range[1][1])]
+                    # enlarge the area if patch size less than rf size
+                    if img_patch.shape[0] < rf_size or img_patch.shape[1] < rf_size:
+                        rf_standard[0:img_patch.shape[0], 0:img_patch.shape[1]] = img_patch
+                    else:
+                        rf_standard = img_patch
+                    patch_act = np.mean(rf_standard)
+                    act_all[unit] = patch_act
+                    patch_all[unit] = img_patch
+                    range_all[unit] = rf_range
+            unit_max = max(act_all, key=act_all.get)
+            patch_max = patch_all[unit_max]
+            range_max = range_all[unit_max]
+            # integrate all patch 
+            if int(range_max[0][0]) == 0:
+                h_indice = (int(rf_size-patch_max.shape[0]), int(rf_size))
+            elif int(range_max[0][1]) == 224:
+                h_indice = (0, patch_max.shape[0])
+            else:
+                h_indice = (0, int(rf_size))
+            if int(range_max[1][0]) == 0:
+                w_indice = (int(rf_size-patch_max.shape[1]), int(rf_size))
+            elif int(range_max[1][1]) == 224:
+                w_indice = (0, patch_max.shape[1])
+            else:
+                w_indice = (0, int(rf_size))
+            rf_all[idx][h_indice[0]:h_indice[1],
+                        w_indice[0]:w_indice[1]] = patch_max
+        # compute mean and generate rf
+        emp_rf = np.mean(rf_all, axis=0).squeeze()
+        return emp_rf
+                    
 class TheoreticalReceptiveField(Algorithm):
     """
     A Class to Count Theoretical Receptive Field.
@@ -1215,8 +1292,18 @@ class TheoreticalReceptiveField(Algorithm):
         dnn[DNN]: dnnbrain's DNN object
         layer[str]: name of the layer where you focus on
         channel[int]: sequence number of the channel where you focus on
+        unit[tuple]: 
         """
         super(TheoreticalReceptiveField, self).__init__(dnn, layer, channel)
+    
+    def set_parameters(self, unit):
+        """
+        Parameter:
+        ---------
+        unit[tuple]: the unit location in its feature map
+        """
+        self.unit = unit
+        
         
     def compute(self):
         if self.dnn.__class__.__name__ == 'AlexNet':
@@ -1269,3 +1356,181 @@ class TheoreticalReceptiveField(Algorithm):
             kernel_size, stride, padding = self.net_struct['net'][layer]
             theoretical_rf_size = ((theoretical_rf_size - 1) * stride) + kernel_size
         return theoretical_rf_size
+    
+
+    def check_same(self, stride):
+        if isinstance(stride, (list, tuple)):
+            assert len(stride) == 2 and stride[0] == stride[1]
+            stride = stride[0]
+        return stride
+    
+    
+    def receptive_field(self, batch_size=-1, device="cuda", display=None):   
+        """
+        Compute specific receptive field information for target dnn 
+        Only support AlexNet, VGG11!
+
+        Parameter:
+        ---------
+        display[bool]: if True, it will show the receptive field information in a table
+        
+        Return:
+        ---------
+        receptive field[dict]: receptive field information which contain
+                               rf_size, feature_map_size, start, jump 
+        """
+        model = self.dnn.model
+        input_size = (3, *self.dnn.img_size)
+        def register_hook(module):
+            def hook(module, input, output):
+                class_name = str(module.__class__).split(".")[-1].split("'")[0]
+                module_idx = len(receptive_field)
+                m_key = "%i" % module_idx
+                p_key = "%i" % (module_idx - 1)
+                receptive_field[m_key] = OrderedDict()
+    
+                if not receptive_field["0"]["conv_stage"]:
+                    print("Enter in deconv_stage")
+                    receptive_field[m_key]["j"] = 0
+                    receptive_field[m_key]["r"] = 0
+                    receptive_field[m_key]["start"] = 0
+                else:
+                    p_j = receptive_field[p_key]["j"]
+                    p_r = receptive_field[p_key]["r"]
+                    p_start = receptive_field[p_key]["start"]
+                    if class_name == "Conv2d" or class_name == "MaxPool2d":
+                        kernel_size = module.kernel_size
+                        stride = module.stride
+                        padding = module.padding
+                        kernel_size, stride, padding = map(self.check_same,
+                                                           [kernel_size, stride, padding])
+                        receptive_field[m_key]["j"] = p_j * stride
+                        receptive_field[m_key]["r"] = p_r + (kernel_size - 1) * p_j
+                        receptive_field[m_key]["start"] = p_start + ((kernel_size - 1) / 2 - padding) * p_j
+                    elif class_name == "BatchNorm2d" or class_name == "ReLU" or class_name == "Bottleneck":
+                        receptive_field[m_key]["j"] = p_j
+                        receptive_field[m_key]["r"] = p_r
+                        receptive_field[m_key]["start"] = p_start
+                    elif class_name == "ConvTranspose2d":
+                        receptive_field["0"]["conv_stage"] = False
+                        receptive_field[m_key]["j"] = 0
+                        receptive_field[m_key]["r"] = 0
+                        receptive_field[m_key]["start"] = 0
+                    else:
+                        raise ValueError("module not ok")
+                        pass
+                receptive_field[m_key]["input_shape"] = list(input[0].size())
+                receptive_field[m_key]["input_shape"][0] = batch_size
+                if isinstance(output, (list, tuple)):
+                    receptive_field[m_key]["output_shape"] = [
+                        [-1] + list(o.size())[1:] for o in output
+                    ]
+                else:
+                    receptive_field[m_key]["output_shape"] = list(output.size())
+                    receptive_field[m_key]["output_shape"][0] = batch_size
+    
+            if (
+                not isinstance(module, nn.Sequential)
+                and not isinstance(module, nn.ModuleList)
+                and not (module == model)
+            ):
+                hooks.append(module.register_forward_hook(hook))
+    
+        device = device.lower()
+        assert device in [
+            "cuda",
+            "cpu",
+        ], "Input device is not valid, please specify 'cuda' or 'cpu'"
+    
+        if device == "cuda" and torch.cuda.is_available():
+            dtype = torch.cuda.FloatTensor
+        else:
+            dtype = torch.FloatTensor
+    
+        if isinstance(input_size[0], (list, tuple)):
+            x = [Variable(torch.rand(2, *in_size)).type(dtype) for in_size in input_size]
+        else:
+            x = Variable(torch.rand(2, *input_size)).type(dtype)
+    
+        receptive_field = OrderedDict()
+        receptive_field["0"] = OrderedDict()
+        receptive_field["0"]["j"] = 1.0
+        receptive_field["0"]["r"] = 1.0
+        receptive_field["0"]["start"] = 0.5
+        receptive_field["0"]["conv_stage"] = True
+        receptive_field["0"]["output_shape"] = list(x.size())
+        receptive_field["0"]["output_shape"][0] = batch_size
+        
+        hooks = []
+    
+        model.features.apply(register_hook)
+    
+        model(x)
+    
+        for h in hooks:
+            h.remove()
+                  
+        if display == True:
+            print("------------------------------------------------------------------------------")
+            line_new = "{:>20}  {:>10} {:>10} {:>10} {:>15} ".format("Layer (type)",
+                                                                     "map size",
+                                                                     "start",
+                                                                     "jump",
+                                                                     "rf")
+            print(line_new)
+            print("==============================================================================")
+            for layer in receptive_field:
+                assert "start" in receptive_field[layer], layer
+                assert len(receptive_field[layer]["output_shape"]) == 4
+                line_new = "{:7} {:12}  {:>10} {:>10} {:>10} {:>15} ".format(
+                    "",
+                    layer,
+                    str(receptive_field[layer]["output_shape"][2:]),
+                    str(receptive_field[layer]["start"]),
+                    str(receptive_field[layer]["j"]),
+                    format(str(receptive_field[layer]["r"]))
+                )
+                print(line_new)
+            print("==============================================================================")
+
+        receptive_field["input_size"] = input_size
+        
+        return receptive_field
+    
+    def find_region(self, receptive_field):
+        """
+        Compute specific receptive field range for target dnn, layer and unit
+
+        Parameter:
+        ---------
+        receptive field[dict]: receptive field information which contain
+                               rf_size, feature_map_size, start, jump 
+                               
+        Return:
+        ---------
+        rf_range[list]: the theoretical receptive field region 
+                        example:[(start_h, end_h), (start_w, end_w)] 
+        """
+        layer = str(int(self.dnn.layer2loc[self.mask.layers[0]][-1])+1)
+        input_shape = receptive_field["input_size"]
+        if layer in receptive_field:
+            rf_stats = receptive_field[layer]
+            assert len(self.unit) == 2
+            feat_map_lim = rf_stats['output_shape'][2:]
+            if np.any([self.unit[idx] < 0 or
+                       self.unit[idx] >= feat_map_lim[idx]
+                       for idx in range(2)]):
+                raise Exception("Unit position outside spatial extent of the feature tensor")
+            rf_range = [(rf_stats['start'] + idx * rf_stats['j'] - rf_stats['r'] / 2,
+                         rf_stats['start'] + idx * rf_stats['j'] + rf_stats['r'] / 2)
+                        for idx in self.unit]
+            if len(input_shape) == 2:
+                limit = input_shape
+            else:
+                limit = input_shape[1:3]
+            rf_range = [(max(0, rf_range[axis][0]), min(limit[axis], rf_range[axis][1])) for axis in range(2)]
+        else:
+            raise KeyError("Layer name incorrect, or not included in the model")
+
+        return rf_range
+    
