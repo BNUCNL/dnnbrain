@@ -631,24 +631,24 @@ class VggFace(DNN):
         self.model = VggFaceModel()
         self.model.load_state_dict(torch.load(
             pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
-        self.layer2loc = {'conv1_1': ('conv1_1',), 'conv1_1_relu': ('relu1_1',),
-                          'conv1_2': ('conv1_2',), 'conv1_2_relu': ('relu1_2',),
-                          'conv1_maxpool': ('pool1',), 'conv2_1': ('conv2_1',),
-                          'conv2_1_relu': ('relu2_1',), 'conv2_2': ('conv2_2',),
-                          'conv2_2_relu': ('relu2_2',), 'conv2_maxpool': ('pool2',),
-                          'conv3_1': ('conv3_1',), 'conv3_1_relu': ('relu3_1',),
-                          'conv3_2': ('conv3_2',), 'conv3_2_relu': ('relu3_2',),
-                          'conv3_3': ('conv3_3',), 'conv3_3_relu': ('relu3_3',),
-                          'conv3_maxpool': ('pool3',), 'conv4_1': ('conv4_1',),
-                          'conv4_1_relu': ('relu4_1',), 'conv4_2': ('conv4_2',),
-                          'conv4_2_relu': ('relu4_2',), 'conv4_3': ('conv4_3',),
-                          'conv4_3_relu': ('relu4_3',), 'conv4_maxpool': ('pool4',),
-                          'conv5_1': ('conv5_1',), 'conv5_1_relu': ('relu5_1',),
-                          'conv5_2': ('conv5_2',), 'conv5_2_relu': ('relu5_2',),
-                          'conv5_3': ('conv5_3',), 'conv5_3_relu': ('relu5_3',),
-                          'conv5_maxpool': ('pool5',), 'fc6': ('fc6',),
-                          'fc6_relu': ('relu6',), 'fc7': ('fc7',),
-                          'fc7_relu': ('relu7',), 'fc8': ('fc8',)}
+        self.layer2loc = {'conv1_1': ('conv1_1',), 'relu1_1': ('relu1_1',),
+                          'conv1_2': ('conv1_2',), 'relu1_2': ('relu1_2',),
+                          'pool1': ('pool1',), 'conv2_1': ('conv2_1',),
+                          'relu2_1': ('relu2_1',), 'conv2_2': ('conv2_2',),
+                          'relu2_2': ('relu2_2',), 'pool2': ('pool2',),
+                          'conv3_1': ('conv3_1',), 'relu3_1': ('relu3_1',),
+                          'conv3_2': ('conv3_2',), 'relu3_2': ('relu3_2',),
+                          'conv3_3': ('conv3_3',), 'relu3_3': ('relu3_3',),
+                          'pool3': ('pool3',), 'conv4_1': ('conv4_1',),
+                          'relu4_1': ('relu4_1',), 'conv4_2': ('conv4_2',),
+                          'relu4_2': ('relu4_2',), 'conv4_3': ('conv4_3',),
+                          'relu4_3': ('relu4_3',), 'pool4': ('pool4',),
+                          'conv5_1': ('conv5_1',), 'relu5_1': ('relu5_1',),
+                          'conv5_2': ('conv5_2',), 'relu5_2': ('relu5_2',),
+                          'conv5_3': ('conv5_3',), 'relu5_3': ('relu5_3',),
+                          'pool5': ('pool5',), 'fc6': ('fc6',),
+                          'relu6': ('relu6',), 'fc7': ('fc7',),
+                          'relu7': ('relu7',), 'fc8': ('fc8',)}
         self.img_size = (224, 224)
         self.train_transform = transforms.Compose([
             transforms.RandomResizedCrop(self.img_size),

@@ -1,4 +1,4 @@
-# Installation
+# Get Started
 ## Requirements
 - python>=3.6.7
 - numpy>=1.16.5
