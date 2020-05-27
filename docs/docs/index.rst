@@ -6,26 +6,26 @@ Concepts
 
 **built-in DNN**: The DNN that is encapsulated in DNNBrain with
 corresponding attributes and methods. For these built-in DNNs, DNNBrain
-has defined a `mapping <layer2module.html>`__ to help users approach to a
+has defined a :doc:`mapping <layer2module>` to help users approach to a
 module of DNN by a commonly used layer name.
 
-`File Format <file_format.html>`__
+:doc:`File Format <file_format>`
 ----------------------------------
 
 Command-Line Interfaces
 -----------------------
 
-| `db_info <cmd/db_info.html>`__
-| `dnn_act <cmd/dnn_act.html>`__
-| `dnn_fe <cmd/dnn_fe.html>`__
-| `dnn_view <cmd/dnn_view.html>`__
-| `dnn_mask <cmd/dnn_mask.html>`__
-| `dnn_pool <cmd/dnn_pool.html>`__
-| `dnn_minstim <cmd/dnn_minstim.html>`__
-| `dnn_rf_sw <cmd/dnn_rf_sw.html>`__
-| `dnn_rf_us <cmd/dnn_rf_us.html>`__
-| `dnn_topstim <cmd/dnn_topstim.html>`__
-| `dnn_saliency <cmd/dnn_saliency.html>`__
+| :doc:`db_info <cmd/db_info>`
+| :doc:`dnn_act <cmd/dnn_act>`
+| :doc:`dnn_fe <cmd/dnn_fe>`
+| :doc:`dnn_view <cmd/dnn_view>`
+| :doc:`dnn_mask <cmd/dnn_mask>`
+| :doc:`dnn_pool <cmd/dnn_pool>`
+| :doc:`dnn_minstim <cmd/dnn_minstim>`
+| :doc:`dnn_rf_sw <cmd/dnn_rf_sw>`
+| :doc:`dnn_rf_us <cmd/dnn_rf_us>`
+| :doc:`dnn_topstim <cmd/dnn_topstim>`
+| :doc:`dnn_saliency <cmd/dnn_saliency>`
 
 Python API
 ----------

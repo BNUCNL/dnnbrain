@@ -1,4 +1,4 @@
 DNNBrain Tutorials
 ==================
 
-`Scan DNN <scan_DNN.html>`__
+:doc:`Scan DNN <scan_DNN>`

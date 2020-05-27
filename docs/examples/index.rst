@@ -4,18 +4,18 @@ DNNBrain Examples
 Operate DNN Activation
 ----------------------
 
-`Extract DNN Activation <extract_dnn_activation.html>`__
+:doc:`Extract DNN Activation <extract_dnn_activation>`
 
 Visualization
 -------------
 
-| `Saliency Image <saliency_image.html>`__
-| `Synthesis Image <synthesis_image.html>`__
-| `Minimal Image <minimal_image.html>`__
-| `Occluder Map <occluder_map.html>`__
-| `Upsampling Map <upsampling_map.html>`__
+| :doc:`Saliency Image <saliency_image>`
+| :doc:`Synthesis Image <synthesis_image>`
+| :doc:`Minimal Image <minimal_image>`
+| :doc:`Occluder Map <occluder_map>`
+| :doc:`Upsampling Map <upsampling_map>`
 
 Train DNN
 ---------
 
-`Transfer Learning <transfer_learning.html>`__
+:doc:`Transfer Learning <transfer_learning>`
