@@ -7,7 +7,7 @@ Welcome to DNNBrain's documentation!
 ====================================
 
 .. toctree::
-   :numbered:
+   :numbered: 2
    :maxdepth: 2
    :caption: Contents:
    

@@ -27,5 +27,10 @@ Command-Line Interfaces
 | :doc:`dnn_topstim <cmd/dnn_topstim>`
 | :doc:`dnn_saliency <cmd/dnn_saliency>`
 
-Python API
-----------
+Python APIs
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   dnnbrain <pylib/dnnbrain>
