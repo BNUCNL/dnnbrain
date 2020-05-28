@@ -85,3 +85,46 @@ Other parameters will be freezed.
                           data_train=True, data_validation=stim_validation)
    dnn.save('alexnet_fixed_feature_extractor.pth')
 
+Plot information during training process
+----------------------------------------
+
+Some information during the training process will be returned and saved in :obj:`train_dict`, including the **loss of each epoch**, the **loss of each step**, and the **prediction score** on the **training data** and the **validation data** at the end of each epoch. :obj:`train_dict` is a :class:`dict`, and we can access these information according their keys as below:
+
+plot loss of each epoch:
+
+::
+
+   plt.figure()
+   plt.plot(train_dict['epoch_loss'])
+   plt.xlabel('epoch')
+   plt.ylabel('loss')
+
+.. image:: ../img/epoch_loss.png
+
+plot loss of each step:
+
+::
+
+   step_losses = []
+   for i in train_dict['step_loss']:
+       step_losses.extend(i)
+   
+   plt.figure()
+   plt.plot(step_losses)
+   plt.xlabel('step')
+   plt.ylabel('loss')
+
+.. image:: ../img/step_loss.png
+
+plot prediction scores on training and validation data:
+
+::
+
+   plt.figure()
+   plt.plot(train_dict['score_train'], label='train')
+   plt.plot(train_dict['score_validation'], label='validation')
+   plt.xlabel('epoch')
+   plt.ylabel('accuracy')
+   plt.legend()
+
+.. image:: ../img/train_val_acc.png
