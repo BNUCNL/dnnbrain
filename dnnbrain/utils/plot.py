@@ -3,8 +3,8 @@ import numpy as np
 
 
 def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
-                  figsize=(10, 6), cmap='coolwarm', frame_on=True, img_names=None,
-                  show=True, save_path=None):
+                  figsize=(10, 6), cmap='coolwarm', cbar=False, frame_on=True,
+                  img_names=None, show=True, save_path=None):
     """
     create a figure showing multiple images.
     
@@ -35,7 +35,9 @@ def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
             ax.set_ylabel(row_label[i//ncols])
         if img_names is not None:
             ax.set_xlabel(img_names[i])
-        ax.imshow(x[i], cmap=cmap, vmin=vmin, vmax=vmax)
+        img = ax.imshow(x[i], cmap=cmap, vmin=vmin, vmax=vmax)
+        if cbar:
+            fig.colorbar(img, ax=ax)
     plt.tight_layout()
     
     if save_path is not None:
