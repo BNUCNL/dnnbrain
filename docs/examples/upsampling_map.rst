@@ -36,7 +36,7 @@ Example
    # which displays the receptive field that contribute to 
    # the activation of the 122th unit of conv5.
    up_estimator =UpsamplingActivationMapping(dnn, 'conv5', 122)
-   up_estimator.set_params(ip_metric='bicubic', up_thres=0.95)
+   up_estimator.set_params(interp_meth='bicubic', interp_threshold=0.95)
    img_out = up_estimator.compute(image)
 
    # transform to PIL image and save out

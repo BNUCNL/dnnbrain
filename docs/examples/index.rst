@@ -14,6 +14,7 @@ Visualization
 | :doc:`Minimal Image <minimal_image>`
 | :doc:`Occluder Map <occluder_map>`
 | :doc:`Upsampling Map <upsampling_map>`
+| :doc:`Empirical Map <empirical_map>`
 
 Train DNN
 ---------

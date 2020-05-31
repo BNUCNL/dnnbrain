@@ -1146,6 +1146,9 @@ class EmpiricalReceptiveField():
         engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
             Must be an instance of UpsamplingActivationMapping or OccluderDiscrepancyMapping
         """
+        if not isinstance(engine, (UpsamplingActivationMapping, OccluderDiscrepancyMapping)):
+            raise TypeError('The engine must be an instance of' 
+                            'UpsamplingActivationMapping or OccluderDiscrepancyMapping!')
         self.engine = engine
 
     def generate_rf(self, all_thresed_act):
@@ -1223,7 +1226,7 @@ class EmpiricalReceptiveField():
         chn = self.engine.mask.get(layer)['chn'][0]
         # prepare rf info
         the_rf = TheoreticalReceptiveField(dnn, layer, chn)
-        rf = the_rf.receptive_field()
+        rf = the_rf.compute()
         layer_int = str(int(dnn.layer2loc[layer][-1])+1)
         kernel_size = rf[layer_int]["output_shape"][2:]
         rf_size = rf[layer_int]["r"]
@@ -1292,7 +1295,6 @@ class TheoreticalReceptiveField(Algorithm):
         dnn[DNN]: dnnbrain's DNN object
         layer[str]: name of the layer where you focus on
         channel[int]: sequence number of the channel where you focus on
-        unit[tuple]: 
         """
         super(TheoreticalReceptiveField, self).__init__(dnn, layer, channel)
     
@@ -1304,8 +1306,7 @@ class TheoreticalReceptiveField(Algorithm):
         """
         self.unit = unit
         
-        
-    def compute(self):
+    def compute_size(self):
         if self.dnn.__class__.__name__ == 'AlexNet':
             self.net_struct = {}
             self.net_struct['net'] = [[11, 4, 0], [3, 2, 0], [5, 1, 2], [3, 2, 0],
@@ -1356,29 +1357,24 @@ class TheoreticalReceptiveField(Algorithm):
             kernel_size, stride, padding = self.net_struct['net'][layer]
             theoretical_rf_size = ((theoretical_rf_size - 1) * stride) + kernel_size
         return theoretical_rf_size
-    
-
-    def check_same(self, stride):
-        if isinstance(stride, (list, tuple)):
-            assert len(stride) == 2 and stride[0] == stride[1]
-            stride = stride[0]
-        return stride
-    
-    
-    def receptive_field(self, batch_size=-1, device="cuda", display=None):   
+        
+    def compute(self, batch_size=-1, device="cuda", display=None):   
         """
         Compute specific receptive field information for target dnn 
         Only support AlexNet, VGG11!
 
         Parameter:
         ---------
+        batch_size[int]: the batch size used in computing
+        device[str]: Input device, please specify 'cuda' or 'cpu'
         display[bool]: if True, it will show the receptive field information in a table
         
         Return:
         ---------
-        receptive field[dict]: receptive field information which contain
+        receptive field[OrderedDict]: receptive field information which contain
                                rf_size, feature_map_size, start, jump 
         """
+        # define params
         model = self.dnn.model
         input_size = (3, *self.dnn.img_size)
         def register_hook(module):
@@ -1388,7 +1384,7 @@ class TheoreticalReceptiveField(Algorithm):
                 m_key = "%i" % module_idx
                 p_key = "%i" % (module_idx - 1)
                 receptive_field[m_key] = OrderedDict()
-    
+                # define computing formula
                 if not receptive_field["0"]["conv_stage"]:
                     print("Enter in deconv_stage")
                     receptive_field[m_key]["j"] = 0
@@ -1402,7 +1398,7 @@ class TheoreticalReceptiveField(Algorithm):
                         kernel_size = module.kernel_size
                         stride = module.stride
                         padding = module.padding
-                        kernel_size, stride, padding = map(self.check_same,
+                        kernel_size, stride, padding = map(self._check_same,
                                                            [kernel_size, stride, padding])
                         receptive_field[m_key]["j"] = p_j * stride
                         receptive_field[m_key]["r"] = p_r + (kernel_size - 1) * p_j
@@ -1441,17 +1437,16 @@ class TheoreticalReceptiveField(Algorithm):
             "cuda",
             "cpu",
         ], "Input device is not valid, please specify 'cuda' or 'cpu'"
-    
+        # define device in computing
         if device == "cuda" and torch.cuda.is_available():
             dtype = torch.cuda.FloatTensor
         else:
             dtype = torch.FloatTensor
-    
         if isinstance(input_size[0], (list, tuple)):
             x = [Variable(torch.rand(2, *in_size)).type(dtype) for in_size in input_size]
         else:
             x = Variable(torch.rand(2, *input_size)).type(dtype)
-    
+        # define init params
         receptive_field = OrderedDict()
         receptive_field["0"] = OrderedDict()
         receptive_field["0"]["j"] = 1.0
@@ -1460,19 +1455,17 @@ class TheoreticalReceptiveField(Algorithm):
         receptive_field["0"]["conv_stage"] = True
         receptive_field["0"]["output_shape"] = list(x.size())
         receptive_field["0"]["output_shape"][0] = batch_size
-        
+        # start computing
         hooks = []
-    
         model.features.apply(register_hook)
-    
         model(x)
-    
         for h in hooks:
             h.remove()
-                  
+        # provide interactive information
         if display == True:
-            print("------------------------------------------------------------------------------")
-            line_new = "{:>20}  {:>10} {:>10} {:>10} {:>15} ".format("Layer (type)",
+            print(f'Receptive Field Information of {self.dnn.__class__.__name__}'.center(80),
+                  "------------------------------------------------------------------------------")
+            line_new = "{:>18}  {:>10} {:>12} {:>11} {:>13} ".format("Layer (type)",
                                                                      "map size",
                                                                      "start",
                                                                      "jump",
@@ -1482,9 +1475,14 @@ class TheoreticalReceptiveField(Algorithm):
             for layer in receptive_field:
                 assert "start" in receptive_field[layer], layer
                 assert len(receptive_field[layer]["output_shape"]) == 4
-                line_new = "{:7} {:12}  {:>10} {:>10} {:>10} {:>15} ".format(
+                if layer == '0':
+                    layer_out = 'input'
+                else:
+                    layer_out = list(self.dnn.layer2loc.keys())[
+                            [x[-1] for x in self.dnn.layer2loc.values() if x[0] == 'features'].index(str(int(layer)-1))]
+                line_new = "{:5} {:14}  {:>10} {:>10} {:>10} {:>15} ".format(
                     "",
-                    layer,
+                    layer_out,
                     str(receptive_field[layer]["output_shape"][2:]),
                     str(receptive_field[layer]["start"]),
                     str(receptive_field[layer]["j"]),
@@ -1492,9 +1490,7 @@ class TheoreticalReceptiveField(Algorithm):
                 )
                 print(line_new)
             print("==============================================================================")
-
         receptive_field["input_size"] = input_size
-        
         return receptive_field
     
     def find_region(self, receptive_field):
@@ -1531,6 +1527,24 @@ class TheoreticalReceptiveField(Algorithm):
             rf_range = [(max(0, rf_range[axis][0]), min(limit[axis], rf_range[axis][1])) for axis in range(2)]
         else:
             raise KeyError("Layer name incorrect, or not included in the model")
-
         return rf_range
     
+    def _check_same(self, container):
+        """
+        Merge elements in the container if they are same
+
+        Parameter:
+        ---------
+        container[list|tuple]: the containers needed to handle
+        
+        Return:
+        ---------
+        element[int]: specific elements in the containers
+        """
+        if isinstance(container, (list, tuple)):
+            assert len(container) == 2 and container[0] == container[1]
+            element = container[0]
+        else:
+            element = container
+        return element
+        
