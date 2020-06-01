@@ -9,7 +9,7 @@ import argparse
 import numpy as np
 
 from scipy.spatial.distance import pdist
-from dnnbrain.dnn.core import Activation, RDM
+from dnnbrain.dnn.core import Activation, RDM, Stimulus
 from dnnbrain.utils.util import gen_dmask
 
 
@@ -46,11 +46,13 @@ def main():
                              "channel: Do rsa on each channel. "
                              "row_col: Do rsa on each location (row_idx, col_idx). "
                              "default: Do rsa on the whole layer.")
-    # parser.add_argument('-cate',
-    #                     metavar='Category',
-    #                     type=str,
-    #                     help='a .stim.csv file which contains category information '
-    #                          'If used, do rsa category-wise.')
+    parser.add_argument('-cate',
+                        metavar='Category',
+                        type=str,
+                        help="a .stim.csv file which contains category information (i.e. 'label' item)"
+                             "If used, do rsa category-wisely that average activation pattern "
+                             "before calculating the distance. And the row/column order of RDM is "
+                             "organized from small to big according to the 'label'.")
     parser.add_argument('-metric',
                         metavar='Metric',
                         type=str,
@@ -74,6 +76,29 @@ def main():
     activation.load(args.act, dmask)
     print('Finish loading activation: ', args.act)
     # -load activation end-
+
+    # -deal with category information-
+    if args.cate is not None:
+        # prepare labels
+        stim = Stimulus()
+        stim.load(args.cate)
+        n_stim = len(stim)
+        labels = stim.get('label')
+        labels_uniq = np.unique(labels)
+        labels_indices = [np.where(labels == label)[0] for label in labels_uniq]
+        n_label = len(labels_uniq)
+        print("Finished preparing {} labels' indices.".format(n_label))
+
+        # average within category
+        for layer in activation.layers:
+            activ = activation.get(layer)
+            assert n_stim == activ.shape[0]
+            _, n_chn, n_row, n_col = activ.shape
+
+            activ_new = np.zeros((n_label, n_chn, n_row, n_col))
+            for idx, label_indices in enumerate(labels_indices):
+                activ_new[idx] = np.mean(activ[label_indices], axis=0)
+            activation.set(layer, activ_new)
 
     rdm = RDM()
     rdm.rdm_type = 'dRDM'

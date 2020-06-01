@@ -8,3 +8,5 @@ dnn_rsa -act $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.act.h5 -dmask $D
 dnn_rsa -act $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.act.h5 -layer conv5 fc3 -metric euclidean -out $TMP_DIR/dnn_rsa_layer.rdm.h5
 
 dnn_rsa -act $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.act.h5 -out $TMP_DIR/dnn_rsa.rdm.h5
+
+dnn_rsa -act $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.act.h5 -cate $DNNBRAIN_DATA/test/image/sub-CSI1_ses-01_imagenet.stim.csv -out $TMP_DIR/dnn_rsa_cate.rdm.h5
