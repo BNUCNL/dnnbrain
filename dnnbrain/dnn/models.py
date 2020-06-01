@@ -571,11 +571,12 @@ class DNN:
 
 class AlexNet(DNN):
 
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super(AlexNet, self).__init__()
         self.model = tv_models.alexnet()
-        self.model.load_state_dict(torch.load(
-            pjoin(DNNBRAIN_MODEL, 'alexnet.pth')))
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'alexnet.pth')))
         self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
                           'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
                           'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
@@ -625,12 +626,13 @@ class AlexNet(DNN):
 
 class VggFace(DNN):
 
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super(VggFace, self).__init__()
 
         self.model = VggFaceModel()
-        self.model.load_state_dict(torch.load(
-            pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
         self.layer2loc = {'conv1_1': ('conv1_1',), 'relu1_1': ('relu1_1',),
                           'conv1_2': ('conv1_2',), 'relu1_2': ('relu1_2',),
                           'pool1': ('pool1',), 'conv2_1': ('conv2_1',),
@@ -685,12 +687,13 @@ class VggFace(DNN):
 
 class Vgg11(DNN):
 
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super(Vgg11, self).__init__()
 
         self.model = tv_models.vgg11()
-        self.model.load_state_dict(torch.load(
-            pjoin(DNNBRAIN_MODEL, 'vgg11.pth')))
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vgg11.pth')))
         self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
                           'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
                           'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
