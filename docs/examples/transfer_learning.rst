@@ -19,6 +19,7 @@ In this scenario, all parameters will be trained.
 ::
 
    import torch
+   import pickle as pkl
 
    from dnnbrain.dnn.models import AlexNet
    from dnnbrain.dnn.core import Stimulus
@@ -37,10 +38,15 @@ In this scenario, all parameters will be trained.
    # replacement
    dnn.model.classifier[6] = torch.nn.Linear(n_in_feat, 2)
 
-   # ---train the DNN and save parameters---
+   # ---train the DNN and save out---
    train_dict = dnn.train(stim_train, 50, 'classification', 
                           data_train=True, data_validation=stim_validation)
-   dnn.save('alexnet_finetune.pth')
+   
+   # save information of training process
+   pkl.dump(train_dict, open('train_dict.pkl', 'wb'))
+   
+   # save parameters of the retrained DNN
+   dnn.save('alexnet_tl.pth')
 
 Scenario 2: fixed feature extractor
 -----------------------------------
@@ -51,6 +57,7 @@ Other parameters will be freezed.
 ::
 
    import torch
+   import pickle as pkl
 
    from dnnbrain.dnn.models import AlexNet
    from dnnbrain.dnn.core import Stimulus
@@ -80,10 +87,15 @@ Other parameters will be freezed.
    # pass the last FC layer's parameters to the optimizer
    optimizer = torch.optim.Adam(dnn.model.classifier[6].parameters(), lr)
 
-   # ---train the DNN and save parameters---
+   # ---train the DNN and save out---
    train_dict = dnn.train(stim_train, n_epoch, 'classification', optimizer,
                           data_train=True, data_validation=stim_validation)
-   dnn.save('alexnet_fixed_feature_extractor.pth')
+   
+   # save information of training process
+   pkl.dump(train_dict, open('train_dict.pkl', 'wb'))
+   
+   # save parameters of the retrained DNN
+   dnn.save('alexnet_tl.pth')
 
 Plot information during training process
 ----------------------------------------
@@ -94,10 +106,13 @@ plot loss of each epoch:
 
 ::
 
+   from matplotlib import pyplot as plt
+   
    plt.figure()
    plt.plot(train_dict['epoch_loss'])
    plt.xlabel('epoch')
    plt.ylabel('loss')
+   plt.show()
 
 .. image:: ../img/epoch_loss.png
 
@@ -113,6 +128,7 @@ plot loss of each step:
    plt.plot(step_losses)
    plt.xlabel('step')
    plt.ylabel('loss')
+   plt.show()
 
 .. image:: ../img/step_loss.png
 
@@ -126,5 +142,26 @@ plot prediction scores on training and validation data:
    plt.xlabel('epoch')
    plt.ylabel('accuracy')
    plt.legend()
+   plt.show()
 
 .. image:: ../img/train_val_acc.png
+
+Reload the trained parameters
+-----------------------------
+
+::
+
+   import torch
+   
+   from dnnbrain.dnn.models import AlexNet
+   
+   # ---replace the final FC layer with a new one---
+   # initialize DNN
+   dnn = AlexNet(False)
+   # get the number of input features of the final FC layer
+   n_in_feat = dnn.model.classifier[6].in_features
+   # replacement
+   dnn.model.classifier[6] = torch.nn.Linear(n_in_feat, 2)
+   
+   # ---load retrained parameters---
+   dnn.model.load_state_dict(torch.load('alexnet_tl.pth'))
