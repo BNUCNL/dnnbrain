@@ -8,6 +8,7 @@ import time
 import argparse
 import numpy as np
 
+from scipy.stats import zscore
 from scipy.spatial.distance import pdist
 from dnnbrain.brain.io import load_brainimg
 from dnnbrain.dnn.core import RDM, Stimulus
@@ -46,6 +47,9 @@ def main():
                         type=str,
                         default='euclidean',
                         help="Specify metric used to calculate distance.")
+    parser.add_argument('-zscore',
+                        action='store_true',
+                        help="Standardize feature values for each sample by using zscore.")
     parser.add_argument('-out',
                         metavar='Output',
                         required=True,
@@ -62,31 +66,39 @@ def main():
     else:
         rois = args.roi
 
-    # -deal with category information-
+    # -prepare category indices-
     if args.cate is not None:
-        # prepare labels
         stim = Stimulus()
         stim.load(args.cate)
-        n_stim = len(stim)
+        assert len(stim) == data.shape[0]
+
+        # deal with labels
         labels = stim.get('label')
         labels_uniq = np.unique(labels)
         labels_indices = [np.where(labels == label)[0] for label in labels_uniq]
         n_label = len(labels_uniq)
-        print("Finished preparing {} labels' indices.".format(n_label))
-
-        # average within category
-        assert n_stim == data.shape[0]
-        data_new = np.zeros((n_label, *data.shape[1:]))
-        for idx, label_indices in enumerate(labels_indices):
-            data_new[idx] = np.mean(data[label_indices], axis=0)
-        data = data_new
+        print("Finished preparing {} categories' indices.".format(n_label))
 
     # calculate RDM
     rdm = RDM()
     rdm.rdm_type = 'bRDM'
     for roi in rois:
         time1 = time.time()
+        # get ROI pattern
         X = data[:, bmask == roi]
+
+        if args.zscore:
+            print('Standardizing ROI{} pattern for each sample.'.format(roi))
+            X = zscore(X, 1)
+
+        if args.cate is not None:
+            print('Averaging ROI{} pattern within each category.'.format(roi))
+            X_tmp = np.zeros((n_label, X.shape[1]))
+            for idx, label_indices in enumerate(labels_indices):
+                X_tmp[idx] = np.mean(X[label_indices], axis=0)
+            X = X_tmp
+
+        # calculate RDM
         rdm_arr = pdist(X, metric=args.metric)
         rdm.set(str(roi), rdm_arr, triu=True)
         print('Finished roi{}: cost {} seconds'.format(
