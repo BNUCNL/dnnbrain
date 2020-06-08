@@ -89,6 +89,13 @@ def main():
                         help='Select a model to predict brain responses by dnn activation. '
                              'Use glm (general linear model) for regression. '
                              'Use lasso (lasso regression) for regression.')
+    parser.add_argument('-scoring',
+                        metavar='Scoring',
+                        type=str,
+                        default='explained_variance',
+                        help="model evaluation rules: "
+                             "correlation or sklearn scoring parameters"
+                             "Default is explained_variance.")
     parser.add_argument('-cv',
                         metavar='CrossValidationFoldNumber',
                         type=int,
@@ -139,7 +146,7 @@ def main():
 
     # -prediction start-
     time1 = time.time()
-    encoder = BrainEncoder(Y, args.anal, args.model, args.cv)
+    encoder = BrainEncoder(Y, args.anal, args.model, args.cv, args.scoring)
     encode_dict = encoder.encode_dnn(activation, args.iteraxis)
     print('Finish prediction: cost {} seconds.'.format(time.time()-time1))
     # -prediction end-
