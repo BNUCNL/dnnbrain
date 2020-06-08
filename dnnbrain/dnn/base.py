@@ -14,9 +14,15 @@ from sklearn.svm import SVC
 from sklearn.model_selection import cross_val_score, StratifiedKFold
 from sklearn.metrics import pairwise_distances, confusion_matrix
 from scipy.signal import periodogram
+from scipy.stats import pearsonr
 from torchvision import transforms
 
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
+
+
+def correlation_score(regressor, X, y):
+    y_preds = regressor.predict(X)
+    return pearsonr(y, y_preds)[0]
 
 
 def normalize(array):
@@ -544,15 +550,18 @@ def cross_val_confusion(classifier, X, y, cv=None):
 
 class UnivariatePredictionModel:
 
-    def __init__(self, model_name=None, cv=3):
+    def __init__(self, model_name=None, cv=3, scoring=None):
         """
         Parameters:
-        ----------
+        -----------
         model_name[str]: name of a model used to do prediction
             If is 'corr', it just uses correlation rather than prediction.
         cv[int]: cross validation fold number
+        scoring : str
+            model evaluation rule
         """
         self.set(model_name, cv)
+        self.set_scoring(scoring)
 
     def set(self, model_name=None, cv=None):
         """
@@ -586,6 +595,31 @@ class UnivariatePredictionModel:
 
         if cv is not None:
             self.cv = cv
+
+    def set_scoring(self, scoring):
+        """
+        Parameters:
+        -----------
+        scoring : str
+            model evaluation rule
+        """
+        if scoring is None:
+            self.scoring = None
+        elif hasattr(self, 'model_type'):
+            if self.model_type == 'classifier':
+                print("The model evaluation rule of a classifier "
+                      "is fixed as accuracy and confusion matrix.")
+                self.scoring = None
+            elif self.model_type == 'regressor':
+                if scoring == 'correlation':
+                    self.scoring = correlation_score
+                else:
+                    self.scoring = scoring
+            else:
+                print("Univariate analysis doesn't need model evaluation rule.")
+                self.scoring = None
+        else:
+            raise RuntimeError("You have to set model first!")
 
     def predict(self, X, Y):
         """
@@ -621,7 +655,7 @@ class UnivariatePredictionModel:
         If model_type == 'regressor',
             pred_dict[dict]:
                 max_score[ndarray]: shape=(n_target,)
-                    Each element is the maximal explained variance
+                    Each element is the maximal score
                     among all features predicting to the corresponding target.
                 max_loc[ndarray]: shape=(n_target,)
                     Each element is a location of the feature which makes the max score.
@@ -629,7 +663,7 @@ class UnivariatePredictionModel:
                     Each element is a model fitted by
                     the feature at the max loc and the corresponding target.
                 score[ndarray]: shape=(n_target, cv)
-                    Each row contains explained variances of each cross validation folds,
+                    Each row contains scores of each cross validation folds,
                     when using the feature at the max loc to predict the corresponding target.
         If model_type == 'corr',
             pred_dict[dict]:
@@ -676,7 +710,7 @@ class UnivariatePredictionModel:
                 scores_cv = np.zeros((n_feat, self.cv))
                 for feat_idx in range(n_feat):
                     scores_cv[feat_idx] = cross_val_score(self.model, X[:, [feat_idx]], y,
-                                                          scoring='explained_variance', cv=self.cv)
+                                                          scoring=self.scoring, cv=self.cv)
                 scores_tmp = np.mean(scores_cv, 1)
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
@@ -708,14 +742,17 @@ class UnivariatePredictionModel:
 
 class MultivariatePredictionModel:
 
-    def __init__(self, model_name=None, cv=3):
+    def __init__(self, model_name=None, cv=3, scoring=None):
         """
         Parameters:
         ----------
         model_name[str]: name of a model used to do prediction
         cv[int]: cross validation fold number
+        scoring : str
+            model evaluation rule
         """
         self.set(model_name, cv)
+        self.set_scoring(scoring)
 
     def set(self, model_name=None, cv=None):
         """
@@ -746,6 +783,28 @@ class MultivariatePredictionModel:
         if cv is not None:
             self.cv = cv
 
+    def set_scoring(self, scoring):
+        """
+        Parameters:
+        -----------
+        scoring : str
+            model evaluation rule
+        """
+        if scoring is None:
+            self.scoring = None
+        elif hasattr(self, 'model_type'):
+            if self.model_type == 'classifier':
+                print("The model evaluation rule of a classifier "
+                      "is fixed as accuracy and confusion matrix.")
+                self.scoring = None
+            else:
+                if scoring == 'correlation':
+                    self.scoring = correlation_score
+                else:
+                    self.scoring = scoring
+        else:
+            raise RuntimeError("You have to set model first!")
+
     def predict(self, X, Y):
         """
         Use all columns of X to predict each column of Y.
@@ -771,7 +830,7 @@ class MultivariatePredictionModel:
         If model_type == 'regressor',
             pred_dict[dict]:
                 score[ndarray]: shape=(n_target, cv)
-                    Each row contains explained variances of each cross validation folds,
+                    Each row contains scores of each cross validation folds,
                     when using all features to predict the corresponding target.
                 model[ndarray]: shape=(n_target,)
                     Each element is a model fitted by all features and the corresponding target.
@@ -797,7 +856,7 @@ class MultivariatePredictionModel:
                 pred_dict['conf_m'][trg_idx] = conf_ms
             else:
                 scores_tmp = cross_val_score(self.model, X, y,
-                                             scoring='explained_variance', cv=self.cv)
+                                             scoring=self.scoring, cv=self.cv)
             # recording
             pred_dict['score'][trg_idx] = scores_tmp
             pred_dict['model'][trg_idx] = deepcopy(self.model.fit(X, y))

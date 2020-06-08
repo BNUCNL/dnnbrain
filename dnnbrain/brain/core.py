@@ -300,7 +300,8 @@ class BrainEncoder:
     """
     Encode DNN activation or behavior data to brain activation.
     """
-    def __init__(self, brain_activ=None, model_type=None, model_name=None, cv=3):
+    def __init__(self, brain_activ=None, model_type=None, model_name=None,
+                 cv=3, scoring=None):
         """
         Parameters:
         ----------
@@ -314,8 +315,11 @@ class BrainEncoder:
             If is 'corr', it just uses correlation rather than prediction.
                 And the model_type must be 'uv'.
         cv[int]: cross validation fold number
+        scoring : str
+            model evaluation rule
         """
         self.set(brain_activ, model_type, model_name, cv)
+        self.set_scoring(scoring)
 
     def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
         """
@@ -355,6 +359,15 @@ class BrainEncoder:
             if not hasattr(self, 'model'):
                 raise RuntimeError('You have to set model_type first!')
             self.model.set(cv=cv)
+
+    def set_scoring(self, scoring):
+        """
+        Parameters:
+        -----------
+        scoring : str
+            model evaluation rule
+        """
+        self.model.set_scoring(scoring)
 
     def encode_dnn(self, dnn_activ, iter_axis=None):
         """
