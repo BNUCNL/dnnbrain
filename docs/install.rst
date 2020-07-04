@@ -139,8 +139,8 @@ Variables”. Then:
 - You can use the following commands in PowerShell to complete the above 3 steps (Please replace the real path with the path between asterisks)
 ::
 
-    $path_to_dnnbrain_data = *path_to_dnnbrain_data*
-    [environment]::SetEnvironmentvariable($path_to_dnnbrain_data, $new_path, "User")
+    $new_path = *path_to_dnnbrain_data*
+    [environment]::SetEnvironmentvariable('DNNBRAIN_DATA', $new_path, "User")
 
     $old_path = [environment]::GetEnvironmentvariable("PATH", "User")
     $path_to_dnnbrain_data_bin = *path_to_dnnbrain_data_bin*
