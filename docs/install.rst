@@ -132,12 +132,29 @@ Menu —> Control Panel —> Advanced System Settings —> Environment
 Variables”. Then:
 
 -  Create a new environment variable named DNNBRAIN_DATA with value as
-   *path_to_dnnbrain_data*.
+   *path_to_dnnbrain_data*, 
 -  Add *path_to_dnnbrain_bin* to PATH.
 -  Add *path_to_dnnbrain* to PYTHONPATH (If PYTHONPATH is not existed,
    create a new one).
 
 Separate multiple paths with semicolons (;).
+
+Alternatively, you can use the following commands in PowerShell to complete the above 3 steps (Please replace the path between asterisks with the real path, such as the \*path_to_dnnbrain\* should be replaced by the \'F:\\Python3.6.5\\Lib\\site-packages\\dnnbrain\')
+
+::
+
+    $new_path = *path_to_dnnbrain_data*
+    [environment]::SetEnvironmentvariable('DNNBRAIN_DATA', $new_path, "User")
+
+    $old_path = [environment]::GetEnvironmentvariable("PATH", "User")
+    $path_to_dnnbrain_data_bin = *path_to_dnnbrain_data_bin*
+    $new_path=$old_path,$path_to_dnnbrain_data_bin -Join ";"
+    [environment]::SetEnvironmentvariable("PATH", $new_path, "User")
+
+    $old_path = [environment]::GetEnvironmentvariable("PYTHONPATH", "User")
+    $path_to_dnnbrain = *path_to_dnnbrain*
+    $new_path=$old_path,$path_to_dnnbrain -Join ";"
+    [environment]::SetEnvironmentvariable("PYTHONPATH", $new_path, "User")
 
 Download DNN parameters
 -----------------------
