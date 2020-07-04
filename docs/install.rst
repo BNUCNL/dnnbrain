@@ -139,7 +139,7 @@ Variables”. Then:
 
 Separate multiple paths with semicolons (;).
 
-Alternatively, you can use the following commands in PowerShell to complete the above 3 steps (Please replace the path between asterisks with the real path, such as the *path_to_dnnbrain* should be replaced by the \'F:\\Python3.6.5\\Lib\\site-packages\\dnnbrain\')
+Alternatively, you can use the following commands in PowerShell to complete the above 3 steps (Please replace the path between asterisks with the real path, such as the \*path_to_dnnbrain\* should be replaced by the \'F:\\Python3.6.5\\Lib\\site-packages\\dnnbrain\')
 
 ::
 
