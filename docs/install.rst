@@ -136,7 +136,7 @@ Variables”. Then:
 -  Add *path_to_dnnbrain_bin* to PATH.
 -  Add *path_to_dnnbrain* to PYTHONPATH (If PYTHONPATH is not existed,
    create a new one).
-- You can use the following commands in PowerShell to complete the above 3 steps (Please replace the real path with the path between asterisks)
+- You can use the following commands in PowerShell to complete the above 3 steps (Please replace the actual path with the path between asterisks, e.g., the actual path of *path_to_dnnbrain* is 'F:\Python3.6.5\Lib\site-packages\dnnbrain')
 ::
 
     $new_path = *path_to_dnnbrain_data*
