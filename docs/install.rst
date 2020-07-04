@@ -139,10 +139,8 @@ Variables”. Then:
 - You can use the following commands in PowerShell to complete the above 3 steps (Please replace the real path with the path between asterisks)
 ::
 
-    $old_path = [environment]::GetEnvironmentvariable("DNNBRAIN_DATA", "User")
     $path_to_dnnbrain_data = *path_to_dnnbrain_data*
-    $new_path=$old_path,$path_to_dnnbrain_data -Join ";"
-    [environment]::SetEnvironmentvariable("DNNBRAIN_DATA", $new_path, "User")
+    [environment]::SetEnvironmentvariable($path_to_dnnbrain_data, $new_path, "User")
 
     $old_path = [environment]::GetEnvironmentvariable("PATH", "User")
     $path_to_dnnbrain_data_bin = *path_to_dnnbrain_data_bin*
@@ -153,7 +151,6 @@ Variables”. Then:
     $path_to_dnnbrain = *path_to_dnnbrain*
     $new_path=$old_path,$path_to_dnnbrain -Join ";"
     [environment]::SetEnvironmentvariable("PYTHONPATH", $new_path, "User")
-
 
 
 Separate multiple paths with semicolons (;).
