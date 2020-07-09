@@ -221,10 +221,12 @@ class Activation:
         """
         Load DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        fname : str
+            DNN activation file
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
         """
         if dmask is not None:
             dmask_dict = dict()
