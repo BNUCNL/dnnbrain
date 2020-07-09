@@ -7,12 +7,14 @@ Requirements
 -  python>=3.6.7
 -  numpy>=1.16.5
 -  nibabel>=2.4.1
+-  nipy>=0.4.2
 -  h5py>=2.9.0
 -  pandas>=0.24.2
 -  scikit-image>=0.15.0
 -  scikit-learn>=0.19.1
 -  scipy>=1.3.1
--  pytorch>=1.3.0
+-  torch>=1.3.0
+-  torchvision>=0.4.2
 -  pillow>=6.0.0
 -  opencv-python>=4.1.0.25
 -  matplotlib>=2.2.2
