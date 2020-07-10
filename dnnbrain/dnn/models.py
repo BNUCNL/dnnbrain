@@ -372,7 +372,7 @@ class DNN:
                 stim_set = [(img, trg) for img, trg in zip(stim_set[:][0], target)]
         else:
             raise TypeError('The input data must be an instance of ndarray or Stimulus!')
-        data_loader = DataLoader(stim_set, 8, shuffle=True)
+        data_loader = DataLoader(stim_set, 64, shuffle=True)
 
         # prepare criterion
         if task == 'classification':
