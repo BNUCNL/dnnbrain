@@ -743,3 +743,92 @@ class Vgg11(DNN):
             module = module._modules[k]
 
         return module
+
+
+class Vgg19_bn(DNN):
+
+    def __init__(self, pretrained=True):
+        super(Vgg19_bn, self).__init__()
+
+        self.model = tv_models.vgg19_bn()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vgg19_bn.pth')))
+        self.layer2loc = {'conv1':          ('features', '0'),
+                          'conv1_relu':     ('features', '1'),
+                          'conv2':          ('features', '2'),
+                          'conv2_relu':     ('features', '3'),
+                          'conv2_maxpool':  ('features', '4'),
+                          'conv3':          ('features', '5'),
+                          'conv3_relu':     ('features', '6'),
+                          'conv4':          ('features', '7'),
+                          'conv4_relu':     ('features', '8'),
+                          'conv4_maxpool':  ('features', '9'),
+                          'conv5':          ('features', '10'),
+                          'conv5_relu':     ('features', '11'),
+                          'conv6':          ('features', '12'),
+                          'conv6_relu':     ('features', '13'),
+                          'conv7':          ('features', '14'),
+                          'conv7_relu':     ('features', '15'),
+                          'conv8':          ('features', '16'),
+                          'conv8_relu':     ('features', '17'),
+                          'conv8_maxpool':  ('features', '18'),
+                          'conv9':          ('features', '19'),
+                          'conv9_relu':     ('features', '20'),
+                          'conv10':         ('features', '21'),
+                          'conv10_relu':    ('features', '22'),
+                          'conv11':         ('features', '23'),
+                          'conv11_relu':    ('features', '24'),
+                          'conv12':         ('features', '25'),
+                          'conv12_relu':    ('features', '26'),
+                          'conv12_maxpool': ('features', '27'),
+                          'conv13':         ('features', '28'),
+                          'conv13_relu':    ('features', '29'),
+                          'conv14':         ('features', '30'),
+                          'conv14_relu':    ('features', '31'),
+                          'conv15':         ('features', '32'),
+                          'conv15_relu':    ('features', '33'),
+                          'conv16':         ('features', '34'),
+                          'conv16_relu':    ('features', '35'),
+                          'conv16_maxpool': ('features', '36'),
+                          'fc1':            ('classifier', '0'),
+                          'fc1_relu':       ('classifier', '1'),
+                          'fc2':            ('classifier', '3'),
+                          'fc2_relu':       ('classifier', '4'),
+                          'fc3':            ('classifier', '6'), }
+        self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameter:
+        ---------
+        layer[str]: layer name
+
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
