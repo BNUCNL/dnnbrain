@@ -743,3 +743,105 @@ class Vgg11(DNN):
             module = module._modules[k]
 
         return module
+
+                                
+class Vgg19_bn(DNN):
+    def __init__(self, pretrained=True):
+        super(Vgg19_bn, self).__init__()
+        self.model = tv_models.vgg19_bn()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vgg19_bn.pth')))
+        self.layer2loc = {'conv1': ('features', '0'),
+                          'conv1_relu': ('features', '1'),
+                          'conv1_bn': ('features', '2'),
+                          'conv2': ('features', '3'),
+                          'conv2_bn': ('features', '4'),
+                          'conv2_relu': ('features', '5'),
+                          'conv2_maxpool': ('features', '6'),
+                          'conv3': ('features', '7'),
+                          'conv3_bn': ('features', '8'),
+                          'conv3_relu': ('features', '9'),
+                          'conv4': ('features', '10'),
+                          'conv4_bn': ('features', '11'),
+                          'conv4_relu': ('features', '12'),
+                          'conv4_maxpool': ('features', '13'),
+                          'conv5': ('features', '14'),
+                          'conv5_bn': ('features', '15'),
+                          'conv5_relu': ('features', '16'),
+                          'conv6': ('features', '17'),
+                          'conv6_bn': ('features', '18'),
+                          'conv6_relu': ('features', '19'),
+                          'conv7': ('features', '20'),
+                          'conv7_bn': ('features', '21'),
+                          'conv7_relu': ('features', '22'),
+                          'conv8': ('features', '23'),
+                          'conv8_bn': ('features', '24'),
+                          'conv8_relu': ('features', '25'),
+                          'conv8_maxpool': ('features', '26'),
+                          'conv9': ('features', '27'),
+                          'conv9_bn': ('features', '28'),
+                          'conv9_relu': ('features', '29'),
+                          'conv10': ('features', '30'),
+                          'conv10_bn': ('features', '31'),
+                          'conv10_relu': ('features', '32'),
+                          'conv11': ('features', '33'),
+                          'conv11_bn': ('features', '34'),
+                          'conv11_relu': ('features', '35'),
+                          'conv12': ('features', '36'),
+                          'conv12_bn': ('features', '37'),
+                          'conv12_relu': ('features', '38'),
+                          'conv12_maxpool': ('features', '39'),
+                          'conv13': ('features', '40'),
+                          'conv13_bn': ('features', '41'),
+                          'conv13_relu': ('features', '42'),
+                          'conv14': ('features', '43'),
+                          'conv14_bn': ('features', '44'),
+                          'conv14_relu': ('features', '45'),
+                          'conv15': ('features', '46'),
+                          'conv15_bn': ('features', '47'),
+                          'conv15_relu': ('features', '48'),
+                          'conv16': ('features', '49'),
+                          'conv16_bn': ('features', '50'),
+                          'conv16_relu': ('features', '51'),
+                          'conv16_maxpool': ('features', '52'),
+                          'fc1': ('classifier', '0'),
+                          'fc1_relu': ('classifier', '1'),
+                          'fc2': ('classifier', '3'),
+                          'fc2_relu': ('classifier', '4'),
+                          'fc3': ('classifier', '6'), }
+        self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+        Parameter:
+        ---------
+        layer[str]: layer name
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
+
