@@ -633,15 +633,24 @@ class AlexNet(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'alexnet.pth')))
-        self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                          'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                          'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                          'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                          'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                          'conv5': ('features', '10'), 'conv5_relu': ('features', '11'),
-                          'conv5_maxpool': ('features', '12'), 'fc1': ('classifier', '1'),
-                          'fc1_relu': ('classifier', '2'), 'fc2': ('classifier', '4'),
-                          'fc2_relu': ('classifier', '5'), 'fc3': ('classifier', '6')}
+        self.layer2loc = {'conv1':          ('features', '0'),
+                          'conv1_relu':     ('features', '1'),
+                          'conv1_maxpool':  ('features', '2'),
+                          'conv2':          ('features', '3'),
+                          'conv2_relu':     ('features', '4'),
+                          'conv2_maxpool':  ('features', '5'),
+                          'conv3':          ('features', '6'),
+                          'conv3_relu':     ('features', '7'),
+                          'conv4':          ('features', '8'),
+                          'conv4_relu':     ('features', '9'),
+                          'conv5':          ('features', '10'),
+                          'conv5_relu':     ('features', '11'),
+                          'conv5_maxpool':  ('features', '12'),
+                          'fc1':            ('classifier', '1'),
+                          'fc1_relu':       ('classifier', '2'),
+                          'fc2':            ('classifier', '4'),
+                          'fc2_relu':       ('classifier', '5'),
+                          'fc3':            ('classifier', '6')}
         self.img_size = (224, 224)
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
@@ -699,24 +708,42 @@ class VggFace(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'vgg_face_dag.pth')))
-        self.layer2loc = {'conv1_1': ('conv1_1',), 'relu1_1': ('relu1_1',),
-                          'conv1_2': ('conv1_2',), 'relu1_2': ('relu1_2',),
-                          'pool1': ('pool1',), 'conv2_1': ('conv2_1',),
-                          'relu2_1': ('relu2_1',), 'conv2_2': ('conv2_2',),
-                          'relu2_2': ('relu2_2',), 'pool2': ('pool2',),
-                          'conv3_1': ('conv3_1',), 'relu3_1': ('relu3_1',),
-                          'conv3_2': ('conv3_2',), 'relu3_2': ('relu3_2',),
-                          'conv3_3': ('conv3_3',), 'relu3_3': ('relu3_3',),
-                          'pool3': ('pool3',), 'conv4_1': ('conv4_1',),
-                          'relu4_1': ('relu4_1',), 'conv4_2': ('conv4_2',),
-                          'relu4_2': ('relu4_2',), 'conv4_3': ('conv4_3',),
-                          'relu4_3': ('relu4_3',), 'pool4': ('pool4',),
-                          'conv5_1': ('conv5_1',), 'relu5_1': ('relu5_1',),
-                          'conv5_2': ('conv5_2',), 'relu5_2': ('relu5_2',),
-                          'conv5_3': ('conv5_3',), 'relu5_3': ('relu5_3',),
-                          'pool5': ('pool5',), 'fc6': ('fc6',),
-                          'relu6': ('relu6',), 'fc7': ('fc7',),
-                          'relu7': ('relu7',), 'fc8': ('fc8',)}
+        self.layer2loc = {'conv1_1': ('conv1_1',),
+                          'relu1_1': ('relu1_1',),
+                          'conv1_2': ('conv1_2',),
+                          'relu1_2': ('relu1_2',),
+                          'pool1':   ('pool1',),
+                          'conv2_1': ('conv2_1',),
+                          'relu2_1': ('relu2_1',),
+                          'conv2_2': ('conv2_2',),
+                          'relu2_2': ('relu2_2',),
+                          'pool2':   ('pool2',),
+                          'conv3_1': ('conv3_1',),
+                          'relu3_1': ('relu3_1',),
+                          'conv3_2': ('conv3_2',),
+                          'relu3_2': ('relu3_2',),
+                          'conv3_3': ('conv3_3',),
+                          'relu3_3': ('relu3_3',),
+                          'pool3':   ('pool3',),
+                          'conv4_1': ('conv4_1',),
+                          'relu4_1': ('relu4_1',),
+                          'conv4_2': ('conv4_2',),
+                          'relu4_2': ('relu4_2',),
+                          'conv4_3': ('conv4_3',),
+                          'relu4_3': ('relu4_3',),
+                          'pool4':   ('pool4',),
+                          'conv5_1': ('conv5_1',),
+                          'relu5_1': ('relu5_1',),
+                          'conv5_2': ('conv5_2',),
+                          'relu5_2': ('relu5_2',),
+                          'conv5_3': ('conv5_3',),
+                          'relu5_3': ('relu5_3',),
+                          'pool5':   ('pool5',),
+                          'fc6':     ('fc6',),
+                          'relu6':   ('relu6',),
+                          'fc7':     ('fc7',),
+                          'relu7':   ('relu7',),
+                          'fc8':     ('fc8',)}
         self.img_size = (224, 224)
         self.train_transform = transforms.Compose([
             transforms.RandomResizedCrop(self.img_size),
@@ -770,19 +797,32 @@ class Vgg11(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'vgg11.pth')))
-        self.layer2loc = {'conv1': ('features', '0'), 'conv1_relu': ('features', '1'),
-                          'conv1_maxpool': ('features', '2'), 'conv2': ('features', '3'),
-                          'conv2_relu': ('features', '4'), 'conv2_maxpool': ('features', '5'),
-                          'conv3': ('features', '6'), 'conv3_relu': ('features', '7'),
-                          'conv4': ('features', '8'), 'conv4_relu': ('features', '9'),
-                          'conv4_maxpool': ('features', '10'), 'conv5': ('features', '11'),
-                          'conv5_relu': ('features', '12'), 'conv6': ('features', '13'),
-                          'conv6_relu': ('features', '14'), 'conv6_maxpool': ('features', '15'),
-                          'conv7': ('features', '16'), 'conv7_relu': ('features', '17'),
-                          'conv8': ('features', '18'), 'conv8_relu': ('features', '19'),
-                          'conv8_maxpool': ('features', '20'), 'fc1': ('classifier', '0'),
-                          'fc1_relu': ('classifier', '1'), 'fc2': ('classifier', '3'),
-                          'fc2_relu': ('classifier', '4'), 'fc3': ('classifier', '6'), }
+        self.layer2loc = {'conv1':          ('features', '0'),
+                          'conv1_relu':     ('features', '1'),
+                          'conv1_maxpool':  ('features', '2'),
+                          'conv2':          ('features', '3'),
+                          'conv2_relu':     ('features', '4'),
+                          'conv2_maxpool':  ('features', '5'),
+                          'conv3':          ('features', '6'),
+                          'conv3_relu':     ('features', '7'),
+                          'conv4':          ('features', '8'),
+                          'conv4_relu':     ('features', '9'),
+                          'conv4_maxpool':  ('features', '10'),
+                          'conv5':          ('features', '11'),
+                          'conv5_relu':     ('features', '12'),
+                          'conv6':          ('features', '13'),
+                          'conv6_relu':     ('features', '14'),
+                          'conv6_maxpool':  ('features', '15'),
+                          'conv7':          ('features', '16'),
+                          'conv7_relu':     ('features', '17'),
+                          'conv8':          ('features', '18'),
+                          'conv8_relu':     ('features', '19'),
+                          'conv8_maxpool':  ('features', '20'),
+                          'fc1':            ('classifier', '0'),
+                          'fc1_relu':       ('classifier', '1'),
+                          'fc2':            ('classifier', '3'),
+                          'fc2_relu':       ('classifier', '4'),
+                          'fc3':            ('classifier', '6')}
         self.img_size = (224, 224)
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
@@ -830,7 +870,7 @@ class Vgg11(DNN):
 
         return module
 
-                                
+
 class Vgg19_bn(DNN):
     def __init__(self, pretrained=True):
         super(Vgg19_bn, self).__init__()
@@ -838,64 +878,124 @@ class Vgg19_bn(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'vgg19_bn.pth')))
-        self.layer2loc = {'conv1': ('features', '0'),
-                          'conv1_relu': ('features', '1'),
-                          'conv1_bn': ('features', '2'),
-                          'conv2': ('features', '3'),
-                          'conv2_bn': ('features', '4'),
-                          'conv2_relu': ('features', '5'),
-                          'conv2_maxpool': ('features', '6'),
-                          'conv3': ('features', '7'),
-                          'conv3_bn': ('features', '8'),
-                          'conv3_relu': ('features', '9'),
-                          'conv4': ('features', '10'),
-                          'conv4_bn': ('features', '11'),
-                          'conv4_relu': ('features', '12'),
-                          'conv4_maxpool': ('features', '13'),
-                          'conv5': ('features', '14'),
-                          'conv5_bn': ('features', '15'),
-                          'conv5_relu': ('features', '16'),
-                          'conv6': ('features', '17'),
-                          'conv6_bn': ('features', '18'),
-                          'conv6_relu': ('features', '19'),
-                          'conv7': ('features', '20'),
-                          'conv7_bn': ('features', '21'),
-                          'conv7_relu': ('features', '22'),
-                          'conv8': ('features', '23'),
-                          'conv8_bn': ('features', '24'),
-                          'conv8_relu': ('features', '25'),
-                          'conv8_maxpool': ('features', '26'),
-                          'conv9': ('features', '27'),
-                          'conv9_bn': ('features', '28'),
-                          'conv9_relu': ('features', '29'),
-                          'conv10': ('features', '30'),
-                          'conv10_bn': ('features', '31'),
-                          'conv10_relu': ('features', '32'),
-                          'conv11': ('features', '33'),
-                          'conv11_bn': ('features', '34'),
-                          'conv11_relu': ('features', '35'),
-                          'conv12': ('features', '36'),
-                          'conv12_bn': ('features', '37'),
-                          'conv12_relu': ('features', '38'),
+        self.layer2loc = {'conv1':          ('features', '0'),
+                          'conv1_relu':     ('features', '1'),
+                          'conv1_bn':       ('features', '2'),
+                          'conv2':          ('features', '3'),
+                          'conv2_bn':       ('features', '4'),
+                          'conv2_relu':     ('features', '5'),
+                          'conv2_maxpool':  ('features', '6'),
+                          'conv3':          ('features', '7'),
+                          'conv3_bn':       ('features', '8'),
+                          'conv3_relu':     ('features', '9'),
+                          'conv4':          ('features', '10'),
+                          'conv4_bn':       ('features', '11'),
+                          'conv4_relu':     ('features', '12'),
+                          'conv4_maxpool':  ('features', '13'),
+                          'conv5':          ('features', '14'),
+                          'conv5_bn':       ('features', '15'),
+                          'conv5_relu':     ('features', '16'),
+                          'conv6':          ('features', '17'),
+                          'conv6_bn':       ('features', '18'),
+                          'conv6_relu':     ('features', '19'),
+                          'conv7':          ('features', '20'),
+                          'conv7_bn':       ('features', '21'),
+                          'conv7_relu':     ('features', '22'),
+                          'conv8':          ('features', '23'),
+                          'conv8_bn':       ('features', '24'),
+                          'conv8_relu':     ('features', '25'),
+                          'conv8_maxpool':  ('features', '26'),
+                          'conv9':          ('features', '27'),
+                          'conv9_bn':       ('features', '28'),
+                          'conv9_relu':     ('features', '29'),
+                          'conv10':         ('features', '30'),
+                          'conv10_bn':      ('features', '31'),
+                          'conv10_relu':    ('features', '32'),
+                          'conv11':         ('features', '33'),
+                          'conv11_bn':      ('features', '34'),
+                          'conv11_relu':    ('features', '35'),
+                          'conv12':         ('features', '36'),
+                          'conv12_bn':      ('features', '37'),
+                          'conv12_relu':    ('features', '38'),
                           'conv12_maxpool': ('features', '39'),
-                          'conv13': ('features', '40'),
-                          'conv13_bn': ('features', '41'),
-                          'conv13_relu': ('features', '42'),
-                          'conv14': ('features', '43'),
-                          'conv14_bn': ('features', '44'),
-                          'conv14_relu': ('features', '45'),
-                          'conv15': ('features', '46'),
-                          'conv15_bn': ('features', '47'),
-                          'conv15_relu': ('features', '48'),
-                          'conv16': ('features', '49'),
-                          'conv16_bn': ('features', '50'),
-                          'conv16_relu': ('features', '51'),
+                          'conv13':         ('features', '40'),
+                          'conv13_bn':      ('features', '41'),
+                          'conv13_relu':    ('features', '42'),
+                          'conv14':         ('features', '43'),
+                          'conv14_bn':      ('features', '44'),
+                          'conv14_relu':    ('features', '45'),
+                          'conv15':         ('features', '46'),
+                          'conv15_bn':      ('features', '47'),
+                          'conv15_relu':    ('features', '48'),
+                          'conv16':         ('features', '49'),
+                          'conv16_bn':      ('features', '50'),
+                          'conv16_relu':    ('features', '51'),
                           'conv16_maxpool': ('features', '52'),
-                          'fc1': ('classifier', '0'),
-                          'fc1_relu': ('classifier', '1'),
-                          'fc2': ('classifier', '3'),
-                          'fc2_relu': ('classifier', '4'),
-                          'fc3': ('classifier', '6'), }
+                          'fc1':            ('classifier', '0'),
+                          'fc1_relu':       ('classifier', '1'),
+                          'fc2':            ('classifier', '3'),
+                          'fc2_relu':       ('classifier', '4'),
+                          'fc3':            ('classifier', '6')}
+        self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+        Parameter:
+        ---------
+        layer[str]: layer name
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
+
+
+class Googlenet(DNN):
+    def __init__(self, pretrained=True):
+        super(Googlenet, self).__init__()
+        self.model = tv_models.googlenet()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'googlenet.pth')))
+        self.layer2loc = {'conv1':       ('conv1',),
+                          'maxpool1':    ('maxpool1',),
+                          'conv2':       ('conv2',),
+                          'conv3':       ('conv3',),
+                          'maxpool2':    ('maxpool2',),
+                          'inception3a': ('inception3a',),
+                          'inception3b': ('inception3b',),
+                          'maxpool3':    ('maxpool3',),
+                          'inception4a': ('inception4a',),
+                          'inception4b': ('inception4b',),
+                          'inception4c': ('inception4c',),
+                          'inception4d': ('inception4d',),
+                          'inception4e': ('inception4e',),
+                          'maxpool4':    ('maxpool4',),
+                          'inception5a': ('inception5a',),
+                          'inception5b': ('inception5b',),
+                          'fc':          ('fc',)}
         self.img_size = (224, 224)
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
@@ -943,3 +1043,100 @@ class Vgg19_bn(DNN):
 
         return module
 
+
+class Resnet152(DNN):
+    def __init__(self, pretrained=True):
+        super(Resnet152, self).__init__()
+        self.model = tv_models.resnet152()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'resnet152.pth')))
+        self.layer2loc = {'conv': ('conv1',),
+                          'bn': ('bn1',),
+                          'relu': ('relu',),
+                          'maxpool': ('maxpool',),
+                          'layer1_bottleneck0':  ('layer1', '0'),
+                          'layer1_bottleneck1':  ('layer1', '1'),
+                          'layer1_bottleneck2':  ('layer1', '2'),
+                          'layer2_bottleneck0':  ('layer2', '0'),
+                          'layer2_bottleneck1':  ('layer2', '1'),
+                          'layer2_bottleneck2':  ('layer2', '2'),
+                          'layer2_bottleneck3':  ('layer2', '3'),
+                          'layer2_bottleneck4':  ('layer2', '4'),
+                          'layer2_bottleneck5':  ('layer2', '5'),
+                          'layer2_bottleneck6':  ('layer2', '6'),
+                          'layer2_bottleneck7':  ('layer2', '7'),
+                          'layer3_bottleneck0':  ('layer3', '0'),
+                          'layer3_bottleneck1':  ('layer3', '1'),
+                          'layer3_bottleneck2':  ('layer3', '2'),
+                          'layer3_bottleneck3':  ('layer3', '3'),
+                          'layer3_bottleneck4':  ('layer3', '4'),
+                          'layer3_bottleneck5':  ('layer3', '5'),
+                          'layer3_bottleneck6':  ('layer3', '6'),
+                          'layer3_bottleneck7':  ('layer3', '7'),
+                          'layer3_bottleneck8':  ('layer3', '8'),
+                          'layer3_bottleneck9':  ('layer3', '9'),
+                          'layer3_bottleneck10': ('layer3', '10'),
+                          'layer3_bottleneck11': ('layer3', '11'),
+                          'layer3_bottleneck12': ('layer3', '12'),
+                          'layer3_bottleneck13': ('layer3', '13'),
+                          'layer3_bottleneck14': ('layer3', '14'),
+                          'layer3_bottleneck15': ('layer3', '15'),
+                          'layer3_bottleneck16': ('layer3', '16'),
+                          'layer3_bottleneck17': ('layer3', '17'),
+                          'layer3_bottleneck18': ('layer3', '18'),
+                          'layer3_bottleneck19': ('layer3', '19'),
+                          'layer3_bottleneck20': ('layer3', '20'),
+                          'layer3_bottleneck21': ('layer3', '21'),
+                          'layer3_bottleneck22': ('layer3', '22'),
+                          'layer3_bottleneck23': ('layer3', '23'),
+                          'layer3_bottleneck24': ('layer3', '24'),
+                          'layer3_bottleneck25': ('layer3', '25'),
+                          'layer3_bottleneck26': ('layer3', '26'),
+                          'layer3_bottleneck27': ('layer3', '27'),
+                          'layer3_bottleneck28': ('layer3', '28'),
+                          'layer3_bottleneck29': ('layer3', '29'),
+                          'layer3_bottleneck30': ('layer3', '30'),
+                          'layer3_bottleneck31': ('layer3', '31'),
+                          'layer3_bottleneck32': ('layer3', '32'),
+                          'layer3_bottleneck33': ('layer3', '33'),
+                          'layer3_bottleneck34': ('layer3', '34'),
+                          'layer3_bottleneck35': ('layer3', '35'),
+                          'layer4_bottleneck0':  ('layer4', '0'),
+                          'layer4_bottleneck1':  ('layer4', '1'),
+                          'layer4_bottleneck2':  ('layer4', '2'),
+                          'fc':                  ('fc',)}
+        self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+        Parameter:
+        ---------
+        layer[str]: layer name
+        Return:
+        ------
+        module[Module]: PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
