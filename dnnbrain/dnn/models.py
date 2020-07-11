@@ -376,7 +376,7 @@ class DNN:
             A dict containing the training score and loss information.
                 
             +------------------+-------------+----------------------------------------------------------------+
-            |   Keywords       | Return type |                Description                                     |
+            |   Key            | Value type  |       Value description                                        |
             +==================+=============+================================================================+
             |  epoch_loss      |    list     | Losses of epochs.                                              |
             +------------------+-------------+----------------------------------------------------------------+
@@ -524,7 +524,7 @@ class DNN:
             A dict containing the test score information.
                              
             +----------------+-------------+---------------+------------------------------------------+
-            |       Task     |   Scoring   |  Ruturn type  |           Description                    |
+            |       Task     |   Key       |  Value type   |       Value description                  |
             +================+=============+===============+==========================================+
             | classification |  pred_value |     array     | Prediction labels by the model.          | 
             |                |             |               | 2d array with shape as (n_stim, n_class).|

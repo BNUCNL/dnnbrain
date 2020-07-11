@@ -669,8 +669,8 @@ class Mask:
 
         Returns
         -------
-        mask_layer : dict
-            The mask in a specific layer
+        mask : dict
+            The mask of a specific layer
         """
         return self._dmask[layer]
 
