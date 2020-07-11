@@ -5,14 +5,16 @@ Requirements
 ------------
 
 -  python>=3.6.7
--  numpy>=1.16.5
+-  numpy==1.16.5
 -  nibabel>=2.4.1
+-  nipy>=0.4.2
 -  h5py>=2.9.0
 -  pandas>=0.24.2
 -  scikit-image>=0.15.0
 -  scikit-learn>=0.19.1
 -  scipy>=1.3.1
--  pytorch>=1.3.0
+-  torch>=1.3.0
+-  torchvision>=0.4.2
 -  pillow>=6.0.0
 -  opencv-python>=4.1.0.25
 -  matplotlib>=2.2.2
@@ -138,6 +140,23 @@ Variables”. Then:
    create a new one).
 
 Separate multiple paths with semicolons (;).
+
+Alternatively, you can use the following commands in PowerShell to complete the above 3 steps (Please replace the path between asterisks with the real path, for example, the \*path_to_dnnbrain\* should be replaced with the \'F:\\Python3.6.5\\Lib\\site-packages\\dnnbrain\')
+
+::
+
+    $new_path = *path_to_dnnbrain_data*
+    [environment]::SetEnvironmentvariable('DNNBRAIN_DATA', $new_path, "User")
+
+    $old_path = [environment]::GetEnvironmentvariable("PATH", "User")
+    $path_to_dnnbrain_data_bin = *path_to_dnnbrain_data_bin*
+    $new_path=$old_path,$path_to_dnnbrain_data_bin -Join ";"
+    [environment]::SetEnvironmentvariable("PATH", $new_path, "User")
+
+    $old_path = [environment]::GetEnvironmentvariable("PYTHONPATH", "User")
+    $path_to_dnnbrain = *path_to_dnnbrain*
+    $new_path=$old_path,$path_to_dnnbrain -Join ";"
+    [environment]::SetEnvironmentvariable("PYTHONPATH", $new_path, "User")
 
 Download DNN parameters
 -----------------------
