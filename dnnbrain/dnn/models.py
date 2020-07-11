@@ -17,8 +17,9 @@ DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
 class VggFaceModel(nn.Module):
-    """Vgg_face's model architecture"""
-
+    """
+    Vgg_face's model architecture
+    """
     def __init__(self):
         super(VggFaceModel, self).__init__()
         self.meta = {'mean': [129.186279296875, 104.76238250732422, 93.59396362304688],
@@ -110,15 +111,18 @@ class DNN:
     """
     Deep neural network
 
-    Attributes:
+    Attributes
     ----------
-    model[nn.Modules]: DNN model
-    layer2loc[dict]: map layer name to its location in the DNN model
-    img_size[tuple]: the input image size
-    train_transform[torchvision.transform]:
-        the transform used in training state
-    test_transform[torchvision.transform]:
-        the transform used in testing state
+    model : nn.Modules
+        DNN model
+    layer2loc : dict
+        Map layer name to its location in the DNN model
+    img_size : tuple
+        The input image size
+    train_transform : torchvision.transform
+        The transform used in training state
+    test_transform : torchvision.transform
+        The transform used in testing state
     """
 
     def __init__(self):
@@ -137,9 +141,10 @@ class DNN:
         """
         Save DNN parameters
 
-        Parameter:
-        ---------
-        fname[str]: output file name with suffix as .pth
+        Parameters
+        ----------
+        fname : str
+            Output file name with suffix as .pth
         """
         assert fname.endswith('.pth'), 'File suffix must be .pth'
         torch.save(self.model.state_dict(), fname)
@@ -148,9 +153,10 @@ class DNN:
         """
         Turn to evaluation mode
 
-        Return:
-        ------
-        self[DNN]
+        Returns
+        -------
+        self : DNN
+            The evaluation mode of DNN
         """
         self.model.eval()
 
@@ -160,13 +166,15 @@ class DNN:
         """
         Get a PyTorch Module object according to the layer name.
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
 
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         raise NotImplementedError('This method should be implemented in subclasses.')
 
@@ -174,18 +182,23 @@ class DNN:
         """
         Extract DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        stimuli[Stimulus|ndarray]: input stimuli
+        stimuli : Stimulus, ndarray
+            Input stimuli.           
             If is Stimulus, loaded from files on the disk.
             If is ndarray, its shape is (n_stim, n_chn, height, width)
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
-        pool_method[str]: pooling method, choices=(max, mean, median, L1, L2)
-        cuda[bool]: use GPU or not
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
+        pool_method : str
+            pooling method, choices=(max, mean, median, L1, L2)
+        cuda : bool
+            use GPU or not
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         # prepare stimuli loader
         if isinstance(stimuli, np.ndarray):
@@ -268,15 +281,18 @@ class DNN:
         """
         Get kernels' weights of the layer
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: layer name
-        kernels[int|list]: serial numbers of kernels
-            start from 1
+        layer : str
+            Layer name
+        kernels : int, list
+            Serial numbers of kernels.
+            Start from 1
 
-        Return:
-        ------
-        weights[tensor]: kernel weights
+        Returns
+        -------
+        weights : tensor
+            Kernel weights
         """
         # get the module
         module = self.layer2module(layer)
@@ -297,10 +313,12 @@ class DNN:
         """
         Ablate DNN kernels' weights
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: layer name
-        channels[list]: sequence numbers of channels of interest
+        layer : str
+            Layer name
+        channels : list
+            Sequence numbers of channels of interest.
             If None, ablate the whole layer.
         """
         # localize the module
@@ -318,39 +336,58 @@ class DNN:
         """
         Train the DNN model
 
-        Parameters:
+        Parameters
         ----------
-        data[Stimulus|ndarray]: training data
+        data : Stimulus, ndarray
+            Training data
+            
             If is Stimulus, load stimuli from files on the disk.
-                Note, the data of the 'label' item in the Stimulus object will be used as
-                truth of the output when 'target' is None.
+            Note, the data of the 'label' item in the Stimulus object will be used as
+            truth of the output when 'target' is None.
+            
             If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
-                Note, the truth data must be specified by 'target' parameter.
-        n_epoch[int]: the number of epochs
-        task[str]: task function
-            choices=('classification', 'regression').
-        optimizer[object]: optimizer function
+            Note, the truth data must be specified by 'target' parameter.
+        n_epoch : int
+            the number of epochs
+        task : str
+            Task function.
+            Choices=('classification', 'regression').
+        optimizer : object
+            Optimizer function.
+            
             If is None, use Adam to optimize all parameters in dnn.
             If is not None, it must be torch optimizer object.
-        method[str]: training method, by default is 'tradition'.
+        method : str
+            Training method, by default is 'tradition'.
             For some specific models (e.g. inception), loss needs to be calculated in another way.
-        target[ndarray]: the output of the model
+        target : ndarray
+            The output of the model.
             Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
-                Note, n_feat is the number of features of the last layer.
-        data_train[bool]:
+            Note: n_feat is the number of features of the last layer.
+        data_train : bool
             If true, test model performance on the training data.
-        data_validation[Stimulus|ndarray]: validation data
+        data_validation : Stimulus, ndarray
+            Validation data.
             If is not None, test model performance on the validation data.
 
-        Return:
-        ------
-        train_dict[dict]:
-            epoch_loss[list]: losses of epochs
-            step_loss[list]: step losses of epochs
-                The indices are one-to-one corresponding with the epoch_losses.
-                Each element is a list where elements are step losses of the corresponding epoch.
-            score_train[list]: scores of epochs on training data
-            score_validation[list]: scores of epochs on validation data
+        Returns
+        -------
+        train_dict : dict
+            A dict containing the training score and loss information.
+                
+            +------------------+-------------+----------------------------------------------------------------+
+            |   Key            | Value type  |       Value description                                        |
+            +==================+=============+================================================================+
+            |  epoch_loss      |    list     | Losses of epochs.                                              |
+            +------------------+-------------+----------------------------------------------------------------+
+            |  step_loss       |    list     | Step losses of epochs.The indices are one-to-one               |
+            |                  |             | corresponding with the epoch_losses. Each element is a         | 
+            |                  |             | list where elements are step losses of the corresponding epoch.| 
+            +------------------+-------------+----------------------------------------------------------------+
+            | score_train      |    list     | Scores of epochs on training data.                             |
+            +------------------+-------------+----------------------------------------------------------------+
+            | score_validation |    list     | Scores of epochs on validation data.                           |
+            +------------------+-------------+----------------------------------------------------------------+
         """
         # prepare data loader
         if isinstance(data, np.ndarray):
@@ -461,33 +498,50 @@ class DNN:
         """
         Test the DNN model
 
-        Parameters:
+        Parameters
         ----------
-        data[Stimulus|ndarray]: testing data
+        data : Stimulus, ndarray
+            Testing data.
+            
             If is Stimulus, load stimuli from files on the disk.
-                Note, the data of the 'label' item in the Stimulus object will be used as
-                output of the model when 'target' is None.
+            Note, the data of the 'label' item in the Stimulus object will be used as
+            output of the model when 'target' is None.
+            
             If is ndarray, it contains stimuli with shape as (n_stim, n_chn, height, width).
-                Note, the output data must be specified by 'target' parameter.
-        task[str]: choices=(classification, regression)
-        target[ndarray]: the output of the model
+            Note, the output data must be specified by 'target' parameter.
+        task : str
+            Choices=(classification, regression)
+        target : ndarray
+            The output of the model.
             Its shape is (n_stim,) for classification or (n_stim, n_feat) for regression.
-                Note, n_feat is the number of features of the last layer.
-        cuda[bool]: use GPU or not
+            Note, n_feat is the number of features of the last layer.
+        cuda : bool
+            Use GPU or not
 
-        Returns:
+        Returns
         -------
-        test_dict[dict]:
-            if task == 'classification':
-                pred_value[array]: prediction labels by the model
-                    2d array with shape as (n_stim, n_class)
-                    Each row's labels are sorted from large to small their probabilities.
-                true_value[array]: observation labels
-                score[float]: prediction accuracy
-            if task == 'regression':
-                pred_value[array]: prediction values by the model
-                true_value[array]: observation values
-                score[float]: R square between pred_values and true_values
+        test_dict : dict
+            A dict containing the test score information.
+                             
+            +----------------+-------------+---------------+------------------------------------------+
+            |       Task     |   Key       |  Value type   |       Value description                  |
+            +================+=============+===============+==========================================+
+            | classification |  pred_value |     array     | Prediction labels by the model.          | 
+            |                |             |               | 2d array with shape as (n_stim, n_class).|
+            |                |             |               | Each row's labels are sorted from        |
+            |                |             |               | large to small their probabilities.      |
+            |                |             |               | score for each channel.                  |
+            |                +-------------+---------------+------------------------------------------+
+            |                |  true_value |     array     | Observation labels.                      |
+            |                +-------------+---------------+------------------------------------------+
+            |                |    score    |     float     | Prediction accuracy.                     |
+            +----------------+-------------+---------------+------------------------------------------+
+            |  regression    |  pred_value |     array     | Prediction labels by the model.          | 
+            |                +-------------+---------------+------------------------------------------+
+            |                |  true_value |     array     | Observation labels.                      |
+            |                +-------------+---------------+------------------------------------------+
+            |                |    score    |     float     | Prediction accuracy.                     |
+            +----------------+-------------+---------------+------------------------------------------+
         """
         # prepare data loader
         if isinstance(data, np.ndarray):
@@ -555,13 +609,15 @@ class DNN:
         """
         Feed the model with the inputs
 
-        Parameter:
-        ---------
-        inputs[Tensor]: a tensor with shape as (n_stim, n_chn, n_height, n_width)
+        Parameters
+        ----------
+        inputs : Tensor
+            A tensor with shape as (n_stim, n_chn, n_height, n_width)
 
-        Return:
-        ------
-        outputs[Tensor]: output of the model, usually with shape as (n_stim, n_feat)
+        Returns
+        -------
+        outputs : Tensor
+            Output of the model, usually with shape as (n_stim, n_feat).
             n_feat is the number of out features in the last layer of the model.
         """
         outputs = self.model(inputs)
@@ -603,19 +659,29 @@ class AlexNet(DNN):
 
     @property
     def layers(self):
+        """
+        Get list of layers
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
         return list(self.layer2loc.keys())
 
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
 
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
@@ -664,19 +730,29 @@ class VggFace(DNN):
 
     @property
     def layers(self):
+        """
+        Get list of layers
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
         return list(self.layer2loc.keys())
 
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
 
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
@@ -724,19 +800,29 @@ class Vgg11(DNN):
 
     @property
     def layers(self):
+        """
+        Get list of layers
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
         return list(self.layer2loc.keys())
 
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
 
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
@@ -827,17 +913,29 @@ class Vgg19_bn(DNN):
 
     @property
     def layers(self):
+        """
+        Get list of layers
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
         return list(self.layer2loc.keys())
 
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
-        Parameter:
-        ---------
-        layer[str]: layer name
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+
+        Parameters
+        ----------
+        layer : str
+            Layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
