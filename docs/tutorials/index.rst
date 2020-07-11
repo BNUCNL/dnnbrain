@@ -3,7 +3,7 @@ DNNBrain Tutorials
 We use the AlexNet model and BOLD5000 dataset to demonstrate the versatility and usability of DNNBrain in characterizing the DNN and in
 examining the correspondences between the DNN and the brain. The results are also used in our `bioRxiv article <https://www.biorxiv.org/content/10.1101/2020.07.05.188847v1>`__, and more description about the model and dataset can be found at the 'Methods' part of this article.
 
-The stimulus images are available by click `here <https://www.dropbox.com/s/5ie18t4rjjvsl47/BOLD5000_Stimuli.zip?dl=1>`__, and only the Presented_Stimuli (Fig. 1) will be used in the following tutorials.
+The stimulus images are available by click `here <https://www.dropbox.com/s/5ie18t4rjjvsl47/BOLD5000_Stimuli.zip?dl=1>`__, and only the Presented_Stimuli (Fig. 1) will be used in the following tutorials. **We assume that the path of this stimulus directory is** *path_to_presented_stimuli*.
 
 .. raw:: html
 
