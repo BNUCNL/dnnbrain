@@ -741,13 +741,17 @@ class UnivariatePredictionModel:
 
 
 class MultivariatePredictionModel:
-
+    """
+    Use Multivariate X to predict Y
+    """    
     def __init__(self, model_name=None, cv=3, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        model_name[str]: name of a model used to do prediction
-        cv[int]: cross validation fold number
+        model_name : str
+            Name of a model used to do prediction
+        cv : int
+            Cross validation fold number
         scoring : str
             model evaluation rule
         """
@@ -758,10 +762,25 @@ class MultivariatePredictionModel:
         """
         Set some attributes
 
-        Parameters:
+        Parameters
         ----------
-        model_name[str]: name of a model used to do prediction
-        cv[int]: cross validation fold number
+        model_name : str
+            Name of a model used to do prediction
+            Only the following models are available
+            
+            +------------+------------+---------------------+
+            | Model name | Model type |  Model description  |
+            +============+============+=====================+
+            |    lrc     | classifier | Logistic Regression |
+            +------------+------------+---------------------+
+            |    svc     | classifier |         SVC         |
+            +------------+------------+---------------------+
+            |    glm     | regressor  |  Linear Regression  |
+            +------------+------------+---------------------+
+            |   lasso    | regressor  |        Lasso        |
+            +------------+------------+---------------------+
+        cv : int
+            Cross validation fold number
         """
         if model_name is None:
             pass
@@ -785,7 +804,7 @@ class MultivariatePredictionModel:
 
     def set_scoring(self, scoring):
         """
-        Parameters:
+        Parameters
         -----------
         scoring : str
             model evaluation rule
@@ -809,30 +828,37 @@ class MultivariatePredictionModel:
         """
         Use all columns of X to predict each column of Y.
 
-        Parameters:
+        Parameters
         ----------
-        X[ndarray]: shape=(n_sample, n_feature)
-        Y[ndarray]: shape=(n_sample, n_target)
+        X : ndarray
+            Shape=(n_sample, n_feature)
+        Y : ndarray
+            Shape=(n_sample, n_target)
 
-        Return:
+        Return
         ------
-        If model_type == 'classifier',
-            pred_dict[dict]:
-                score[ndarray]: shape=(n_target, cv)
+        If model_type == 'classifier'
+            pred_dict : dict
+                score : ndarray
+                    shape=(n_target, cv)
                     Each row contains accuracies of each cross validation folds,
                     when using all features to predict the corresponding target.
-                model[ndarray]: shape=(n_target,)
+                model : ndarray
+                    shape=(n_target,)
                     Each element is a model fitted by all features and the corresponding target.
-                conf_m[ndarray]: shape=(n_target, cv)
+                conf_m : ndarray
+                    shape=(n_target, cv)
                     Each row contains confusion matrices (n_label, n_label) of
                     each cross validation folds, when using all features to
                     predict the corresponding target.
-        If model_type == 'regressor',
-            pred_dict[dict]:
-                score[ndarray]: shape=(n_target, cv)
-                    Each row contains scores of each cross validation folds,
+        If model_type == 'regressor'
+            pred_dict : dict
+                score : ndarray
+                    shape=(n_target, cv)
+                    Each row contains explained variances of each cross validation folds,
                     when using all features to predict the corresponding target.
-                model[ndarray]: shape=(n_target,)
+                model : ndarray
+                    shape=(n_target,)
                     Each element is a model fitted by all features and the corresponding target.
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
@@ -870,23 +896,28 @@ def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):
     """
     Extract DNN activation
 
-    Parameters:
+    Parameters
     ----------
-    dnn_acts[array]: DNN activation
+    dnn_acts : array
+        DNN activation       
         A 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    channels[str|list]: channels of interest.
+    channels : str, list
+        channels of interest.
         If is str, it must be 'all' which means all channels.
         If is list, its elements are serial numbers of channels.
-    rows[str|list]: rows of interest.
+    rows : str, list
+        rows of interest.
         If is str, it must be 'all' which means all rows.
         If is list, its elements are serial numbers of rows.
-    columns[str|list]: columns of interest.
+    columns : str, list
+        columns of interest.
         If is str, it must be 'all' which means all columns.
         If is list, its elements are serial numbers of columns.
 
-    Return:
+    Return
     ------
-    dnn_acts[array]: DNN activation after mask
+    dnn_acts : array
+        DNN activation after mask
         a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
     """
     if isinstance(channels, list):
@@ -906,32 +937,46 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
     """
     Extract features of DNN activation
 
-    Parameters:
+    Parameters
     ----------
-    dnn_acts[array]: DNN activation
+    dnn_acts : array
+        DNN activation
         a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    method[str]: feature extraction method, choices=(pca, hist, psd)
-        pca: use n_feat principal components as features
-        hist: use histogram of activation as features
-            Note: n_feat equal-width bins in the given range will be used!
-        psd: use power spectral density as features
-    n_feat[int|float]: The number of features to extract
+    method : str
+        feature extraction method, choices are as follows
+        
+        +-------------+---------------------------------------------+
+        | Method name |              Model description              |
+        +=============+=============================================+
+        |     pca     | use n_feat principal components as features |
+        +-------------+---------------------------------------------+
+        |    hist     | use histogram of activation as features     |
+        |             | Note: n_feat equal-width bins in the        |
+        |             | given range will be used!                   |
+        +-------------+---------------------------------------------+
+        |     psd     | use power spectral density as features      |
+        +-------------+---------------------------------------------+
+    n_feat : int, float
+        The number of features to extract
         Note: It can be a float only when the method is pca.
-    axis{str}: axis for feature extraction, choices=(chn, row_col)
-        If is chn, extract feature along channel axis.
-            The result will be an array with shape
-            as (n_stim, n_feat, n_row, n_col)
-        If is row_col, extract feature alone row and column axis.
-            The result will be an array with shape
-            as (n_stim, n_chn, n_feat, 1)
-        If is None, extract features from the whole layer.
-            The result will be an array with shape
-            as (n_stim, n_feat, 1, 1)
-        We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
+    axis : str
+        axis for feature extraction, choices=(chn, row_col)
+        
+        +----------+----------------------------------+
+        |   axis   |          array shape             |
+        +==========+==================================+
+        |   chn    |  (n_stim, n_feat, n_row, n_col)  |
+        +----------+----------------------------------+
+        |  row_col |  (n_stim, n_chn, n_feat, 1)      |
+        +----------+----------------------------------+
+        |   None   |  (n_stim, n_feat, 1, 1)          |
+        +----------+----------------------------------+
+        Note: We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
 
-    Return:
+    Return
     ------
-    dnn_acts_new[array]: DNN activation
+    dnn_acts_new : array
+        DNN activation
         a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
     """
     # adjust iterative axis
