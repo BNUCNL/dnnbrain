@@ -747,7 +747,7 @@ class VggFace(DNN):
         Parameters
         ----------
         layer : str
-            layer name
+            Layer name
 
         Returns
         -------
@@ -817,7 +817,7 @@ class Vgg11(DNN):
         Parameters
         ----------
         layer : str
-            layer name
+            Layer name
 
         Returns
         -------
@@ -913,17 +913,29 @@ class Vgg19_bn(DNN):
 
     @property
     def layers(self):
+        """
+        Get list of layers
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
         return list(self.layer2loc.keys())
 
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
-        Parameter:
-        ---------
-        layer[str]: layer name
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+
+        Parameters
+        ----------
+        layer : str
+            Layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
