@@ -71,7 +71,6 @@ The RDMs are displayed in Figure 2 (rearranged by category information).
 ::
 
     import numpy as np
-    from os.path import join as pjoin
     from dnnbrain.dnn.core import RDM, Stimulus
     from dnnbrain.utils.plot import imgarray_show
 
@@ -124,10 +123,7 @@ Finally, the representation similarity between the DNN and the brain is further 
 
 ::
 
-    import numpy as np
-    from os.path import join as pjoin
     from scipy.stats import pearsonr
-    from matplotlib import pyplot as plt
     from dnnbrain.dnn.core import RDM
 
     # load RDMs
