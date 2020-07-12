@@ -2,9 +2,9 @@ Probe DNN
 =========
 To reveal whether specific stimuli attributes or behavioral performances are explicitly encoded in a certain layer of a DNN, a direct approach is to measure to what degree is the representation from the layer useful for decoding them. Linear decoding models (classifier or regression) were implemented in DNNBrain to fulfill this.
 
-In this tutorial, we manually sorted the BOLD5000 stimulus images into binary categories (animate versus inanimate) according to salient objects located in each image, and examined how animate information are explicitly encoded in AlexNet. In total, 2,547 images were labeled as animate, and 2,369 inanimate. The labels are available in the `all_5000scenes.stim.csv <TBD>`__.
+In this tutorial, we manually sorted the BOLD5000 stimulus images into binary categories (animate versus inanimate) according to salient objects located in each image, and examined how animate information are explicitly encoded in AlexNet. In total, 2,547 images were labeled as animate, and 2,369 inanimate. The labels are available in the *all_5000scenes.stim.csv*.
 
-Firstly, Use :doc:`dnn_act <../docs/cmd/dnn_act>` to extract representations of these images in layers we are interested in.
+Firstly, use :doc:`dnn_act <../docs/cmd/dnn_act>` to extract representations of these images in layers we are interested in.
 
 ::
 
