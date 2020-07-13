@@ -502,12 +502,15 @@ class VideoSet:
 
         Parameters
         ----------
-        indices[int|list|slice]: subscript indices
+        indices : int, list, slice
+            Subscript indices
 
         Returns 
         -------
-        data : tensor   frame data with shape as (n_stim, n_chn, height, weight)
-        labels : list   frame labels
+        data : tensor   
+            Frame data with shape as (n_stim, n_chn, height, weight).
+        labels : list   
+            Frame labels.
         """
         # check availability and do preparation
         if isinstance(indices, int):
@@ -606,19 +609,17 @@ class UnivariatePredictionModel:
         model_name: str
             Name of a model used to do prediction.
                         
-                +-----------+--------------------------------------+
-                | model name| description                          |
-                +===========+======================================+
-                | lrc       | logistic regression classifier       | 
-                +-----------+--------------------------------------+
-                | svc       |linear supportive vector classifier   |
-                +-----------+--------------------------------------+
-                | glm       | general linear model                 |
-                +-----------+--------------------------------------+
-                | lasso     | linear model with sparse coefficients|
-                +-----------+--------------------------------------+
-                | corr      | correlation                          |
-                +-----------+--------------------------------------+
+            +------------+------------+---------------------+
+            | Model name | Model type |  Model description  |
+            +============+============+=====================+
+            |    lrc     | classifier | Logistic Regression |
+            +------------+------------+---------------------+
+            |    svc     | classifier |         SVC         |
+            +------------+------------+---------------------+
+            |    glm     | regressor  |  Linear Regression  |
+            +------------+------------+---------------------+
+            |   lasso    | regressor  |        Lasso        |
+            +------------+------------+---------------------+  
                 
             *Note*: If is 'corr', it just uses correlation rather than prediction.
         
@@ -641,19 +642,17 @@ class UnivariatePredictionModel:
         model_name: str
             Name of a model used to do prediction.
                 
-            +-----------+--------------------------------------+
-            | model name| description                          |
-            +===========+======================================+
-            | lrc       | logistic regression classifier       | 
-            +-----------+--------------------------------------+
-            | svc       |linear supportive vector classifier   |
-            +-----------+--------------------------------------+
-            | glm       | general linear model                 |
-            +-----------+--------------------------------------+
-            | lasso     | linear model with sparse coefficients|
-            +-----------+--------------------------------------+
-            | corr      | correlation                          |
-            +-----------+--------------------------------------+
+            +------------+------------+---------------------+
+            | Model name | Model type |  Model description  |
+            +============+============+=====================+
+            |    lrc     | classifier | Logistic Regression |
+            +------------+------------+---------------------+
+            |    svc     | classifier |         SVC         |
+            +------------+------------+---------------------+
+            |    glm     | regressor  |  Linear Regression  |
+            +------------+------------+---------------------+
+            |   lasso    | regressor  |        Lasso        |
+            +------------+------------+---------------------+
             
             *Note*: If is 'corr', it just uses correlation rather than prediction.
         
@@ -744,56 +743,64 @@ class UnivariatePredictionModel:
         Return
         ----------
         pred_dict: dict
-            Keys depend on model type.
+            It depends on model type.
         
-            +------------+-----------+-------------+------------------------------------------------+
-            |Model       |Second     |shape        | description                                    |
-            |            |           |             |                                                |
-            |type        |key        |             |                                                |
-            +============+===========+=============+================================================+
-            |'classifier'|'max_score'|(n_target,)  |Each element is the maximal accuracy,           |
-            |            |           |             |among all features predicting to the            |
-            |            |           |             |corresponding target.                           |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'max_loc'  |(n_target,)  |Each element is a location of the feature       | 
-            |            |           |             |which makes the max score.                      | 
-            |            |           |             |                                                |
-            |            +-----------+-------------+------------------------------------------------+                                               
-            |            |'max_model'|(n_target,)  |Each element is a model fitted by the feature   |
-            |            |           |             |at the max loc and the corresponding target.    |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'score'    |(n_target    |Each row contains accuracies of each cross      | 
-            |            |           |, cv)        |validation folds, when using the feature at     |
-            |            |           |             |the max loc to predict the corresponding target.|
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'conf_m'   |(n_target    |Each row contains confusion matrices            |
-            |            |           |, cv)        |(n_label, n_label) of each cross validation     |
-            |            |           |             |folds, when using the feature at the max loc to |
-            |            |           |             |predict the corresponding target.               |
-            +------------+-----------+-------------+------------------------------------------------+
-            |'regressor' |'max_score'|(n_target,)  |Each element is the maximal score               |
-            |            |           |             |among all features predicting to the            |
-            |            |           |             |corresponding target.                           |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'max_loc'  |(n_target,)  |Each element is a location of the feature       | 
-            |            |           |             |which makes the max score.                      | 
-            |            |           |             |                                                |           
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'max_model'|(n_target,)  | Each element is a model fitted by the feature  |
-            |            |           |             | at the max loc and the corresponding target.   |         
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'score'    |(n_target    |Each row contains scores of each cross          |
-            |            |           |, cv)        |validation folds, when using the feature at     |
-            |            |           |             |the max loc to predict the corresponding        |
-            |            |           |             |target.                                         |
-            +------------+-----------+-------------+------------------------------------------------+           
-            |'corr'      |'max_score'|(n_target,)  |Each element is the maximal pearson r among     |
-            |            |           |             |all features correlating to the                 |
-            |            |           |             |corresponding target.                           |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'max_loc'  |(n_target,)  |Each element is a location of the feature       | 
-            |            |           |             |which makes the max score.                      | 
-            +------------+-----------+-------------+------------------------------------------------+ 
+            +------------+-----------+--------------------------------------------------------------+
+            |Model       |Key        |Value                                                         |
+            |            |           |                                                              |
+            |type        |           |                                                              |
+            +============+===========+==============================================================+
+            |'classifier'|'max_score'|An array with shape as (n_target,).                           |
+            |            |           |Each element is the maximal accuracy,                         |
+            |            |           |among all features predicting to the                          |
+            |            |           |corresponding target.                                         |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'max_loc'  |(n_target,)                                                   |
+            |            |           |Each element is a location of the feature                     | 
+            |            |           |which makes the max score.                                    | 
+            |            +-----------+--------------------------------------------------------------+                                               
+            |            |'max_model'|(n_target,)                                                   |
+            |            |           |Each element is a model fitted by the feature                 |
+            |            |           |at the max loc and the corresponding target.                  |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'score'    |(n_target, cv)                                                |
+            |            |           |Each row contains accuracies of each cross                    | 
+            |            |           |validation folds, when using the feature at                   |
+            |            |           |the max loc to predict the corresponding target.              |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'conf_m'   |(n_target, cv)                                                |
+            |            |           |Each row contains confusion matrices                          |
+            |            |           |(n_label, n_label) of each cross validation                   |
+            |            |           |folds, when using the feature at the max loc to               |
+            |            |           |predict the corresponding target.                             |
+            +------------+-----------+--------------------------------------------------------------+
+            |'regressor' |'max_score'|(n_target,)                                                   |
+            |            |           |Each element is the maximal score                             |
+            |            |           |among all features predicting to the                          |
+            |            |           |corresponding target.                                         |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'max_loc'  |(n_target,)                                                   |
+            |            |           |Each element is a location of the feature                     | 
+            |            |           |which makes the max score.                                    |         
+            |            +-----------+--------------------------------------------------------------+
+            |            |'max_model'|(n_target,)                                                   |
+            |            |           |Each element is a model fitted by the feature                 |
+            |            |           |at the max loc and the corresponding target.                  |         
+            |            +-----------+--------------------------------------------------------------+
+            |            |'score'    |(n_target, cv)                                                |
+            |            |           |Each row contains scores of each cross                        |
+            |            |           |validation folds, when using the feature at                   |
+            |            |           |the max loc to predict the corresponding target.              |
+            +------------+-----------+--------------------------------------------------------------+           
+            |'corr'      |'max_score'|(n_target,)                                                   |
+            |            |           |Each element is the maximal pearson r among                   |
+            |            |           |all features correlating to the                               |
+            |            |           |corresponding target.                                         |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'max_loc'  |(n_target,)                                                   |
+            |            |           |Each element is a location of the feature                     | 
+            |            |           |which makes the max score.                                    | 
+            +------------+-----------+--------------------------------------------------------------+ 
             
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
@@ -864,9 +871,7 @@ class UnivariatePredictionModel:
 
 
 class MultivariatePredictionModel:
-    """
-    Use Multivariate X to predict Y
-    """    
+
     def __init__(self, model_name=None, cv=3, scoring=None):
         """
         Parameters
@@ -875,7 +880,6 @@ class MultivariatePredictionModel:
             Name of a model used to do prediction.
         cv : int   
             Cross validation fold number.
-
         scoring : str
             Model evaluation rule.
         """
@@ -888,9 +892,8 @@ class MultivariatePredictionModel:
 
         Parameters
         ----------
-        model_name : str
-            Name of a model used to do prediction
-            Only the following models are available
+        model_name : str  
+            Name of a model used to do prediction.
             
             +------------+------------+---------------------+
             | Model name | Model type |  Model description  |
@@ -902,10 +905,10 @@ class MultivariatePredictionModel:
             |    glm     | regressor  |  Linear Regression  |
             +------------+------------+---------------------+
             |   lasso    | regressor  |        Lasso        |
-            +------------+------------+---------------------+
-        cv : int
-            Cross validation fold number
-
+            +------------+------------+---------------------+            
+            
+        cv : int   
+            Cross validation fold number.
         """
         if model_name is None:
             pass
@@ -960,41 +963,40 @@ class MultivariatePredictionModel:
         Y : ndarray  
             Shape=(n_sample, n_target)
 
-
-
-        
         Return
         ------
         pred_dict: dict
             Keys depend on model type.
         
-            +------------+-----------+-------------+------------------------------------------------+
-            |Model       |Second     |shape        | description                                    |
-            |            |           |             |                                                |
-            |type        |key        |             |                                                |
-            +============+===========+=============+================================================+
-            |'classifier'|'score'    |(n_target    |Each row contains accuracies of each cross      |
-            |            |           |, cv)        |validation folds, when using all features to    |
-            |            |           |             |predict the corresponding target.               |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'model'    |(n_target,)  |Each element is a model fitted by all features  | 
-            |            |           |             |and the corresponding target.                   | 
-            |            |           |             |                                                |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'conf_m'   |(n_target    |Each row contains confusion matrices            |
-            |            |           |, cv)        |(n_label, n_label) of each cross validation     |
-            |            |           |             |folds, when using all features to predict the   |
-            |            |           |             |corresponding target.                           |
-            +------------+-----------+-------------+------------------------------------------------+
-            |'regressor' |'score'    |(n_target    |Each row contains scores of each cross          |
-            |            |           |, cv)        |validation folds, when using all features to    |
-            |            |           |             |predict the corresponding target.               |
-            |            +-----------+-------------+------------------------------------------------+
-            |            |'model'    |(n_target,)  |Each element is a model fitted by all features  | 
-            |            |           |             |and the corresponding target.                   | 
-            |            |           |             |                                                |           
-            +------------+-----------+-------------+------------------------------------------------+           
-
+            +------------+-----------+--------------------------------------------------------------+
+            |Model       |Key        |Value                                                         |
+            |            |           |                                                              |
+            |type        |           |                                                              |
+            +============+===========+==============================================================+
+            |'classifier'|'score'    |(n_target, cv)                                                |
+            |            |           |Each row contains accuracies of each cross                    |
+            |            |           |validation folds, when using all features to                  |
+            |            |           |predict the corresponding target.                             |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'model'    |(n_target,)                                                   |
+            |            |           |Each element is a model fitted by all features                | 
+            |            |           |and the corresponding target.                                 |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'conf_m'   |(n_target, cv)                                                |
+            |            |           |Each row contains confusion matrices                          |
+            |            |           |(n_label, n_label) of each cross validation                   |
+            |            |           |folds, when using all features to predict the                 |
+            |            |           |corresponding target.                                         |
+            +------------+-----------+--------------------------------------------------------------+
+            |'regressor' |'score'    |(n_target, cv)                                                |
+            |            |           |Each row contains scores of each cross                        |
+            |            |           |validation folds, when using all features to                  |
+            |            |           |predict the corresponding target.                             |
+            |            +-----------+--------------------------------------------------------------+
+            |            |'model'    |(n_target,)                                                   |
+            |            |           |Each element is a model fitted by all features                | 
+            |            |           |and the corresponding target.                                 |          
+            +------------+-----------+--------------------------------------------------------------+           
 
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
@@ -1055,7 +1057,6 @@ def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):
     dnn_acts : ndarray   
         DNN activation after mask.
         A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
-
     """
     if isinstance(channels, list):
         channels = [chn-1 for chn in channels]
@@ -1076,27 +1077,29 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
 
     Parameters
     ----------
-    dnn_acts : array
-        DNN activation
-        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    method : str
-        feature extraction method, choices are as follows
+    dnn_acts : ndarray   
+        DNN activation.
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
+    method : str  
+        Feature extraction method, choices: ('pca', 'hist', 'psd')
         
-        +-------------+---------------------------------------------+
-        | Method name |              Model description              |
-        +=============+=============================================+
-        |     pca     | use n_feat principal components as features |
-        +-------------+---------------------------------------------+
-        |    hist     | use histogram of activation as features     |
-        |             | Note: n_feat equal-width bins in the        |
-        |             | given range will be used!                   |
-        +-------------+---------------------------------------------+
-        |     psd     | use power spectral density as features      |
-        +-------------+---------------------------------------------+
+        +------------+-------------------------------------------+
+        | method name|          description                      |
+        +============+===========================================+
+        | pca        |use n_feat principal components as features|
+        +------------+-------------------------------------------+
+        | hist       |use histogram of activation as features    |
+        +------------+-------------------------------------------+
+        | psd        |use power spectral density as features     |
+        +------------+-------------------------------------------+
+        
+        *Note*: In 'hist', n_feat equal-width bins in the given range will be used!
+    
     n_feat : int, float
-        The number of features to extract
-        Note: It can be a float only when the method is pca.
-    axis : str
+        The number of features to extract.
+        *Note*: It can be a float only when the method is pca.
+    
+    axis : str 
         axis for feature extraction, choices=(chn, row_col)
         
         +----------+----------------------------------+
@@ -1108,14 +1111,14 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
         +----------+----------------------------------+
         |   None   |  (n_stim, n_feat, 1, 1)          |
         +----------+----------------------------------+
-        Note: We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
+        
+        *Note*: We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
 
     Return
     ------
-    dnn_acts_new : array
-        DNN activation
-        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-
+    dnn_acts_new : ndarray   
+        DNN activation.
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
     """
     # adjust iterative axis
     n_stim, n_chn, n_row, n_col = dnn_acts.shape

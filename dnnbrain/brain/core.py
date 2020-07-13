@@ -436,32 +436,40 @@ class BrainEncoder:
         Return
         ------
         encode_dict : dict
-            Keys depend on model type.
-            
-            +-------+---------+-----------+----------------+------------------------------------------+
-            | model |First    |Second     |shape           | description                              |
-            | type  |key      |key        |                |                                          |
-            +=======+=========+===========+================+==========================================+
-            | *uv*  | layer   |'max_score'|(n_iter, n_meas)|max scores at each iteration              |
-            |       | (str)   +-----------+----------------+------------------------------------------+
-            |       |         |'max_loc'  |(n_iter, n_meas |max locations of the max scores, the      | 
-            |       |         |           |, 3)            |size 3 of the third dimension means       | 
-            |       |         |           |                |channel, row and column respectively.     |
-            |       |         +-----------+----------------+------------------------------------------+                                               
-            |       |         |'max_model'|(n_iter, n_meas)|fitted models of the max scores.          |
-            |       |         |           |                |Note: only exists when model is regressor |
-            |       |         +-----------+----------------+------------------------------------------+
-            |       |         |'score'    |(n_iter, n_meas |The third dimension means scores of each  | 
-            |       |         |           |, cv)           |cross validation folds of the max scores  |
-            |       |         |           |                |Note: only exists when model is regressor |
-            +-------+---------+-----------+----------------+------------------------------------------+
-            | *mv*  | layer   |'score'    |(n_iter, n_meas |The third dimension means scores of each  |
-            |       | (str)   |           |, cv)           |cross validation folds at each iteration  |
-            |       |         |           |                |and measurement                           |
-            |       |         +-----------+----------------+------------------------------------------+
-            |       |         |'model'    |(n_iter, n_meas)|Each element is a model fitted at the     |
-            |       |         |           |                |corresponding iteration and measurement.  |         
-            +-------+---------+-----------+----------------+------------------------------------------+        
+            It depends on model type.
+           
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_iter, n_meas).                    | 
+            |       |         |           |Max scores at each iteration.                              |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_iter, n_meas, 3)                  |  
+            |       |         |           |Max locations of the max scores, the                       | 
+            |       |         |           |size 3 of the third dimension means                        | 
+            |       |         |           |channel, row and column respectively.                      |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_iter, n_meas).                    |
+            |       |         |           |fitted models of the max scores.                           |
+            |       |         |           |Note: only exists when model is regressor                  |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_iter, n_meas, cv).                |
+            |       |         |           |The third dimension means scores of each                   | 
+            |       |         |           |cross validation folds of the max scores                   |
+            |       |         |           |Note: only exists when model is regressor                  |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_iter, n_meas, cv).                |
+            |       |         |           |The third dimension means scores of each                   |
+            |       | (str)   |           |cross validation folds at each iteration                   |
+            |       |         |           |and measurement                                            |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_iter, n_meas).                    |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding iteration and measurement.                   |         
+            +-------+---------+-----------+-----------------------------------------------------------+        
         
         """
         _, n_meas = self.brain_activ.shape
@@ -551,31 +559,37 @@ class BrainEncoder:
         encode_dict : dict
             Keys depend on model type.
             
-            +-------+---------+-----------+-------------+------------------------------------------+
-            | model |First    |Second     |shape        | description                              |
-            |       |         |           |             |                                          |
-            | type  |key      |key        |             |                                          |
-            +=======+=========+===========+=============+==========================================+
-            | *uv*  | layer   |'max_score'|(n_meas,)    |max scores                                |
-            |       | (str)   +-----------+-------------+------------------------------------------+
-            |       |         |'max_loc'  |(n_meas,)    |max locations of the max scores           | 
-            |       |         |           |             |                                          | 
-            |       |         |           |             |                                          |
-            |       |         +-----------+-------------+------------------------------------------+                                               
-            |       |         |'max_model'|(n_meas,)    |fitted models of the max scores           |
-            |       |         |           |             |Note: only exists when model is regressor |
-            |       |         +-----------+-------------+------------------------------------------+
-            |       |         |'score'    |(n_meas, cv) |The second dimension means scores of each | 
-            |       |         |           |             |cross validation folds of the max scores  |
-            |       |         |           |             |Note: only exists when model is regressor |
-            +-------+---------+-----------+-------------+------------------------------------------+
-            | *mv*  | layer   |'score'    |(n_meas, cv) |The second dimension means scores of each |
-            |       | (str)   |           |             |cross validation folds at each iteration  |
-            |       |         |           |             |and measurement                           |
-            |       |         +-----------+-------------+------------------------------------------+
-            |       |         |'model'    |(n_meas,)    |Each element is a model fitted at the     |
-            |       |         |           |             |corresponding measurement.                |         
-            +-------+---------+-----------+-------------+------------------------------------------+        
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_meas,).                           |
+            |       |         |           |Max scores                                                 |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_meas,).                           | 
+            |       |         |           |Max locations of the max scores                            |
+            |       |         |           |                                                           |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_meas,).                           |
+            |       |         |           |Fitted models of the max scores                            |
+            |       |         |           |Note: only exists when model is regressor.                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_meas, cv).                        |
+            |       |         |           |The second dimension means scores of each                  | 
+            |       |         |           |cross validation folds of the max scores                   |
+            |       |         |           |Note: only exists when model is regressor                  |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_meas, cv).                        |
+            |       |         |           |The second dimension means scores of each                  |
+            |       | (str)   |           |cross validation folds at each iteration                   |
+            |       |         |           |and measurement.                                           |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_meas,).                           |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding measurement.                                 |         
+            +-------+---------+-----------+-----------------------------------------------------------+        
             
         """
         encode_dict = self.model.predict(beh_data, self.brain_activ)
@@ -665,42 +679,49 @@ class BrainDecoder:
         decode_dict : dict
             Keys depend on model type.    
                 
-            +-------+---------+-----------+-------------+--------------------------------------------+
-            | model |First    |Second     |shape        | description                                |
-            |       |         |           |             |                                            |
-            | type  |key      |key        |             |                                            |
-            +=======+=========+===========+=============+============================================+
-            | *uv*  | layer   |'max_score'|(n_chn, n_row|max scores                                  |
-            |       |         |           |, n_col)     |                                            |
-            |       | (str)   +-----------+-------------+--------------------------------------------+
-            |       |         |'max_loc'  |(n_chn, n_row|locations of measurement                    | 
-            |       |         |           |, n_col)     |indicators with max scores.                 | 
-            |       |         |           |             |                                            |
-            |       |         +-----------+-------------+--------------------------------------------+                                               
-            |       |         |'max_model'|(n_chn, n_row|fitted models of the max scores.            |
-            |       |         |           |, n_col)     |Note: only exists when model is regressor   |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'score'    |(n_chn, n_row|The forth dimension means scores of each    | 
-            |       |         |           |, n_col, cv) |cross validation folds of the max scores.   |
-            |       |         |           |             |Note: only exists when model is regressor   |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'conf_m'   |(n_chn, n_row|The forth dimension means confusion         |
-            |       |         |           |, n_col, cv) |matrices (n_label, n_label) of each cross   |
-            |       |         |           |             |validation folds of the max scores.         |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            +-------+---------+-----------+-------------+--------------------------------------------+
-            | *mv*  | layer   |'score'    |(n_chn, n_row|The forth dimension means scores of each    |
-            |       | (str)   |           |, n_col, cv) |cross validation folds at each unit.        |
-            |       |         |           |             |                                            |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'model'    |(n_chn, n_row|Each element is a model fitted at the       |
-            |       |         |           |, n_col)     |corresponding unit.                         |         
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'conf_m'   |(n_chn, n_row|The forth dimension means confusion matrices|
-            |       |         |           |, n_col, cv) |(n_label, n_label) of each cross validation |
-            |       |         |           |             |folds at the corresponding unit.            |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            +-------+---------+-----------+-------------+--------------------------------------------+               
+            +-------+---------+----------------------------------------------------------------------+
+            |       |         |                           First value                                |
+            |       |         +-----------+----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                       |
+            | type  |key      |key        |                                                          |
+            +=======+=========+===========+==========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_chn, n_row, n_col).              |
+            |       |         |           |Max scores.                                               |
+            |       | (str)   +-----------+----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_chn, n_row, n_col).              | 
+            |       |         |           |Locations of measurement                                  | 
+            |       |         |           |indicators with max scores.                               |
+            |       |         +-----------+----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_chn, n_row, n_col).              | 
+            |       |         |           |fitted models of the max scores.                          | 
+            |       |         |           |Note: only exists when model is regressor                 |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means scores of each                  | 
+            |       |         |           |cross validation folds of the max scores.                 |
+            |       |         |           |Note: only exists when model is regressor                 |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means confusion                       |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means scores of each                  |
+            |       | (str)   |           |cross validation folds at each unit.                      |
+            |       |         |           |                                                          |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_chn, n_row, n_col).              |
+            |       |         |           |Each element is a model fitted at the                     |
+            |       |         |           |corresponding unit.                                       |         
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          | 
+            |       |         |           |The forth dimension means confusion matrices              |
+            |       |         |           |(n_label, n_label) of each cross validation               |
+            |       |         |           |folds at the corresponding unit.                          |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+               
 
         """
         decode_dict = dict()
@@ -736,44 +757,47 @@ class BrainDecoder:
         decode_dict : dict
             Keys depend on model type.  
             
-            +-------+---------+-----------+-------------+--------------------------------------------+
-            | model |First    |Second     |shape        | description                                |
-            |       |         |           |             |                                            |
-            | type  |key      |key        |             |                                            |
-            +=======+=========+===========+=============+============================================+
-            | *uv*  | layer   |'max_score'|(n_beh,)     |max scores                                  |
-            |       |         |           |, n_col)     |                                            |
-            |       | (str)   +-----------+-------------+--------------------------------------------+
-            |       |         |'max_loc'  |(n_beh,)     |locations of measurement                    | 
-            |       |         |           |, n_col)     |indicators with max scores.                 | 
-            |       |         |           |             |                                            |
-            |       |         +-----------+-------------+--------------------------------------------+                                               
-            |       |         |'max_model'|(n_beh,)     |fitted models of the max scores.            |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            |       |         |           |             |or regressor                                |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'score'    |(n_beh, cv)  |The second dimension means scores of each   | 
-            |       |         |           |             |cross validation folds of the max scores.   |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            |       |         |           |             |or regressor                                |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'conf_m'   |(n_beh, cv)  |The second dimension means confusion        |
-            |       |         |           |             |matrices (n_label, n_label) of each cross   |
-            |       |         |           |             |validation folds of the max scores.         |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            +-------+---------+-----------+-------------+--------------------------------------------+
-            | *mv*  | layer   |'score'    |(n_beh, cv)  |The forth dimension means scores of each    |
-            |       | (str)   |           |             |cross validation folds at each behavior     |
-            |       |         |           |             |                                            |
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'model'    |(n_beh,)     |Each element is a model fitted at the       |
-            |       |         |           |             |corresponding behavior.                     |         
-            |       |         +-----------+-------------+--------------------------------------------+
-            |       |         |'conf_m'   |(n_beh, cv)  |The second dimension means confusion        |
-            |       |         |           |             |matrices (n_label, n_label) of each cross   |
-            |       |         |           |             |validation folds of the max scores.         |
-            |       |         |           |             |Note: only exists when model is classifier  |
-            +-------+---------+-----------+-------------+--------------------------------------------+            
+            +-------+---------+----------------------------------------------------------------------+
+            |       |         |                           First value                                |
+            |       |         +-----------+----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                       |
+            | type  |key      |key        |                                                          |
+            +=======+=========+===========+==========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_beh,).                           |
+            |       |         |           |Max scores.                                               |
+            |       | (str)   +-----------+----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_beh,).                           | 
+            |       |         |           |Locations of measurement                                  | 
+            |       |         |           |indicators with max scores.                               |
+            |       |         +-----------+----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_beh,).                           |
+            |       |         |           |Fitted models of the max scores.                          |
+            |       |         |           |Note: only exists when model is classifier or regressor   |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means scores of each                 | 
+            |       |         |           |cross validation folds of the max scores.                 |
+            |       |         |           |Note: only exists when model is classifier  or regressor  |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means confusion                      |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The forth dimension means scores of each                  |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_beh,).                           |
+            |       |         |           |Each element is a model fitted at the                     |
+            |       |         |           |corresponding behavior.                                   |         
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means confusion                      |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+            
             
         """
         decode_dict = self.model.predict(self.brain_activ, beh_data)

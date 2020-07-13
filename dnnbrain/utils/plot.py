@@ -20,7 +20,7 @@ def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
         **vmin** and **vmax** define the value range of 
         colormap applied to all images. By default, colormaps
         adapt to each image's value range.
-    figsize[float, float]: 
+    figsize : float, float
         *width*, height of figure in inches.
     cmap : str 
         The Colormap instance or registered colormap name used 

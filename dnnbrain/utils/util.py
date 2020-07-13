@@ -17,7 +17,7 @@ def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, afte
         The first stimulus' time point relative to the beginning of the response.
         For example, if the response begins at 14 seconds after the first stimulus, 
         the original_onset is -14.
-    interval[int]: 
+    interval : int 
         Get one frame per 'interval' frames,
     before_vid : float 
         Display the first frame as a static picture for 'before_vid' seconds before video.
@@ -75,7 +75,7 @@ def gen_dmask(layers=None, channels='all', dmask_file=None):
 
     Return
     ------
-    dmask[Mask]: 
+    dmask : Mask 
         DNN mask.
     """
     # set some assertions
@@ -135,10 +135,10 @@ def topk_accuracy(pred_labels, true_labels, k):
 
     Parameters:
     ----------
-    pred_labels[array-like]: 
+    pred_labels : array-like 
         Predicted labels, 2d array with shape as (n_stim, n_class).
         Each row's labels are sorted from large to small their probabilities.
-    true_values[array-like]: 
+    true_values : array-like 
         True values, 1d array with shape as (n_stim,).
     k[int]: 
         The number of tops.
