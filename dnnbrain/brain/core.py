@@ -405,7 +405,7 @@ class BrainEncoder:
 
         Parameters
         ----------
-        dnn_activ[Activation]: 
+        dnn_activ : Activation
             DNN activation.
         iter_axis : str
             Iterate along the specified axis. Different model types have different operation.
@@ -557,7 +557,7 @@ class BrainEncoder:
         Return
         ------
         encode_dict : dict
-            Keys depend on model type.
+            It depends on model type.
             
             +-------+---------+-----------------------------------------------------------------------+
             |       |         |                           First value                                 |
@@ -671,13 +671,13 @@ class BrainDecoder:
 
         Parameters
         ---------
-        dnn_activ[Activation]: 
+        dnn_activ : Activation  
             DNN activation.
 
         Return
         ------
         decode_dict : dict
-            Keys depend on model type.    
+            It depends on model type.    
                 
             +-------+---------+----------------------------------------------------------------------+
             |       |         |                           First value                                |
@@ -755,7 +755,7 @@ class BrainDecoder:
         Return
         ------
         decode_dict : dict
-            Keys depend on model type.  
+            It depends on model type.  
             
             +-------+---------+----------------------------------------------------------------------+
             |       |         |                           First value                                |

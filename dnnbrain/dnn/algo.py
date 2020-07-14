@@ -12,7 +12,7 @@ from torch.optim import Adam
 import torch.nn as nn
 from torch.nn.functional import interpolate
 from matplotlib import pyplot as plt
-# from dnnbrain.dnn.core import Mask, Stimulus
+from dnnbrain.dnn.core import Mask, Stimulus
 from dnnbrain.dnn.base import ip, array_statistic
 from skimage import filters, segmentation
 from skimage.color import rgb2gray
