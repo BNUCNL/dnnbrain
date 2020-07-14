@@ -73,7 +73,7 @@ class TestAlexNet:
         conv5_1_0 = torch.tensor([[0.0045, -0.0077, -0.0150],
                                   [-0.0303, -0.0441, -0.0176],
                                   [-0.0143, -0.0367, -0.0520]])
-        dnn = db_models.AlexNet()
+        dnn = db_models.AlexNet(False)
         torch.equal(conv5_shape, torch.tensor(dnn.get_kernel('conv5').shape))
         torch.equal(conv5_1_0, dnn.get_kernel('conv5', 1)[0])
 
@@ -107,7 +107,7 @@ class TestResnet152:
              4.8297e-07, 6.4529e-07, 5.4214e-07],
             [7.1402e-07, 5.0883e-07, 4.4785e-07, 4.5847e-07,
              6.2946e-07, 6.5617e-07, 5.0979e-07]])
-        dnn = db_models.Resnet152()
+        dnn = db_models.Resnet152(False)
         torch.equal(conv_shape, torch.tensor(dnn.get_kernel('conv').shape))
         torch.equal(conv_1_0, dnn.get_kernel('conv', 1)[0])
 
@@ -120,7 +120,7 @@ class TestVgg19_bn:
             [6.2157e-09, 1.0084e-08, 1.5116e-08],
             [4.5769e-09, 2.0736e-08, 1.7261e-08],
             [5.1316e-09, 1.1234e-08, 1.7994e-08]])
-        dnn = db_models.Vgg19_bn()
+        dnn = db_models.Vgg19_bn(False)
         torch.equal(conv2_shape, torch.tensor(dnn.get_kernel('conv2').shape))
         torch.equal(conv2_1_0, dnn.get_kernel('conv2', 1)[0])
 
@@ -129,7 +129,7 @@ class TestVgg19_bn:
             [-2.1690e-07, -3.8769e-08, 1.3572e-07],
             [1.1671e-07, -1.8512e-07, -1.5063e-07],
             [9.0605e-08, -2.9362e-08, -1.2601e-07]])
-        dnn = db_models.Vgg19_bn()
+        dnn = db_models.Vgg19_bn(False)
         torch.equal(conv9_shape, torch.tensor(dnn.get_kernel('conv9').shape))
         torch.equal(conv9_1_0, dnn.get_kernel('conv9', 1)[0])
 
@@ -138,7 +138,7 @@ class TestVgg19_bn:
             [-0.0027,  0.0035, -0.0050],
             [-0.0048, -0.0009, -0.0068],
             [-0.0055, -0.0092, -0.0125]])
-        dnn = db_models.Vgg19_bn()
+        dnn = db_models.Vgg19_bn(False)
         torch.equal(conv16_shape, torch.tensor(dnn.get_kernel('conv16').shape))
         torch.equal(conv16_1_0, dnn.get_kernel('conv16', 1)[0])    
 

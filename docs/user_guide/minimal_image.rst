@@ -1,5 +1,7 @@
-#Minimal Image There is an example of getting minimal images through
-using python library of DNNBrain.
+Minimal Image
+=============
+
+This is an example of getting minimal images through using python library of DNNBrain.
 
 The original image used in this doc is displayed as below:
 

@@ -1,16 +1,5 @@
-DNNBrain Documentation
-======================
-
-Concepts
---------
-
-**built-in DNN**: The DNN that is encapsulated in DNNBrain with
-corresponding attributes and methods. For these built-in DNNs, DNNBrain
-has defined a :doc:`mapping <layer2module>` to help users approach to a
-module of DNN by a commonly used layer name.
-
-:doc:`File Format <file_format>`
-----------------------------------
+CLI/API Docs
+============
 
 Command-Line Interfaces
 -----------------------

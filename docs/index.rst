@@ -13,7 +13,7 @@ Welcome to DNNBrain's documentation!
    
    Get Started <install>
    Tutorials <tutorials/index>
-   Examples <examples/index>
+   User Guide <user_guide/index>
    Docs <docs/index>
    Cite DNNBrain <cite>
 

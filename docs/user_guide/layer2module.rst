@@ -61,16 +61,73 @@ Figure 3
 
    </center>
 
+Vgg19_bn
+--------
+
+.. raw:: html
+
+   <center>
+
+|Vgg19_bn_framework|
+|Vgg19_bn_mapping|
+
+Figure 4
+
+.. raw:: html
+
+   </center>
+
+GoogLeNet
+---------
+
+.. raw:: html
+
+   <center>
+
+|GoogLeNet_mapping|
+
+Figure 5
+
+.. raw:: html
+
+   </center>
+
+Resnet152
+---------
+
+.. raw:: html
+
+   <center>
+
+|resnet152_mapping|
+
+Figure 6
+
+.. raw:: html
+
+   </center>
+
 
 .. |AlexNet_framework| image:: ../img/layer2module/alexnet_framework.png
    :width: 64%
 .. |AlexNet_mapping| image:: ../img/layer2module/alexnet_mapping.png
    :width: 35%
+
 .. |VggFace_framework| image:: ../img/layer2module/vggface_framework.png
    :width: 64%
 .. |VggFace_mapping| image:: ../img/layer2module/vggface_mapping.png
    :width: 35%
+
 .. |Vgg11_framework| image:: ../img/layer2module/vgg11_framework.png
    :width: 64%
 .. |Vgg11_mapping| image:: ../img/layer2module/vgg11_mapping.png
    :width: 35%
+
+.. |Vgg19_bn_framework| image:: ../img/layer2module/vgg19_bn_framework.png
+   :width: 64%
+.. |Vgg19_bn_mapping| image:: ../img/layer2module/vgg19_bn_mapping.png
+   :width: 35%
+
+.. |GoogLeNet_mapping| image:: ../img/layer2module/GoogLeNet_mapping.png
+
+.. |resnet152_mapping| image:: ../img/layer2module/resnet152_mapping.png
