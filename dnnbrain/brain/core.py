@@ -11,10 +11,12 @@ class ROI:
     """
     def __init__(self, rois=None, value=None):
         """
-        Parameters:
+        Parameters
         ----------
-        rois[str|list]: ROI names of interest
-        value[ndarray]: ROI data
+        rois : str, list 
+            ROI names of interest.
+        value : ndarray 
+            ROI data.
         """
         self.rois = []
         self.data = None
@@ -26,10 +28,12 @@ class ROI:
         """
         Load from ROI file.
 
-        Parameters:
+        Parameters
         ----------
-        fname[str]: file name with suffix as .roi.h5
-        rois[str|list]: ROI names of interest
+        fname : str
+            File name with suffix as .roi.h5 
+        rois : str, list 
+            ROI names of interest.
         """
         self.rois, self.data = RoiFile(fname).read(rois)
 
@@ -37,9 +41,10 @@ class ROI:
         """
         Save to ROI file.
 
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .roi.h5
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .roi.h5
         """
         RoiFile(fname).write(self.rois, self.data)
 
@@ -47,13 +52,15 @@ class ROI:
         """
         Get data according to ROI names
 
-        Parameter:
-        ---------
-        rois[str|list]: ROI names
+        Parameters
+        ----------
+        rois : str, list 
+            ROI names.
 
-        Return:
+        Return
         ------
-        arr[ndarray]: ROI data with shape as (n_vol, n_roi)
+        arr : ndarray 
+            ROI data with shape as (n_vol, n_roi).
         """
         if isinstance(rois, str):
             rois = [rois]
@@ -67,11 +74,14 @@ class ROI:
         """
         Set ROI data with names
 
-        Parameters:
+        Parameters
         ----------
-        rois[str|list]: ROI names
-        value[ndarray]: ROI data
-        index[int]: the position where the data is set
+        rois : str, list 
+            ROI names.
+        value : ndarray 
+            ROI data.
+        index : int 
+            The position where the data is set.
         """
         # preprocessing
         if isinstance(rois, str):
@@ -100,9 +110,10 @@ class ROI:
         """
         Delete data according to ROI names
 
-        Parameter:
-        ---------
-        rois[str|list]: ROI names
+        Parameters
+        ----------
+        rois : str, list 
+            ROI names.
         """
         # prepare indices
         if isinstance(rois, str):
@@ -122,13 +133,15 @@ class ROI:
         """
         Get part of the ROI object by imitating 2D array's subscript index
 
-        Parameter:
-        ---------
-        indices[int|list|tuple|slice]: subscript indices
+        Parameters
+        ----------
+        indices : int, list, tuple, slice
+            Subscript indices
 
-        Return:
+        Return
         ------
-        roi[ROI]: a part of the self.
+        roi : ROI 
+            A part of the self.
         """
         # parse subscript indices
         if isinstance(indices, int):
@@ -209,9 +222,10 @@ class ROI:
         """
         Check availability of the arithmetic operation for self
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
         """
         if not isinstance(other, ROI):
             raise TypeError("unsupported operand type(s): "
@@ -223,13 +237,15 @@ class ROI:
         """
         Do addition between two ROI objects
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -240,15 +256,17 @@ class ROI:
 
     def __sub__(self, other):
         """
-        Do subtraction between two ROI objects
+        Do subtraction between two ROI objects.
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -259,15 +277,17 @@ class ROI:
 
     def __mul__(self, other):
         """
-        Do multiplication between two ROI objects
+        Do multiplication between two ROI objects.
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -280,13 +300,15 @@ class ROI:
         """
         Do true division between two ROI objects
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -303,40 +325,48 @@ class BrainEncoder:
     def __init__(self, brain_activ=None, model_type=None, model_name=None,
                  cv=3, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
+        model_type : str
+            Choices=('uv', 'mv')
             'uv': univariate prediction model
             'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        model_name : str
+            Name of a model used to do prediction.
             If is 'corr', it just uses correlation rather than prediction.
                 And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+        cv : int 
+            Cross validation fold number
         scoring : str
-            model evaluation rule
+            Model evaluation rule
         """
         self.set(brain_activ, model_type, model_name, cv)
         self.set_scoring(scoring)
 
     def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
         """
-        Set some attributes
+        Set some parameters.
 
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        model_type : str
+            Choices=('uv', 'mv').
+            'uv': univariate prediction model.
+            'mv': multivariate prediction model.
+        model_name : str
+            Name of a model used to do prediction.
             If is 'corr', it just uses correlation rather than prediction.
                 And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+        cv : int 
+            Cross validation fold number.
         """
         if brain_activ is not None:
             self.brain_activ = brain_activ
@@ -362,10 +392,10 @@ class BrainEncoder:
 
     def set_scoring(self, scoring):
         """
-        Parameters:
+        Parameters
         -----------
         scoring : str
-            model evaluation rule
+            model evaluation rule.
         """
         self.model.set_scoring(scoring)
 
@@ -373,43 +403,74 @@ class BrainEncoder:
         """
         Encode DNN activation to brain activation.
 
-        Parameters:
+        Parameters
         ----------
-        dnn_activ[Activation]: DNN activation
-        iter_axis[str]: iterate along the specified axis
-            ---for uv---
-            channel: Summarize the maximal prediction score for each channel.
-            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
-            default: Summarize the maximal prediction score for the whole layer.
-            ---for mv---
-            channel: Do multivariate prediction using all units in each channel.
-            row_col: Do multivariate prediction using all units in each position (row_idx, col_idx).
-            default: Do multivariate prediction using all units in the whole layer.
-
-        Return:
+        dnn_activ[Activation]: 
+            DNN activation.
+        iter_axis : str
+            Iterate along the specified axis. Different model types have different operation.
+            
+            +-------+---------+----------------------------------------------------------+
+            | model |iter_axis|  description                                             |
+            |       |         |                                                          |
+            | type  |         |                                                          |
+            +=======+=========+==========================================================+
+            | *uv*  | channel |Summarize the maximal prediction score for each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Summarize the maximal prediction score for each position  |
+            |       |         |                                                          | 
+            |       |         |(row_idx, col_idx)                                        |
+            |       +---------+----------------------------------------------------------+                                               
+            |       | default |Summarize the maximal prediction score for the whole layer|
+            +-------+---------+----------------------------------------------------------+
+            | *mv*  | channel |Multivariate prediction using all units in each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Multivariate prediction using all units in each           |
+            |       |         |                                                          |                                   
+            |       |         |position (row_idx, col_idx)                               |
+            |       +---------+----------------------------------------------------------+
+            |       | default |Multivariate prediction using all units in the whole layer|
+            +-------+---------+----------------------------------------------------------+
+        
+        
+        Return
         ------
-        encode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_iter, n_meas)
-                    max scores at each iteration
-                max_loc[ndarray]: shape=(n_iter, n_meas, 3)
-                    max locations of the max scores, the size 3 of the third dimension means
-                    channel, row and column locations respectively.
-                max_model[ndarray]: shape=(n_iter, n_meas)
-                    fitted models of the max scores
-                    Note: only exists when model is regressor
-                score[ndarray]: shape=(n_iter, n_meas, cv)
-                    The third dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is regressor
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_iter, n_meas, cv)
-                    The third dimension means scores of each cross validation folds
-                    at each iteration and measurement
-                model[ndarray]: shape=(n_iter, n_meas)
-                    Each element is a model fitted at the corresponding iteration and measurement.
+        encode_dict : dict
+            It depends on model type.
+           
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_iter, n_meas).                    | 
+            |       |         |           |Max scores at each iteration.                              |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_iter, n_meas, 3)                  |  
+            |       |         |           |Max locations of the max scores, the                       | 
+            |       |         |           |size 3 of the third dimension means                        | 
+            |       |         |           |channel, row and column respectively.                      |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_iter, n_meas).                    |
+            |       |         |           |fitted models of the max scores.                           |
+            |       |         |           |Note: only exists when model is regressor                  |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_iter, n_meas, cv).                |
+            |       |         |           |The third dimension means scores of each                   | 
+            |       |         |           |cross validation folds of the max scores                   |
+            |       |         |           |Note: only exists when model is regressor                  |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_iter, n_meas, cv).                |
+            |       |         |           |The third dimension means scores of each                   |
+            |       | (str)   |           |cross validation folds at each iteration                   |
+            |       |         |           |and measurement                                            |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_iter, n_meas).                    |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding iteration and measurement.                   |         
+            +-------+---------+-----------+-----------------------------------------------------------+        
+        
         """
         _, n_meas = self.brain_activ.shape
 
@@ -488,33 +549,48 @@ class BrainEncoder:
         """
         Encode behavior data to brain activation.
 
-        Parameter:
+        Parameters
         ---------
-        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+        beh_data : ndarray 
+            Behavior data with shape as (n_stim, n_beh).
 
-        Return:
+        Return
         ------
-        encode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_meas,)
-                    max scores
-                max_loc[ndarray]: shape=(n_meas,)
-                    max locations of the max scores
-                max_model[ndarray]: shape=(n_meas,)
-                    fitted models of the max scores
-                    Note: only exists when model is regressor
-                score[ndarray]: shape=(n_meas, cv)
-                    The second dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is regressor
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_meas, cv)
-                    The second dimension means scores of each cross validation folds
-                    at each measurement
-                model[ndarray]: shape=(n_meas,)
-                    Each element is a model fitted at the corresponding measurement.
+        encode_dict : dict
+            Keys depend on model type.
+            
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_meas,).                           |
+            |       |         |           |Max scores                                                 |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_meas,).                           | 
+            |       |         |           |Max locations of the max scores                            |
+            |       |         |           |                                                           |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_meas,).                           |
+            |       |         |           |Fitted models of the max scores                            |
+            |       |         |           |Note: only exists when model is regressor.                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_meas, cv).                        |
+            |       |         |           |The second dimension means scores of each                  | 
+            |       |         |           |cross validation folds of the max scores                   |
+            |       |         |           |Note: only exists when model is regressor                  |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_meas, cv).                        |
+            |       |         |           |The second dimension means scores of each                  |
+            |       | (str)   |           |cross validation folds at each iteration                   |
+            |       |         |           |and measurement.                                           |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_meas,).                           |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding measurement.                                 |         
+            +-------+---------+-----------+-----------------------------------------------------------+        
+            
         """
         encode_dict = self.model.predict(beh_data, self.brain_activ)
 
@@ -527,37 +603,45 @@ class BrainDecoder:
     """
     def __init__(self, brain_activ=None, model_type=None, model_name=None, cv=3):
         """
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        model_type : str
+            Choices=('uv','mv').
+            'uv': univariate prediction model.
+            'mv': multivariate prediction model.
+        model_name : str
+            Name of a model used to do prediction.
             If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+            And the model_type must be 'uv'.
+        cv : int 
+            Cross validation fold number
         """
         self.set(brain_activ, model_type, model_name, cv)
 
     def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
         """
-        Set some attributes
+        Set some parameters.
 
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
+        model_type : str
+            Choices=('uv','mv')
             'uv': univariate prediction model
             'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        model_name : str
+            Name of a model used to do prediction.
             If is 'corr', it just uses correlation rather than prediction.
                 And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+        cv : int 
+            Cross validation fold number.
         """
         if brain_activ is not None:
             self.brain_activ = brain_activ
@@ -585,41 +669,60 @@ class BrainDecoder:
         """
         Decode brain activation to DNN activation.
 
-        Parameter:
+        Parameters
         ---------
-        dnn_activ[Activation]: DNN activation
+        dnn_activ[Activation]: 
+            DNN activation.
 
-        Return:
+        Return
         ------
-        decode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_chn, n_row, n_col)
-                    max scores
-                max_loc[ndarray]: shape=(n_chn, n_row, n_col)
-                    locations of measurement indicators with max scores
-                max_model[ndarray]: shape=(n_chn, n_row, n_col)
-                    fitted models of the max scores
-                    Note: only exists when model is classifier or regressor
-                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is classifier or regressor
-                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
+        decode_dict : dict
+            Keys depend on model type.    
+                
+            +-------+---------+----------------------------------------------------------------------+
+            |       |         |                           First value                                |
+            |       |         +-----------+----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                       |
+            | type  |key      |key        |                                                          |
+            +=======+=========+===========+==========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_chn, n_row, n_col).              |
+            |       |         |           |Max scores.                                               |
+            |       | (str)   +-----------+----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_chn, n_row, n_col).              | 
+            |       |         |           |Locations of measurement                                  | 
+            |       |         |           |indicators with max scores.                               |
+            |       |         +-----------+----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_chn, n_row, n_col).              | 
+            |       |         |           |fitted models of the max scores.                          | 
+            |       |         |           |Note: only exists when model is regressor                 |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means scores of each                  | 
+            |       |         |           |cross validation folds of the max scores.                 |
+            |       |         |           |Note: only exists when model is regressor                 |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means confusion                       |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
+            |       |         |           |The forth dimension means scores of each                  |
+            |       | (str)   |           |cross validation folds at each unit.                      |
+            |       |         |           |                                                          |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_chn, n_row, n_col).              |
+            |       |         |           |Each element is a model fitted at the                     |
+            |       |         |           |corresponding unit.                                       |         
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          | 
+            |       |         |           |The forth dimension means confusion matrices              |
+            |       |         |           |(n_label, n_label) of each cross validation               |
+            |       |         |           |folds at the corresponding unit.                          |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+               
 
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means scores of each cross validation folds
-                    at each unit
-                model[ndarray]: shape=(n_chn, n_row, n_col)
-                    Each element is a model fitted at the corresponding unit.
-                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds at the corresponding unit.
-                    Note: only exists when model is classifier
         """
         decode_dict = dict()
         for layer in dnn_activ.layers:
@@ -644,41 +747,58 @@ class BrainDecoder:
         """
         Decode brain activation to behavior data.
 
-        Parameter:
+        Parameters
         ---------
-        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+        beh_data : ndarray 
+            Behavior data with shape as (n_stim, n_beh).
 
-        Return:
+        Return
         ------
-        decode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_beh,)
-                    max scores
-                max_loc[ndarray]: shape=(n_beh,)
-                    locations of measurement indicators with max scores
-                max_model[ndarray]: shape=(n_beh,)
-                    fitted models of the max scores
-                    Note: only exists when model is classifier or regressor
-                score[ndarray]: shape=(n_beh, cv)
-                    The second dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is classifier or regressor
-                conf_m[ndarray]: shape=(n_beh, cv)
-                    The second dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_beh, cv)
-                    The second dimension means scores of each cross validation folds
-                    at each behavior
-                model[ndarray]: shape=(n_beh,)
-                    Each element is a model fitted at the corresponding behavior.
-                conf_m[ndarray]: shape=(n_beh, cv)
-                    The second dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
+        decode_dict : dict
+            Keys depend on model type.  
+            
+            +-------+---------+----------------------------------------------------------------------+
+            |       |         |                           First value                                |
+            |       |         +-----------+----------------------------------------------------------+
+            | model |First    |Second     |                       Second value                       |
+            | type  |key      |key        |                                                          |
+            +=======+=========+===========+==========================================================+
+            | *uv*  | layer   |'max_score'|A array with shape as (n_beh,).                           |
+            |       |         |           |Max scores.                                               |
+            |       | (str)   +-----------+----------------------------------------------------------+
+            |       |         |'max_loc'  |A array with shape as (n_beh,).                           | 
+            |       |         |           |Locations of measurement                                  | 
+            |       |         |           |indicators with max scores.                               |
+            |       |         +-----------+----------------------------------------------------------+                                               
+            |       |         |'max_model'|A array with shape as (n_beh,).                           |
+            |       |         |           |Fitted models of the max scores.                          |
+            |       |         |           |Note: only exists when model is classifier or regressor   |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'score'    |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means scores of each                 | 
+            |       |         |           |cross validation folds of the max scores.                 |
+            |       |         |           |Note: only exists when model is classifier  or regressor  |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means confusion                      |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+
+            | *mv*  | layer   |'score'    |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The forth dimension means scores of each                  |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'model'    |A array with shape as (n_beh,).                           |
+            |       |         |           |Each element is a model fitted at the                     |
+            |       |         |           |corresponding behavior.                                   |         
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
+            |       |         |           |The second dimension means confusion                      |
+            |       |         |           |matrices (n_label, n_label) of each cross                 |
+            |       |         |           |validation folds of the max scores.                       |
+            |       |         |           |Note: only exists when model is classifier                |
+            +-------+---------+-----------+----------------------------------------------------------+            
+            
         """
         decode_dict = self.model.predict(self.brain_activ, beh_data)
 

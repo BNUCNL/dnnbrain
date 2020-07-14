@@ -10,19 +10,33 @@ def imgarray_show(x, nrows=1, ncols=1, row_label=None, vmin=None, vmax=None,
     
     Parameters
     ----------
-    x[list]: list of image array (2d or 3d-RGB[A])
-    nrows, ncols[int]: number of rows/columns of the subplot grid
-    row_label[list]: row names
-    vmin, vmax[scalar]: vmin and vmax define the value range of 
+    x : list 
+        List of image array (2d or 3d-RGB[A]).
+    nrows, ncols : int 
+        Number of rows/columns of the subplot grid.
+    row_label : list 
+        Row names.
+    vmin, vmax : scalar 
+        **vmin** and **vmax** define the value range of 
         colormap applied to all images. By default, colormaps
         adapt to each image's value range.
-    figsize[float, float]: width, height of figure in inches.
-    cmap[str]: The Colormap instance or registered colormap name used 
+    figsize : float, float
+        *width*, height of figure in inches.
+    cmap : str 
+        The Colormap instance or registered colormap name used 
         to map scalar data to colors. 
-    frame_on[bool]: set whether the axes rectangle patch is drawn
-    img_names[list]: image names with the same length as x
-    show[bool]: set whether the figure is displayed
-    save_path[str]: file path to save the figure
+    frame_on : bool 
+        Set whether the axes rectangle patch is drawn.
+    img_names : list 
+        Image names with the same length as x.
+    show : bool 
+        Set whether the figure is displayed.
+    save_path : str 
+        File path to save the figure.
+        
+    Return
+    ------
+    matplotlib.figure : object
     """
 
     fig, axs = plt.subplots(nrows=nrows, ncols=ncols,

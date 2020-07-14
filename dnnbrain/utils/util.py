@@ -9,20 +9,29 @@ def get_frame_time_info(vid_file, original_onset, interval=1, before_vid=0, afte
     Extract frames of interest from a video with their onsets and durations,
     according to the experimental design.
 
-    Parameters:
+    Parameters
     -----------
-    vid_file[str]: video file path
-    original_onset[float]: the first stimulus' time point relative to the beginning of the response
-        For example, if the response begins at 14 seconds after the first stimulus, the original_onset is -14.
-    interval[int]: Get one frame per 'interval' frames
-    before_vid[float]: Display the first frame as a static picture for 'before_vid' seconds before video.
-    after_vid[float]: Display the last frame as a static picture for 'after_vid' seconds after video.
+    vid_file : str 
+        Video file path.
+    original_onset : float 
+        The first stimulus' time point relative to the beginning of the response.
+        For example, if the response begins at 14 seconds after the first stimulus, 
+        the original_onset is -14.
+    interval : int 
+        Get one frame per 'interval' frames,
+    before_vid : float 
+        Display the first frame as a static picture for 'before_vid' seconds before video.
+    after_vid : float 
+        Display the last frame as a static picture for 'after_vid' seconds after video.
 
-    Returns:
+    Returns
     --------
-    frame_nums[list]: sequence numbers of the frames of interest
-    onsets[list]: onsets of the frames of interest
-    durations[list]: durations of the frames of interest
+    frame_nums : list 
+        Sequence numbers of the frames of interest.
+    onsets : list 
+        Onsets of the frames of interest.
+    durations : list 
+        Durations of the frames of interest.
     """
     assert isinstance(interval, int) and interval > 0, "Parameter 'interval' must be a positive integer!"
 
@@ -54,16 +63,20 @@ def gen_dmask(layers=None, channels='all', dmask_file=None):
     1. combining layers and channels.
     2. loading from dmask file.
 
-    Parameters:
+    Parameters
     ----------
-    layers[list]: layer names
-    channels[str|list]: channel numbers
+    layers : list 
+        Layer names.
+    channels : str, list 
+        Channel numbers.
         It will be ignored if layers is None.
-    dmask_file[str]: .dmask.csv file
+    dmask_file : str 
+        A .dmask.csv file.
 
-    Return:
+    Return
     ------
-    dmask[Mask]: DNN mask
+    dmask : Mask 
+        DNN mask.
     """
     # set some assertions
     assert np.logical_xor(layers is None, dmask_file is None), \
@@ -103,11 +116,13 @@ def normalize(array):
 
     Parameter:
     ---------
-    array[ndarray]: a numpy array
+    array : ndarray 
+        A numpy array.
 
     Return:
     ------
-    array[ndarray]: a numpy array after normalization
+    array : ndarray 
+        A numpy array after normalization.
     """
     array = (array - array.min()) / (array.max() - array.min())
 
@@ -116,19 +131,21 @@ def normalize(array):
 
 def topk_accuracy(pred_labels, true_labels, k):
     """
-    Calculate top k accuracy for the classification results
+    Calculate top k accuracy for the classification results.
 
     Parameters:
     ----------
-    pred_labels[array-like]: predicted labels
-        2d array with shape as (n_stim, n_class)
+    pred_labels : array-like 
+        Predicted labels, 2d array with shape as (n_stim, n_class).
         Each row's labels are sorted from large to small their probabilities.
-    true_values[array-like]: true values
-        1d array with shape as (n_stim,)
-    k[int]: the number of tops
+    true_values : array-like 
+        True values, 1d array with shape as (n_stim,).
+    k[int]: 
+        The number of tops.
 
     Return:
-        acc[float]: top k accuracy
+    acc : float 
+        Top k accuracy.
     """
     pred_labels = np.asarray(pred_labels)
     true_labels = np.asarray(true_labels)
