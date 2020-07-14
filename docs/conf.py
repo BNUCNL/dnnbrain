@@ -19,8 +19,8 @@ os.environ['DNNBRAIN_DATA'] = ''  # reserved for autodoc which will import DNNBr
 # -- Project information -----------------------------------------------------
 
 project = 'DNNBrain'
-copyright = '2020, Xiayu Chen, Ming Zhou, Taicheng Huang, Xingyu Liu, Zonglei Zhen'
-author = 'Xiayu Chen, Ming Zhou, Taicheng Huang, Xingyu Liu, Zonglei Zhen'
+copyright = '2020, Xiayu Chen, Ming Zhou, Zhengxin Gong, Wei Xu, Xingyu Liu, Taicheng Huang, Zonglei Zhen, Jia Liu'
+author = 'Xiayu Chen, Ming Zhou, Zhengxin Gong, Wei Xu, Xingyu Liu, Taicheng Huang, Zonglei Zhen, Jia Liu'
 
 # The full version, including alpha/beta/rc tags
 release = '1.0a'
