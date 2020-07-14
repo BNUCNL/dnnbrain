@@ -1,5 +1,6 @@
-DNNBrain Tutorials
-==================
+Tutorials
+=========
+
 We use the AlexNet model and BOLD5000 dataset to demonstrate the versatility and usability of DNNBrain in characterizing the DNN and in
 examining the correspondences between the DNN and the brain. The results are also used in our `bioRxiv article <https://www.biorxiv.org/content/10.1101/2020.07.05.188847v1>`__, and more description about the model and dataset can be found at the 'Methods' part of this article.
 
