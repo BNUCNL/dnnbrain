@@ -173,3 +173,9 @@ in the “**models**” directory under the DNNBRAIN_DATA.
   `vgg11.pth <https://download.pytorch.org/models/vgg11-bbd30ac9.pth>`__
   \|
   `vgg_face_dag.pth <http://www.robots.ox.ac.uk/~albanie/models/pytorch-mcn/vgg_face_dag.pth>`__
+  \|
+  `vgg19_bn.pth <https://download.pytorch.org/models/vgg19_bn-c79401a0.pth>`__
+  \|
+  `googlenet.pth <https://download.pytorch.org/models/googlenet-1378be20.pth>`__
+  \|
+  `resnet152.pth <https://download.pytorch.org/models/resnet152-b121ed2d.pth>`__
