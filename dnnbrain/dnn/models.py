@@ -958,12 +958,16 @@ class Vgg19_bn(DNN):
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
-        Parameter:
-        ---------
-        layer[str]: layer name
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
@@ -1128,12 +1132,16 @@ class Resnet152(DNN):
     def layer2module(self, layer):
         """
         Get a PyTorch Module object according to the layer name.
-        Parameter:
-        ---------
-        layer[str]: layer name
-        Return:
-        ------
-        module[Module]: PyTorch Module object
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
         """
         module = self.model
         for k in self.layer2loc[layer]:
