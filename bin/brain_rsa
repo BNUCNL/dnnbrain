@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Characterise brain activation's representation dissimilarity matrix.
+Characterise brain activation's representation dissimilarity matrix (RDM).
 """
 
 import time
@@ -25,7 +25,9 @@ def main():
                         metavar='BrainMask',
                         required=True,
                         type=str,
-                        help="Brain mask is used to extract activation locally.")
+                        help="brain mask image"
+                             "Each non-zero value will be regarded as a ROI label."
+                             "The activation pattern in each ROI will be used to calculate RDM.")
     parser.add_argument('-roi',
                         metavar='ROI',
                         required=False,
@@ -40,7 +42,7 @@ def main():
                              "If used, do rsa category-wisely that average activation pattern "
                              "before calculating the distance. And the row/column order of RDM is "
                              "organized from small to big according to the 'label'."
-                             "Note: the 'label' here is a item in the .stim.csv file rather than "
+                             "Note: the 'label' here is an item in the .stim.csv file rather than "
                              "the label in '-roi' option!")
     parser.add_argument('-metric',
                         metavar='Metric',
@@ -54,7 +56,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='an output filename with suffix .rdm.h5')
+                        help='output filename with suffix as .rdm.h5')
     args = parser.parse_args()
 
     # load neuroimaging data
