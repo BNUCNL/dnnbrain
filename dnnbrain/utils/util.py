@@ -140,7 +140,7 @@ def topk_accuracy(pred_labels, true_labels, k):
         Each row's labels are sorted from large to small their probabilities.
     true_values : array-like 
         True values, 1d array with shape as (n_stim,).
-    k[int]: 
+    k : int
         The number of tops.
 
     Return:

@@ -485,10 +485,13 @@ class VideoSet:
         """
         Parameters
         ----------
-        vid_file : str  video data file
-        frame_nums : list   sequence numbers of the frames of interest
-        labels : list   each frame's label
-        transform[pytorch transform]
+        vid_file : str  
+            Video data file.
+        frame_nums : list   
+            Sequence numbers of the frames of interest.
+        labels : list   
+            Each frame's label.
+        transform : pytorch transform
         """
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
@@ -966,7 +969,7 @@ class MultivariatePredictionModel:
         Return
         ------
         pred_dict: dict
-            Keys depend on model type.
+            It depends on model type.
         
             +------------+-----------+--------------------------------------------------------------+
             |Model       |Key        |Value                                                         |
