@@ -17,6 +17,7 @@ Command-Line Interfaces
 | :doc:`dnn_rf_us <cmd/dnn_rf_us>`
 | :doc:`dnn_topstim <cmd/dnn_topstim>`
 | :doc:`dnn_saliency <cmd/dnn_saliency>`
+| :doc:`dnn_rsa <cmd/dnn_rsa>`
 | :doc:`dnn_probe <cmd/dnn_probe>`
 | :doc:`db_encode <cmd/db_encode>`
 | :doc:`db_decode <cmd/db_decode>`
