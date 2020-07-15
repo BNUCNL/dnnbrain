@@ -5,11 +5,12 @@ dnn_probe - Probe the ability of DNN activation to predict behavior.
 
 Synopsis
 --------
+
 ::
 
-	dnn_probe [-h] -anal Analysis -act Activation 
-			  [-layer Layer [Layer …]] [-chn Channel [Channel…]] 
-		      [-dmask DnnMask] [-iteraxis Axis] -stim Stimulus -beh Behavior -model Model [-cv FolderNumber] -out Output
+   dnn_probe [-h] -anal Analysis -act Activation [-layer Layer [Layer …]]
+             [-chn Channel [Channel…]] [-dmask DnnMask] [-iteraxis Axis]
+             -stim Stimulus -beh Behavior -model Model [-cv FolderNumber] -out Output
 
 Arguments
 ---------
@@ -20,10 +21,9 @@ Required Arguments
 +-----------------------------+----------------------------------------+
 | Argument                    | Discription                            |
 +=============================+========================================+
-| anal                        | Method of analysis. Enter one parameter|
-|                             | 'Analysis', choose from ('uv','mv').   |
-|                             | 'uv' means univariate analysis, and    |
-|                             | 'mv' means multivariate analysis       |
+| anal                        |choices=('uv', 'mv') |br|               |
+|                             |'uv': univariate analysis |br|          |
+|                             |'mv': multivariate analysis             |
 +-----------------------------+----------------------------------------+
 | act                         | Path of a .act.h5 file which contains  |
 |                             | activation information to extract      |
@@ -97,9 +97,12 @@ analysis result is stored as a .csv file in a subfold named after the layer.
 Examples
 --------
 
-Train a logistic regression model on the artificial representation from each layer in Test.act.h5 to decode the stimulus category in Test.stim.csv. The accuracy of the model is evaluated with a 10-fold cross validation,save outputs in Test_lrc_label_cv10.
+Train a logistic regression model for each layer in Test.act.h5 to decode its representation to category labels in Test.stim.csv. The accuracy of the model is evaluated with a 10-fold cross validation, and the outputs are saved in Test_lrc_label_cv10.
 
 ::
  
     dnn_probe -anal mv -act Test.act.h5 -stim Test.stim.csv -beh label -model lrc -cv 10 -out Test_lrc_label_cv10
 
+.. |br| raw:: html
+
+  <br/>
