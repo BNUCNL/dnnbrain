@@ -4,7 +4,6 @@ CLI/API Docs
 Command-Line Interfaces
 -----------------------
 
-| :doc:`db_info <cmd/db_info>`
 | :doc:`brain_roi <cmd/brain_roi>`
 | :doc:`brain_rsa <cmd/brain_rsa>`
 | :doc:`dnn_act <cmd/dnn_act>`
@@ -21,6 +20,8 @@ Command-Line Interfaces
 | :doc:`dnn_probe <cmd/dnn_probe>`
 | :doc:`db_encode <cmd/db_encode>`
 | :doc:`db_decode <cmd/db_decode>`
+| :doc:`db_corr <cmd/db_corr>`
+| :doc:`db_info <cmd/db_info>`
 
 Python APIs
 -----------
