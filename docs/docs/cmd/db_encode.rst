@@ -9,9 +9,13 @@ Name
 Synopsis
 --------
 
-db_encode -anal Analysis -act Activation [-layer Layer [Layer …]] [-chn Channel [Channel
-…]] [-dmask DnnMask] [-iteraxis Axis] -resp Response -bmask BrainMask [-roi RoiName] 
--model Model [-scoring Scoring] [-cv FoldNumber] -out Output
+::
+
+   db_encode  [-h] -anal Analysis -act Activation
+              [-layer Layer [Layer ...]] [-chn Channel [Channel ...]]
+              [-dmask DnnMask] [-iteraxis Axis] -resp Response
+              [-bmask BrainMask] [-roi RoiName [RoiName ...]] -model Model
+              [-scoring Scoring] [-cv CrossValidationFoldNumber] -out Output
 
 Arguments
 ---------
@@ -37,9 +41,6 @@ Required Arguments
 |                             | will be regarded as the "ground truth of         |
 |                             | a regression task."                              |
 +-----------------------------+--------------------------------------------------+
-| bmask                       | Brain mask is used to extract activation locally.|
-|                             | Only used when the response file is .nii file.   |
-+-----------------------------+--------------------------------------------------+
 | model                       | The model type to predict brain responses by dnn |
 |                             | activation. Choices is ('glm', 'lasso'). You can |
 |                             | use glm (general linear model) for regression or |
@@ -54,10 +55,7 @@ Optional Arguments
 +-----------------------------+-----------------------------------------------------+
 | Argument                    | Discription                                         |
 +=============================+=====================================================+
-| layer                       | Name of the target layer(s).Default is              |
-|                             | all.E.g., ‘conv1’ represents the first              |
-|                             | convolution layer, and ‘fc1’                        |
-|                             | represents the first full connection layer.         |
+| layer                       | Name of the target layer(s).Default is all.         |
 +-----------------------------+-----------------------------------------------------+
 | chn                         | Index of target channel(s).Default is               |
 |                             | all.Channel index starts from 1.                    |
@@ -79,6 +77,10 @@ Optional Arguments
 |                             | row_col: Do mva using all units in each location    |                                 
 |                             | (row_idx, col_idx). default: Do mva using all units.|
 +-----------------------------+-----------------------------------------------------+
+| bmask                       | Brain mask is used to extract activation locally.   |
+|                             | Only used when the response file is .nii file.      |
+|                             | If not given, the whole brain response will be used.|
++-----------------------------+-----------------------------------------------------+
 | roi                         | Specify ROI names as the ground truth.              |
 |                             | Default is using all ROIs in .roi.h5 file.          |
 +-----------------------------+-----------------------------------------------------+
@@ -94,17 +96,17 @@ Optional Arguments
 Outputs
 -------
 
-Arrays containing the prediction score and encoding accuracy maps of each layer.
+Arrays containing the prediction score of each layer.
 Note：Different layers' output is stored in different folders.
 
 Examples
 --------
 
-The example demonstrates the whole command of encoding.
-DNN activation was used to predict brain response using GLM model 
-in multivariate analysis.
+DNN activation(test.act.h5) was used to predict brain response(test.nii.gz) using GLM model 
+in multivariate analysis. The example uses the scoring of correlation with 10 cross validation fold numbers.
+
 
 ::
 
-   db_encode -anal mv -act AlexNet_relu_zscore_PCA-100.act.h5 -resp beta_rh_all_run.nii.gz -bmask VTC_mask_rh.nii.gz -model glm -scoring correlation -cv 10 -out AlexNet_relu_zscore_PCA-100_glm-corr_cv-10_VVA_rh
-
+   db_encode -anal mv -act test.act.h5 -resp test.nii.gz -model glm -scoring correlation -cv 10 
+   -out test_glm-corr_cv-10
