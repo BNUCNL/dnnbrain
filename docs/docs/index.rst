@@ -5,6 +5,8 @@ Command-Line Interfaces
 -----------------------
 
 | :doc:`db_info <cmd/db_info>`
+| :doc:`db_encode <cmd/db_encode>`
+| :doc:`db_decode <cmd/db_decode>`
 | :doc:`dnn_act <cmd/dnn_act>`
 | :doc:`dnn_fe <cmd/dnn_fe>`
 | :doc:`dnn_view <cmd/dnn_view>`

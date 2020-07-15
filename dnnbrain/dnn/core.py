@@ -1013,41 +1013,43 @@ class DnnProbe:
         -------
         probe_dict : dict
             A dict containing the score information 
-                                                           
-            +-------------+-------------+--------------+---------------------+--------------------------------------------------+
-            | Model type  |  first key  |  second key  |    Return Shape     |          Description                             |
-            +=============+=============+==============+=====================+==================================================+
-            |     *uv*    |  layer(str) |   max_score  | (n_iter, n_beh).    |  Max scores at each iteration.                   |
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |    max_loc   | (n_iter, n_beh, 3). |  Max locations of the max scores, the size       |
-            |             |             |              |                     |  3 of the third dimension means channel,         |
-            |             |             |              |                     |  row and column locations respectively.          |
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |   max_model  | (n_iter, n_beh).    |  Fitted models of the max scores                 |
-            |             |             |              |                     |  Note: only exists when model                    |
-            |             |             |              |                     |  is classifier or regressor.                     |
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |     score    | (n_iter, n_beh, cv).|  The third dimension means scores of each        |
-            |             |             |              |                     |  cross validation folds of the max scores        |
-            |             |             |              |                     |  Note: only exists when model is classifier      |
-            |             |             |              |                     |  or regressor.                                   |
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |    conf_m    | (n_iter, n_beh, cv).|  The third dimension means confusion matrices    |
-            |             |             |              |                     |  (n_label, n_label). of each cross validation    |
-            |             |             |              |                     |  folds of the max scores.                        |
-            |             |             |              |                     |  Note: only exists when model is classifier.     |
-            +-------------+-------------+--------------+---------------------+--------------------------------------------------+
-            |     *mv*    |  layer(str) |     score    | (n_iter, n_beh, cv).|  The third dimension means scores of each cross  |
-            |             |             |              |                     |  validation folds at each iteration and behavior.|
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |     model    | (n_iter, n_beh).    |  Each element is a model fitted at               |
-            |             |             |              |                     |  the corresponding iteration and behavior.       |              
-            |             |             +--------------+---------------------+--------------------------------------------------+
-            |             |             |    conf_m    | (n_iter, n_beh, cv).|  The third dimension means confusion matrices    |
-            |             |             |              |                     |  (n_label, n_label). of each cross validation    |
-            |             |             |              |                     |  folds of the max scores.                        |
-            |             |             |              |                     |  Note: only exists when model is classifier.     |
-            +-------------+-------------+--------------+---------------------+--------------------------------------------------+
+
+            +-------------+-------------+--------------+------------------------------------------------------------------------+
+            |             |             |                First value                                                            |
+            |  Model type |  First key  +--------------+------------------------------------------------------------------------+
+            |             |             |  Second key  |   Second value                                                         |      
+            +=============+=============+==============+========================================================================+
+            |     *uv*    |  layer(str) |   max_score  | An array with shape as (n_iter, n_beh). Max scores at each iteration.  |
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |    max_loc   | An array with shape as (n_iter, n_beh, 3).                             |
+            |             |             |              | Max locations of the max scores, the size 3 of the third               |
+            |             |             |              | dimension means channel, row and column locations respectively.        |
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |   max_model  | An array with shape as (n_iter, n_beh).                                |
+            |             |             |              | Fitted models of the max scores.                                       |
+            |             |             |              | Note: only exists when model is classifier or regressor.               |
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |     score    | An array with shape as (n_iter, n_beh, cv).                            |
+            |             |             |              | The third dimension means scores of each                               |
+            |             |             |              | cross validation folds of the max scores                               |
+            |             |             |              | Note: only exists when model is classifier or regressor.               |
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |    conf_m    | An array with shape as (n_iter, n_beh, cv).                            |
+            |             |             |              | The third dimension means confusion matrices                           |
+            |             |             |              | (n_label, n_label). of each cross validation                           |
+            |             |             |              | folds of the max scores. Note: only exists when model is classifier.   |
+            +-------------+-------------+--------------+------------------------------------------------------------------------+
+            |     *mv*    |  layer(str) |     score    | An array with shape as (n_iter, n_beh, cv). The third dimension means  |
+            |             |             |              | scores of each cross validation folds at each iteration and behavior.  |
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |     model    | An array with shape as (n_iter, n_beh).Each element is                 |
+            |             |             |              | a model fitted at the corresponding iteration and behavior.            |              
+            |             |             +--------------+------------------------------------------------------------------------+
+            |             |             |    conf_m    | An array with shape as (n_iter, n_beh, cv).                            |
+            |             |             |              | The third dimension means confusion matrices                           |
+            |             |             |              | (n_label, n_label). of each cross validation                           |
+            |             |             |              | folds of the max scores. Note: only exists when model is classifier.   |
+            +-------------+-------------+--------------+------------------------------------------------------------------------+
         """
         _, n_beh = beh_data.shape
 
