@@ -2,7 +2,7 @@ Scan DNN
 ========
 In this tutorial, we are going to extract and display feature maps of three example images (cheetah, dumbbell, and bald eagle) for each convolutional layer after ReLU (Conv layer).
 
-Firstly, we should prepare a :doc:`.stim.csv <../docs/file_format>` file, which can tell DNNBrain where and what the inputs are. We assume that the file name is *examples.stim.csv*, and its content is shown as below:
+Firstly, we should prepare a :doc:`.stim.csv <../user_guide/file_format>` file, which can tell DNNBrain where and what the inputs are. We assume that the file name is *examples.stim.csv*, and its content is shown as below:
 
 ::
 
