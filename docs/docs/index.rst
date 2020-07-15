@@ -5,6 +5,7 @@ Command-Line Interfaces
 -----------------------
 
 | :doc:`db_info <cmd/db_info>`
+| :doc:`brain_roi <cmd/brain_roi>`
 | :doc:`dnn_act <cmd/dnn_act>`
 | :doc:`dnn_fe <cmd/dnn_fe>`
 | :doc:`dnn_view <cmd/dnn_view>`
