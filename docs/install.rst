@@ -4,8 +4,8 @@ Get Started
 Requirements
 ------------
 
--  python>=3.6.7
--  numpy==1.16.5
+-  python==3.6.x/3.7.x
+-  1.16.5=<numpy<=1.18
 -  nibabel>=2.4.1
 -  nipy>=0.4.2
 -  h5py>=2.9.0
