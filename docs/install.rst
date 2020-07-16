@@ -36,14 +36,14 @@ recommended).
 Install from source
 -------------------
 
-1. Get source code
+1. Get source code |br|
    Method1: Download source archive file (zip file) from
-   `GitHub <https://github.com/BNUCNL/dnnbrain>`__ and unpack it.
+   `GitHub <https://github.com/BNUCNL/dnnbrain>`__ and unpack it. |br|
    Method2: Clone the DNNBrain repostitory by executing:
    ``git clone https://github.com/BNUCNL/dnnbrain.git``
-2. Execute setup.py
-   Change to source directory (it should have the files README.md and
-   setup.py).
+
+2. Execute setup.py |br|
+   Change to source directory (it should have the files README.md and setup.py). |br|
    Run ``python setup.py install``
 
 | If you don’t have permission to install DNNBrain to the directory used
@@ -179,3 +179,9 @@ in the “**models**” directory under the DNNBRAIN_DATA.
   `googlenet.pth <https://download.pytorch.org/models/googlenet-1378be20.pth>`__
   \|
   `resnet152.pth <https://download.pytorch.org/models/resnet152-b121ed2d.pth>`__
+
+
+.. |br| raw:: html
+
+   <br />
+
