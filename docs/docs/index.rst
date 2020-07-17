@@ -21,6 +21,7 @@ Command-Line Interfaces
 | :doc:`db_encode <cmd/db_encode>`
 | :doc:`db_decode <cmd/db_decode>`
 | :doc:`db_corr <cmd/db_corr>`
+| :doc:`db_hrf <cmd/db_hrf>`
 | :doc:`db_info <cmd/db_info>`
 
 Python APIs
