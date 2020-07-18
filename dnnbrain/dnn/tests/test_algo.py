@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from dnnbrain.dnn import algo as d_algo
 from dnnbrain.dnn.base import ip
 from dnnbrain.dnn.models import AlexNet
+from dnnbrain.dnn.core import Stimulus
 from dnnbrain.utils.util import normalize
 
 
@@ -274,7 +275,10 @@ class TestUpsamplingActivationMapping:
 class TestEmpiricalReceptiveField:
     
     image = Image.open(pjoin(DNNBRAIN_TEST, 'image', 'images', 'n02108551_26574.JPEG'))
-        
+    stim = Stimulus()
+    stim.load('/nfs/s2/userhome/zhouming/workingdir/3.stim.csv')
+    save_path = 'main/test'
+    
     def test_generate_rf(self):
         
         # prepare DNN
@@ -293,7 +297,22 @@ class TestEmpiricalReceptiveField:
         emp_rf_size = emp_rf.generate_rf(img)
         assert emp_rf_size > 99
   
-
+    def test_compute(self):
+        
+        # prepare DNN
+        dnn = AlexNet()
+        
+        # engine with upsampling
+        up_map = d_algo.UpsamplingActivationMapping(dnn)
+        up_map.set_layer('conv5', 125)
+        up_map.set_params(interp_meth='bicubic', interp_threshold=0.5)
+        emp_rf = d_algo.EmpiricalReceptiveField(up_map)
+        img_out = emp_rf.compute(self.stim, self.save_path)
+        
+        # show output
+        img_out = ip.to_pil(img_out, True)
+        img_out.show()
+        
 class TestTheoreticalReceptiveField:
             
     def test_compute(self):

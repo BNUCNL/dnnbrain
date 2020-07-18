@@ -1,9 +1,18 @@
-Empirical Receptive Field 
+Empirical Map
 =========================
 
-There is an example of visualizing a set of images' empirical receptive field 
-using up-sampling(us) method through using python library of
-DNNBrain.
+Empirical map is a way to visualize a set of images' receptive field. 
+
+Before generating the empirical map, you need to ensure that the images can be highly activated by the given unit in DNN,
+which can be obtained using `dnn_topstim <https://dnnbrain.readthedocs.io/en/latest/docs/cmd/dnn_topstim.html>`__
+(Select the topK stimuli from a stimulus set).
+
+When generating the empirical map, you need to first assign an engine to get regions of the image 
+lead to the high unit activations(occluding or upsampling). After acquiring these regions, 
+the patch will be averaged and get the final empirical map.
+
+There is an example of empirical map using up-sampling(us) method 
+through using python library of DNNBrain.
 
 The original images used in this doc are displayed as below:
 
