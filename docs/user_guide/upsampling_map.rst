@@ -1,8 +1,18 @@
-Receptive Field Upsampling
+Upsampling Map 
 ==========================
 
-There is an example of visualizing receptive field using up-sampling(us)
-method through using python library of DNNBrain.
+Upsampling map is a way to visualize which regions of the image lead to the high unit activations.
+
+Before generating the upsampling map, you need to ensure that the images can be highly activated by the given unit in DNN,
+which can be obtained using `dnn_topstim <https://dnnbrain.readthedocs.io/en/latest/docs/cmd/dnn_topstim.html>`__
+(Select the topK stimuli from a stimulus set).
+
+The procedures are as follows. First, we feed the image into the network and get its feaure map at the given channel.
+Then we use some interpolate method to upsample the feaure map into the original image space. After setting the threshold
+to filter the map, we finally get the upsampling map.
+
+There is an example of up-sampling(us)method through 
+using python library of DNNBrain.
 
 The original image used in this doc is displayed as below:
 
@@ -32,8 +42,8 @@ Example
    dnn = AlexNet()
    image = plt.imread('ILSVRC_val_00095233.JPEG')
 
-   # Visualizing receptive field using up-sampling(us) method
-   # which displays the receptive field that contribute to 
+   # Using up-sampling(us) method to display 
+   # regions of the image that contribute to 
    # the activation of the 122th unit of conv5.
    up_estimator =UpsamplingActivationMapping(dnn, 'conv5', 122)
    up_estimator.set_params(interp_meth='bicubic', interp_threshold=0.95)
