@@ -8,7 +8,7 @@ which can be obtained using `dnn_topstim <https://dnnbrain.readthedocs.io/en/lat
 (Select the topK stimuli from a stimulus set).
 
 The procedures are as follows. First, we feed the image into the network and get its feaure map at the given channel.
-Then we use some interpolate method to upsample the feaure map into the original image sapce. After setting the threshold
+Then we use some interpolate method to upsample the feaure map into the original image space. After setting the threshold
 to filter the map, we finally get the upsampling map.
 
 There is an example of up-sampling(us)method through 
