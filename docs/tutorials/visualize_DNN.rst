@@ -124,4 +124,45 @@ Saliency map is acquired by computing gradients on the input images relative to 
 
 Optimal stimulus
 ----------------
-The optimal stimulus is synthesized from scratch guided by increasing activation of the target unit.
+The optimal stimulus is synthesized from scratch guided by increasing activation of the target unit. It offers advantages over the top stimulus and saliency map because it avoids the risks that effective images that could activate the target unit may not exist in the stimulus set.
+
+We get optimal stimulus for each three units using the following codes and show the results at below.
+
+::
+
+    from dnnbrain.dnn.models import AlexNet
+    from dnnbrain.dnn.algo import SynthesisImage
+    from dnnbrain.dnn.base import ip
+
+    dnn = AlexNet()
+    synthesis = SynthesisImage(dnn)
+
+    # synthesize ostrich stimulus
+    synthesis.set_metric('mean', 'TV', None, None)
+    synthesis.set_layer('fc3', 10)
+    synthesis.set_utiliz(False, True)
+    img_out = synthesis.synthesize(lr=1.0, regular_lambda=0.1, n_iter=500)
+    img_out = ip.to_pil(img_out, True)
+    img_out.save('synthesized_ostrich.jpg')
+
+    # synthesize peacock stimulus
+    synthesis.set_layer('fc3', 85)
+    img_out = synthesis.synthesize(lr=2.5, regular_lambda=0.05, n_iter=500)
+    img_out = ip.to_pil(img_out, True)
+    img_out.save('synthesized_peacock.jpg')
+
+    # synthesize flamingo stimulus
+    synthesis.set_layer('fc3', 131)
+    img_out = synthesis.synthesize(lr=1.0, regular_lambda=0.1, n_iter=500)
+    img_out = ip.to_pil(img_out, True)
+    img_out.save('synthesized_flamingo.jpg')
+
++---------------------+---------------------+----------------------+
+||synthesized_ostrich|||synthesized_peacock|||synthesized_flamingo||
++---------------------+---------------------+----------------------+
+| synthesized_ostrich | synthesized_peacock | synthesized_flamingo |
++---------------------+---------------------+----------------------+
+
+.. |synthesized_ostrich| image:: ../img/tutorial/synthesized_ostrich.jpg
+.. |synthesized_peacock| image:: ../img/tutorial/synthesized_peacock.jpg
+.. |synthesized_flamingo| image:: ../img/tutorial/synthesized_flamingo.jpg
