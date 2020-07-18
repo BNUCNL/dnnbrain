@@ -423,8 +423,7 @@ class SynthesisImage(Algorithm):
         pass
 
     def _regular_default(self):
-        reg = 0
-        return reg
+        return 0
 
     def _L1_norm(self):
         reg = torch.abs(self.optimal_image).sum()
@@ -446,17 +445,14 @@ class SynthesisImage(Algorithm):
         self.regular_losses.append(reg.item())
         return reg
 
-    def _precondition_default(self, GB_radius):
-        precond_image = self.optimal_image[0].detach().numpy()
-        precond_image = ip.to_tensor(precond_image).float()
-        precond_image = copy.deepcopy(precond_image)
-        return precond_image
+    def _precondition_default(self, GB_radius, lr):
+        pass
 
-    def _gaussian_blur(self, radius):
+    def _gaussian_blur(self, radius, lr):
         precond_image = filters.gaussian(self.optimal_image[0].detach().numpy(), radius)
-        precond_image = ip.to_tensor(precond_image).float()
-        precond_image = copy.deepcopy(precond_image)
-        return precond_image
+        self.optimal_image = ip.to_tensor(precond_image).float().unsqueeze(0)
+        self.optimal_image.requires_grad_(True)
+        self.optimizer = Adam([self.optimal_image], lr=lr)
 
     def _smooth_default(self, factor):
         pass
@@ -525,9 +521,9 @@ class SynthesisImage(Algorithm):
 
         return handle
 
-    def synthesize(self, init_image = None, unit=None, lr = 0.1,
-                    regular_lambda = 1, n_iter = 30, save_path = None,
-                    save_interval = None, GB_radius = 0.875, factor = 0.5, step = 1):
+    def synthesize(self, init_image=None, unit=None, lr=0.1,
+                    regular_lambda=1, n_iter=30, save_path=None,
+                    save_interval=None, GB_radius=0.875, factor=0.5, step=1):
         """
         Synthesize the image which maximally activates target layer and channel
 
@@ -570,22 +566,21 @@ class SynthesisImage(Algorithm):
         # prepare initialized image
         if init_image is None:
             # Generate a random image
-            init_image = np.random.normal(loc=[0.485, 0.456, 0.406], scale=[0.229, 0.224, 0.225], 
-                                          size=(*self.dnn.img_size, 3)).transpose(2,0,1)
-            init_image = ip.to_tensor(init_image).float()
-            init_image = copy.deepcopy(init_image)
+            init_image = torch.rand(3, *self.dnn.img_size, dtype=torch.float32)
         else:
             init_image = ip.to_tensor(init_image).float()
             init_image = copy.deepcopy(init_image)
 
+        self.optimal_image = init_image.unsqueeze(0)
+        self.optimal_image.requires_grad_(True)
+        self.optimizer = Adam([self.optimal_image], lr=lr)
+
+        # prepare for loss
         self.activ_losses = []
         self.regular_losses = []
-        
-        # prepare for loss
+
+        # iteration
         for i in range(n_iter):
-            self.optimal_image = init_image.unsqueeze(0)
-            self.optimal_image.requires_grad_(True)
-            optimizer = Adam([self.optimal_image], lr=lr)
             
             # save out
             self.save_out_interval(i, save_interval, save_path)
@@ -593,21 +588,26 @@ class SynthesisImage(Algorithm):
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
+
             # computer loss
             loss = self.activ_loss + regular_lambda * self.regular_metric()
+
             # zero gradients
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
             # Backward
             loss.backward()
-            #smoooth the gradient
+
+            # smooth gradients
             self.smooth_metric(factor)
+
             # Update image
-            optimizer.step()
+            self.optimizer.step()
             
             # Print interation
             self.print_inter_loss(i, step, n_iter, loss)
+
             # precondition
-            init_image = self.precondition_metric(GB_radius)
+            self.precondition_metric(GB_radius, lr)
            
         # compute act_loss for one more time as the loss 
         # we computed in each iteration is for the previous pic
