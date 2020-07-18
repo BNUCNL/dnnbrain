@@ -1,3 +1,4 @@
+import os
 import abc
 import cv2
 import time
@@ -7,6 +8,7 @@ import numpy as np
 
 from os import remove
 from os.path import join as pjoin
+from PIL import Image
 from scipy.ndimage.filters import gaussian_filter
 from torch.optim import Adam
 import torch.nn as nn
@@ -1306,7 +1308,7 @@ class EmpiricalReceptiveField:
         empirical_rf_size = np.sqrt(empirical_rf_area)
         return empirical_rf_size
 
-    def compute(self, stimuli):
+    def compute(self, stimuli, save_single=False):
         """
         Compute empirical receptive field based on input stimulus.
 
@@ -1314,7 +1316,10 @@ class EmpiricalReceptiveField:
         ----------
         stimuli : Stimulus
             Input stimuli which loaded from files on the disk.
-        
+        save_single : bool
+            If ture, the single image's receptive field
+            will be saved in the working path.
+            
         Return
         ---------
         emp_rf : ndarray
@@ -1326,8 +1331,8 @@ class EmpiricalReceptiveField:
             raise TypeError('The input stimuli must be an instance of Stimulus!')
         images = np.zeros((len(stimuli.get('stimID')),3,224,224), dtype=np.uint8)
         for idx, img_id in enumerate(stimuli.get('stimID')):
-            image = plt.imread(pjoin(stimuli.header['path'], img_id)).transpose(2,0,1)
-            image = ip.resize(image, self.engine.dnn.img_size)
+            image = Image.open(pjoin(stimuli.header['path'], img_id)).convert('RGB')
+            image = np.asarray(image).transpose(2,0,1)
             images[idx] = image
         # prepare dnn info
         dnn = self.engine.dnn
@@ -1371,6 +1376,18 @@ class EmpiricalReceptiveField:
             unit_max = max(act_all, key=act_all.get)
             patch_max = patch_all[unit_max]
             range_max = range_all[unit_max]
+            # save single receptive field in the original image
+            if save_single:
+                # prepare path
+                path = os.getcwd()
+                tmp_dir = pjoin(path, 'single_rf')
+                if not os.path.exists(tmp_dir):
+                    os.makedirs(tmp_dir)
+                # start saving
+                img_patch_org = pic[:,int(range_max[0][0]):int(range_max[0][1]),
+                                    int(range_max[1][0]):int(range_max[1][1])]
+                img_patch_org = ip.to_pil(img_patch_org, True)
+                img_patch_org.save(pjoin(tmp_dir, f'{idx+1}.jpg'))
             # integrate all patch 
             if int(range_max[0][0]) == 0:
                 h_indice = (int(rf_size-patch_max.shape[0]), int(rf_size))
