@@ -1333,6 +1333,7 @@ class EmpiricalReceptiveField:
         for idx, img_id in enumerate(stimuli.get('stimID')):
             image = Image.open(pjoin(stimuli.header['path'], img_id)).convert('RGB')
             image = np.asarray(image).transpose(2,0,1)
+            image = ip.resize(image, self.engine.dnn.img_size)
             images[idx] = image
         # prepare dnn info
         dnn = self.engine.dnn
