@@ -308,10 +308,28 @@ class SynthesisImage(Algorithm):
             The metric method to summarize activation
         regular_metric : str 
             The metric method of regularization
+        regular_lambda : float
+            The lambda of the regularization.
         precondition_metric : str
             The metric method of precondition
+        GB_radius : float
+            Radius parameter for 'GB', gaussian blur.
         smooth_metric : str 
-            The metric method of smoothing
+            The metric method of smoothing.
+        factor : float
+            Factor parameter for 'Fourier', smooth fourier.
+        print_inter_loss : boolean
+            Default=*False*. If True, loss result during iteration will be printed.
+        step : int
+            Print loss during interation every step.
+        save_out_interval : boolean
+            Default=*False*. If True, synthesized outputs during iteration will be stored.
+            When True, 'save_path' and 'save_interval' should be set.
+        save_path : str
+            The directory to save images.
+            Path where synthesized outputs will be stored in.
+        save_interval : int
+            Save interval. Save out synthesized images per 'save interval' iterations.
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
         self.set_loss_function(activ_metric, regular_metric, regular_lambda)
@@ -397,7 +415,8 @@ class SynthesisImage(Algorithm):
 
     def set_smooth_gradient(self, smooth_metric, factor):
         """
-        Set metric methods
+        This method is to set smooth gradient metric, it's a very effective way to
+        prove synthesized image quality.
 
         Parameters
         ----------
@@ -420,6 +439,8 @@ class SynthesisImage(Algorithm):
     
     def set_utiliz_loss(self, print_inter_loss=False, step=None):
         """
+        This method is to set wheter print the loss value during iteration.
+
         Parameters
         ----------
         print_inter_loss : boolean
@@ -436,6 +457,8 @@ class SynthesisImage(Algorithm):
         
     def set_utiliz_save(self, save_out_interval=False, save_path=None, save_interval=None):
         """
+        This method is to set whether save the interval images during iteration.
+
         Parameters
         ----------
         save_out_interval : boolean
