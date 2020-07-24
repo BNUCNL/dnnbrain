@@ -292,8 +292,9 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer=None, channel=None,
-                 activ_metric='mean', regular_metric=None, precondition_metric=None, smooth_metric=None,
-                 save_out_interval=False, print_inter_loss=False):
+                 activ_metric='mean', regular_metric=None, regular_lambda=None,
+                 precondition_metric=None, GB_radius=None, smooth_metric=None, factor=None,
+                 save_out_interval=False, print_inter_loss=False,step=None,save_path=None,save_interval=None):
         """
         Parameters
         ----------
@@ -313,8 +314,11 @@ class SynthesisImage(Algorithm):
             The metric method of smoothing
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_metric(activ_metric, regular_metric, precondition_metric, smooth_metric)
-        self.set_utiliz(save_out_interval, print_inter_loss)
+        self.set_loss_function(activ_metric, regular_metric, regular_lambda)
+        self.set_precondition(precondition_metric, GB_radius)
+        self.set_smooth_gradient(smooth_metric, factor)
+        self.set_utiliz_loss(print_inter_loss, step)
+        self.set_utiliz_save(save_out_interval, save_path, save_interval)
         self.activ_loss = None
         self.optimal_image = None
 
@@ -324,22 +328,24 @@ class SynthesisImage(Algorithm):
 
         self.row =None
         self.column=None
-        
-    def set_metric(self, activ_metric, regular_metric,
-                   precondition_metric, smooth_metric):
-        """
-        Set metric methods
 
+
+    def set_loss_function(self, activ_metric, regular_metric,regular_lambda=1):
+        """
+        This method is to set loss function for optimization.
+        As the target usually is a 2-D feature map in convolutional layer with mulitiple units,
+        'active_metric' can make algorithim clear on how to omputue the loss value.
+        Also there are some popular regularization to make synthesis more interpretable,
+        'regular_matric' can set one of them and 'regular_lambda' give the weights of this term. 
+        
         Parameters
         ----------
         activ_metric : str
             The metric method to summarize activation.
         regular_metric : str 
             The metric method of regularization.
-        precondition_metric : str
-            The metric method of preconditioning.
-        smooth_metric : str
-            The metric method of smoothing.
+        regular_lambda : float
+            The lambda of the regularization.
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -361,48 +367,100 @@ class SynthesisImage(Algorithm):
         else:
             raise AssertionError('Only L1, L2, and total variation are supported!')
 
+        # regularization hyperparameter setting
+        self.regular_lambda = regular_lambda
+
+
+    def set_precondition(self, precondition_metric, GB_radius=0.875):
+        """
+        This is the method to set whether a precondition metric will be used,
+        precondition is one of the method to smooth the high frequency noise on 
+        synthesized image. It will applied on every interval image during the iteration. 
+        
+        Parameters
+        ----------
+        precondition_metric : str
+            The metric method of preconditioning.
+        GB_radius : float
+            Radius parameter for 'GB', gaussian blur.
+        """
+
         # precondition metric setting
         if precondition_metric is None:
             self.precondition_metric = self._precondition_default
         elif precondition_metric == 'GB':
             self.precondition_metric = self._gaussian_blur
+            self.GB_radius = GB_radius
         else:
             raise AssertionError('Only Gaussian Blur is supported!')
-            
+
+
+    def set_smooth_gradient(self, smooth_metric, factor):
+        """
+        Set metric methods
+
+        Parameters
+        ----------
+        smooth_metric : str
+            The metric method of smoothing.
+        factor : float
+            Factor parameter for 'Fourier', smooth fourier.
+        """
+
         # smooth metric setting
         if smooth_metric is None:
             self.smooth_metric = self._smooth_default
         elif smooth_metric == 'Fourier':
             self.smooth_metric = self._smooth_fourier
+            self.factor = factor
         else:
             raise AssertionError('Only Fourier Smooth is supported!')
 
-    def set_utiliz(self, save_out_interval=False, print_inter_loss=False):
+    
+    
+    def set_utiliz_loss(self, print_inter_loss=False, step=None):
         """
-        Set whether or not to save interval pictures and print interval losses.
-        
-        
         Parameters
-        -----------
-        save_out_interval : boolean
-            Default=*False*. If True, outputs during iteration will be stored, and when calling
-            **synthesize()**, *save_path* and *save_interval* should be set.
-            
+        ----------
         print_inter_loss : boolean
-            Default=*False*. If True, loss result during iteration will be printed, and when 
-            calling **synthesize()**, *step* should be set.
+            Default=*False*. If True, loss result during iteration will be printed.
+        step : int
+            Print loss during interation every step.
         """
-        # saving interval pics in iteration setting
-        if save_out_interval is True:
-            self.save_out_interval = self._save_out
-        elif save_out_interval is False:
-            self.save_out_interval = self._close_save
-
-        # print interation loss
         if print_inter_loss is True:
             self.print_inter_loss = self._print_loss
+            self.step = step
         elif print_inter_loss is False:
             self.print_inter_loss = self._print_close
+            self.step = step
+        
+    def set_utiliz_save(self, save_out_interval=False, save_path=None, save_interval=None):
+        """
+        Parameters
+        ----------
+        save_out_interval : boolean
+            Default=*False*. If True, synthesized outputs during iteration will be stored.
+            When True, 'save_path' and 'save_interval' should be set.
+        save_path : str
+            The directory to save images.
+            Path where synthesized outputs will be stored in.
+        save_interval : int
+            Save interval. Save out synthesized images per 'save interval' iterations.
+
+        """
+        if save_out_interval is True:
+            self.save_out_interval = self._save_out
+            if type(save_path) != str or type(save_interval) != int :
+                raise AssertionError('Check save_path & save interval parameters!')
+            else:
+                self.save_path = save_path
+                self.save_interval = save_interval
+        elif save_out_interval is False:
+            self.save_out_interval = self._close_save
+            self.save_path = save_path
+            self.save_interval = save_interval
+    
+
 
     def _print_loss(self, i, step, n_iter, loss):
         if i % step == 0:
@@ -412,13 +470,12 @@ class SynthesisImage(Algorithm):
         pass
 
     def _save_out(self, currti, save_interval, save_path):
-        if (currti + 1) % save_interval == 0 and save_path is not None:
+        if (currti + 1) % save_interval == 0 :
             img_out = self.optimal_image[0].detach().numpy().copy()
             img_out = ip.to_pil(img_out, True)
             img_out.save(pjoin(save_path, f'synthesized_image_iter{currti + 1}.jpg'))
             print('Saved No.',currti + 1,'in iteration')
-        elif save_path == None:
-            raise AssertionError('Check save_out_interval parameters please! You must give save_interval & save_path!')
+
 
     def _close_save(self, currti, save_interval, save_path):
         pass
@@ -523,8 +580,7 @@ class SynthesisImage(Algorithm):
         return handle
 
     def synthesize(self, init_image=None, unit=None, lr=0.1,
-                    regular_lambda=1, n_iter=30, save_path=None,
-                    save_interval=None, GB_radius=0.875, factor=0.5, step=1):
+                     n_iter=30,  factor=0.5):
         """
         Synthesize the image which maximally activates target layer and channel
 
@@ -536,25 +592,11 @@ class SynthesisImage(Algorithm):
             Set target unit position.
         lr : float
             Learning rate.
-        regular_lambda : float
-            The lambda of the regularization.
+
         n_iter : int
             The number of iterations
-        save_path : str
-            The directory to save images.
-            If is None, do nothing.
-            else, save synthesized image at the last iteration.
-        save_interval : int
-            Save interval
-            If is None, do nothing.
-            else, save_path must not be None.
-                Save out synthesized images per 'save interval' iterations.
-        factor : float
-            Factor parameter for 'Fourier', smooth fourier.
-        GB_radius : float
-            Radius parameter for 'GB', gaussian blur.
-        step : int
-            Print loss during iteration per step.
+
+
         
         Return
         ------
@@ -584,14 +626,14 @@ class SynthesisImage(Algorithm):
         for i in range(n_iter):
             
             # save out
-            self.save_out_interval(i, save_interval, save_path)
+            self.save_out_interval(i, self.save_interval, self.save_path)
             
             # Forward pass layer by layer until the target layer
             # to triger the hook funciton.
             self.dnn.model(self.optimal_image)
 
             # computer loss
-            loss = self.activ_loss + regular_lambda * self.regular_metric()
+            loss = self.activ_loss + self.regular_lambda * self.regular_metric()
 
             # zero gradients
             self.optimizer.zero_grad()
@@ -599,16 +641,16 @@ class SynthesisImage(Algorithm):
             loss.backward()
 
             # smooth gradients
-            self.smooth_metric(factor)
+            self.smooth_metric(self.factor)
 
             # Update image
             self.optimizer.step()
             
             # Print interation
-            self.print_inter_loss(i, step, n_iter, loss)
+            self.print_inter_loss(i, self.step, n_iter, loss)
 
             # precondition
-            self.precondition_metric(GB_radius, lr)
+            self.precondition_metric(self.GB_radius, lr)
            
         # compute act_loss for one more time as the loss 
         # we computed in each iteration is for the previous pic
