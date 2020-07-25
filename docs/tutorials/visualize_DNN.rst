@@ -133,27 +133,28 @@ We get optimal stimulus for each three units using the following codes and show 
     from dnnbrain.dnn.models import AlexNet
     from dnnbrain.dnn.algo import SynthesisImage
     from dnnbrain.dnn.base import ip
-
+    
     dnn = AlexNet()
     synthesis = SynthesisImage(dnn)
-
+    
     # synthesize ostrich stimulus
-    synthesis.set_metric('mean', 'TV', None, None)
     synthesis.set_layer('fc3', 10)
-    synthesis.set_utiliz(False, True)
-    img_out = synthesis.synthesize(lr=1.0, regular_lambda=0.1, n_iter=500)
+    synthesis.set_loss('mean', 'TV', 0.1)
+    img_out = synthesis.synthesize(lr=1.0, n_iter=500)
     img_out = ip.to_pil(img_out, True)
     img_out.save('synthesized_ostrich.jpg')
-
+    
     # synthesize peacock stimulus
     synthesis.set_layer('fc3', 85)
-    img_out = synthesis.synthesize(lr=2.5, regular_lambda=0.05, n_iter=500)
+    synthesis.set_loss('mean', 'TV', 0.05)
+    img_out = synthesis.synthesize(lr=2.5, n_iter=500)
     img_out = ip.to_pil(img_out, True)
     img_out.save('synthesized_peacock.jpg')
-
+    
     # synthesize flamingo stimulus
     synthesis.set_layer('fc3', 131)
-    img_out = synthesis.synthesize(lr=1.0, regular_lambda=0.1, n_iter=500)
+    synthesis.set_loss('mean', 'TV', 0.1)
+    img_out = synthesis.synthesize(lr=1.0, n_iter=500)
     img_out = ip.to_pil(img_out, True)
     img_out.save('synthesized_flamingo.jpg')
 

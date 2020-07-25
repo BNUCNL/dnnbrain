@@ -5,7 +5,7 @@ Requirements
 ------------
 
 -  python==3.6.x/3.7.x
--  1.16.5=<numpy<=1.18
+-  1.16.5=<numpy<1.18
 -  nibabel>=2.4.1
 -  nipy>=0.4.2
 -  h5py>=2.9.0
@@ -128,6 +128,8 @@ window.
 
 Windows
 ~~~~~~~
+
+**Note**: DNNBrain scripts in *path_to_dnnbrain_bin* are only executable in UNIX-like shell, such as `git bash <https://gitforwindows.org/>`__.
 
 Open the environment variable editor which can be found under “Windows
 Menu —> Control Panel —> Advanced System Settings —> Environment

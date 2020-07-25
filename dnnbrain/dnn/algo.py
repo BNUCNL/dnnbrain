@@ -293,9 +293,9 @@ class SynthesisImage(Algorithm):
 
     def __init__(self, dnn, layer=None, channel=None,
                  activ_metric='mean', regular_metric=None, regular_lambda=None,
-                 precondition_metric=None, GB_radius=None, smooth_metric=None, factor=None,
-                 save_out_interval=False, print_inter_loss=False,step=None,save_path=None,save_interval=None):
+                 precondition_metric=None, GB_radius=None, smooth_metric=None, factor=None):
         """
+
         Parameters
         ----------
         dnn : DNN
@@ -318,25 +318,11 @@ class SynthesisImage(Algorithm):
             The metric method of smoothing.
         factor : float
             Factor parameter for 'Fourier', smooth fourier.
-        print_inter_loss : boolean
-            Default=*False*. If True, loss result during iteration will be printed.
-        step : int
-            Print loss during interation every step.
-        save_out_interval : boolean
-            Default=*False*. If True, synthesized outputs during iteration will be stored.
-            When True, 'save_path' and 'save_interval' should be set.
-        save_path : str
-            The directory to save images.
-            Path where synthesized outputs will be stored in.
-        save_interval : int
-            Save interval. Save out synthesized images per 'save interval' iterations.
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_loss_function(activ_metric, regular_metric, regular_lambda)
+        self.set_loss(activ_metric, regular_metric, regular_lambda)
         self.set_precondition(precondition_metric, GB_radius)
         self.set_smooth_gradient(smooth_metric, factor)
-        self.set_utiliz_loss(print_inter_loss, step)
-        self.set_utiliz_save(save_out_interval, save_path, save_interval)
         self.activ_loss = None
         self.optimal_image = None
 
@@ -344,17 +330,13 @@ class SynthesisImage(Algorithm):
         self.activ_losses = []
         self.regular_losses = []
 
-        self.row =None
-        self.column=None
-
-
-    def set_loss_function(self, activ_metric, regular_metric,regular_lambda=1):
+    def set_loss(self, activ_metric, regular_metric, regular_lambda):
         """
         This method is to set loss function for optimization.
-        As the target usually is a 2-D feature map in convolutional layer with mulitiple units,
-        'active_metric' can make algorithim clear on how to omputue the loss value.
+        As the target usually is a 2-D feature map in convolutional layer with multiple units,
+        'active_metric' can make algorithm clear on how to omputue the loss value.
         Also there are some popular regularization to make synthesis more interpretable,
-        'regular_matric' can set one of them and 'regular_lambda' give the weights of this term. 
+        'regular_metric' can set one of them and 'regular_lambda' give the weights of this term.
         
         Parameters
         ----------
@@ -375,7 +357,7 @@ class SynthesisImage(Algorithm):
 
         # regularization metric setting
         if regular_metric is None:
-            self.regular_metric = self._regular_default
+            self.regular_metric = lambda: 0
         elif regular_metric == 'L1':
             self.regular_metric = self._L1_norm
         elif regular_metric == 'L2':
@@ -388,8 +370,7 @@ class SynthesisImage(Algorithm):
         # regularization hyperparameter setting
         self.regular_lambda = regular_lambda
 
-
-    def set_precondition(self, precondition_metric, GB_radius=0.875):
+    def set_precondition(self, precondition_metric, GB_radius):
         """
         This is the method to set whether a precondition metric will be used,
         precondition is one of the method to smooth the high frequency noise on 
@@ -405,13 +386,12 @@ class SynthesisImage(Algorithm):
 
         # precondition metric setting
         if precondition_metric is None:
-            self.precondition_metric = self._precondition_default
+            self.precondition_metric = lambda x, y: None
         elif precondition_metric == 'GB':
             self.precondition_metric = self._gaussian_blur
-            self.GB_radius = GB_radius
         else:
             raise AssertionError('Only Gaussian Blur is supported!')
-
+        self.GB_radius = GB_radius
 
     def set_smooth_gradient(self, smooth_metric, factor):
         """
@@ -425,86 +405,14 @@ class SynthesisImage(Algorithm):
         factor : float
             Factor parameter for 'Fourier', smooth fourier.
         """
-
         # smooth metric setting
         if smooth_metric is None:
-            self.smooth_metric = self._smooth_default
+            self.smooth_metric = lambda x: None
         elif smooth_metric == 'Fourier':
             self.smooth_metric = self._smooth_fourier
-            self.factor = factor
         else:
             raise AssertionError('Only Fourier Smooth is supported!')
-
-    
-    
-    def set_utiliz_loss(self, print_inter_loss=False, step=None):
-        """
-        This method is to set wheter print the loss value during iteration.
-
-        Parameters
-        ----------
-        print_inter_loss : boolean
-            Default=*False*. If True, loss result during iteration will be printed.
-        step : int
-            Print loss during interation every step.
-        """
-        if print_inter_loss is True:
-            self.print_inter_loss = self._print_loss
-            self.step = step
-        elif print_inter_loss is False:
-            self.print_inter_loss = self._print_close
-            self.step = step
-        
-    def set_utiliz_save(self, save_out_interval=False, save_path=None, save_interval=None):
-        """
-        This method is to set whether save the interval images during iteration.
-
-        Parameters
-        ----------
-        save_out_interval : boolean
-            Default=*False*. If True, synthesized outputs during iteration will be stored.
-            When True, 'save_path' and 'save_interval' should be set.
-        save_path : str
-            The directory to save images.
-            Path where synthesized outputs will be stored in.
-        save_interval : int
-            Save interval. Save out synthesized images per 'save interval' iterations.
-
-        """
-        if save_out_interval is True:
-            self.save_out_interval = self._save_out
-            if type(save_path) != str or type(save_interval) != int :
-                raise AssertionError('Check save_path & save interval parameters!')
-            else:
-                self.save_path = save_path
-                self.save_interval = save_interval
-        elif save_out_interval is False:
-            self.save_out_interval = self._close_save
-            self.save_path = save_path
-            self.save_interval = save_interval
-    
-
-
-    def _print_loss(self, i, step, n_iter, loss):
-        if i % step == 0:
-            print(f'Interation: {i}/{n_iter}; Loss: {loss}')
-
-    def _print_close(self, i, step, n_iter, loss):
-        pass
-
-    def _save_out(self, currti, save_interval, save_path):
-        if (currti + 1) % save_interval == 0 :
-            img_out = self.optimal_image[0].detach().numpy().copy()
-            img_out = ip.to_pil(img_out, True)
-            img_out.save(pjoin(save_path, f'synthesized_image_iter{currti + 1}.jpg'))
-            print('Saved No.',currti + 1,'in iteration')
-
-
-    def _close_save(self, currti, save_interval, save_path):
-        pass
-
-    def _regular_default(self):
-        return 0
+        self.factor = factor
 
     def _L1_norm(self):
         reg = torch.abs(self.optimal_image).sum()
@@ -526,17 +434,11 @@ class SynthesisImage(Algorithm):
         self.regular_losses.append(reg.item())
         return reg
 
-    def _precondition_default(self, GB_radius, lr):
-        pass
-
     def _gaussian_blur(self, radius, lr):
         precond_image = filters.gaussian(self.optimal_image[0].detach().numpy(), radius)
         self.optimal_image = ip.to_tensor(precond_image).float().unsqueeze(0)
         self.optimal_image.requires_grad_(True)
         self.optimizer = Adam([self.optimal_image], lr=lr)
-
-    def _smooth_default(self, factor):
-        pass
 
     def _smooth_fourier(self, factor):
         """
@@ -564,14 +466,8 @@ class SynthesisImage(Algorithm):
             pp = torch.rfft(grad.data, 2, onesided=False)
             # adjust the optimal_image grad after Fourier transform
             self.optimal_image.grad = torch.irfft(pp * F, 2, onesided=False)
-    
-    def mean_image(self):
-        pass
-
-    def center_bias(self):
-        pass
         
-    def register_hooks(self,unit=None):
+    def register_hooks(self, unit=None):
         """
         Define register hook and register them to specific layer and channel.
         
@@ -584,14 +480,13 @@ class SynthesisImage(Algorithm):
         layer, chn = self.get_layer()
 
         def forward_hook(module, feat_in, feat_out):
-            if unit == None:
+            if unit is None:
                 self.activ_loss = - self.activ_metric(feat_out[0, chn - 1])
             else:
-                if isinstance(unit,tuple) and len(unit)==2:
-                    self.row,self.column = unit
-                    row = int(self.row)
-                    column = int(self.column)
-                    self.activ_loss = - self.activ_metric(feat_out[0, chn - 1,row,column])  # single unit
+                if isinstance(unit, tuple) and len(unit) == 2:
+                    row = int(unit[0])
+                    column = int(unit[1])
+                    self.activ_loss = -feat_out[0, chn - 1, row, column]  # single unit
                 else:
                     raise AssertionError('Check unit must be 2-dimensinal tuple')
             self.activ_losses.append(self.activ_loss.item())
@@ -602,8 +497,8 @@ class SynthesisImage(Algorithm):
 
         return handle
 
-    def synthesize(self, init_image=None, unit=None, lr=0.1,
-                     n_iter=30,  factor=0.5):
+    def synthesize(self, init_image=None, unit=None, lr=0.1, n_iter=30,
+                   verbose=True, save_path=None, save_step=None):
         """
         Synthesize the image which maximally activates target layer and channel
 
@@ -615,12 +510,16 @@ class SynthesisImage(Algorithm):
             Set target unit position.
         lr : float
             Learning rate.
-
         n_iter : int
             The number of iterations
+        verbose : bool
+            print loss duration iteration or not
+        save_path : str
+            The directory to save synthesized images.
+        save_step : int
+            Save out synthesized images for every 'save_step' iterations.
+            Only used when save_path is not None.
 
-
-        
         Return
         ------
         final_image : ndarray 
@@ -647,20 +546,21 @@ class SynthesisImage(Algorithm):
 
         # iteration
         for i in range(n_iter):
-            
-            # save out
-            self.save_out_interval(i, self.save_interval, self.save_path)
-            
-            # Forward pass layer by layer until the target layer
-            # to triger the hook funciton.
+
+            if save_path is not None and save_step is not None:
+                if i % save_step == 0:
+                    img_out = self.optimal_image[0].detach().numpy().copy()
+                    img_out = ip.to_pil(img_out, True)
+                    img_out.save(pjoin(save_path, 'synthesized_image_iter{}.jpg'.format(i)))
+
+            # Forward pass layer by layer until the target layer to trigger the hook.
             self.dnn.model(self.optimal_image)
 
             # computer loss
             loss = self.activ_loss + self.regular_lambda * self.regular_metric()
 
-            # zero gradients
+            # backpropagation
             self.optimizer.zero_grad()
-            # Backward
             loss.backward()
 
             # smooth gradients
@@ -668,23 +568,26 @@ class SynthesisImage(Algorithm):
 
             # Update image
             self.optimizer.step()
-            
-            # Print interation
-            self.print_inter_loss(i, self.step, n_iter, loss)
+
+            if verbose:
+                print('Iteration: {}/{}; Loss: {}'.format(i+1, n_iter, loss))
 
             # precondition
             self.precondition_metric(self.GB_radius, lr)
            
-        # compute act_loss for one more time as the loss 
-        # we computed in each iteration is for the previous pic
+        # trigger hook for the activ_loss of the final synthesized image
         self.dnn.model(self.optimal_image)
-        self.regular_metric()   
+        # calculate regular_loss of the final synthesized image
+        self.regular_metric()
                 
         # remove hook
         handle.remove()
 
         # output synthesized image
         final_image = self.optimal_image[0].detach().numpy().copy()
+        if save_path is not None:
+            final_image = ip.to_pil(final_image, True)
+            final_image.save(pjoin(save_path, 'synthesized_image.jpg'))
 
         return final_image
     
@@ -1465,7 +1368,8 @@ class EmpiricalReceptiveField:
         # compute mean and generate rf
         emp_rf = np.mean(rf_all, axis=0).squeeze()
         return emp_rf
-                    
+
+
 class TheoreticalReceptiveField(Algorithm):
     """
     A Class to Count Theoretical Receptive Field.
@@ -1744,4 +1648,3 @@ class TheoreticalReceptiveField(Algorithm):
         else:
             element = container
         return element
-        
