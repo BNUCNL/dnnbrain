@@ -105,20 +105,20 @@ Code
        # you need to give 'None' value,
        # here we only adopt smooth_metric
        # but all the metrics should be set
-   synthesis.set_metric(activ_metric='mean', regular_metric=reg_meth,
-                        precondition_metric=pre_meth, smooth_metric=sm_meth)
+   synthesis.set_loss_function(activ_metric='mean', regular_metric=reg_meth,regular_lambda=reg_lambda)
+   synthesis.set_precondition(precondition_metric=pre_meth,GB_radius=GB_radius)                  
+   synthesis.set_smooth_gradient(smooth_metric=sm_meth, factor=factor)
 
    #Set utiliz parameters
        # Here we set both to be True,
        # then essential parameters should be set
        # in synthesize()
-   synthesis.set_utiliz(save_out_interval, print_inter_loss)
-
+   synthesis.set_utiliz_loss(print_inter_loss, step=step)
+   synthesis.set_utiliz_save(save_out_interval, save_path=path, save_interval=save_interval)
    #start synthesize
        # In this example you can omit init_image & unit & factor & GB_radius if not necessary
    optimal_img = synthesis.synthesize(init_image=None, unit=None, lr=lr, regular_lambda=reg_lambda,
-                                      n_iter=n_iter, save_path=path, save_interval=save_interval,
-                                      GB_radius=GB_radius, factor=factor, step=step)
+                                      n_iter=n_iter, GB_radius=GB_radius, factor=factor)
 
    # Save final images
    # name the image path
