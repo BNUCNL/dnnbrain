@@ -129,6 +129,8 @@ window.
 Windows
 ~~~~~~~
 
+**Note**: DNNBrain scripts in *path_to_dnnbrain_bin* are only executable in UNIX-like shell, such as `git bash <https://gitforwindows.org/>`__.
+
 Open the environment variable editor which can be found under “Windows
 Menu —> Control Panel —> Advanced System Settings —> Environment
 Variables”. Then:
