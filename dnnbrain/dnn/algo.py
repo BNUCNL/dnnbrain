@@ -465,7 +465,7 @@ class SynthesisImage(Algorithm):
             F = grad.new_tensor(t / t.mean()).unsqueeze(-1)
             pp = torch.rfft(grad.data, 2, onesided=False)
             # adjust the optimal_image grad after Fourier transform
-            self.optimal_image.grad = torch.irfft(pp * F, 2, onesided=False)
+            self.optimal_image.grad = copy.copy(torch.irfft(pp * F, 2, onesided=False))
         
     def register_hooks(self, unit=None):
         """
