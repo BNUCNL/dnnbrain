@@ -581,7 +581,8 @@ class BrainDecoder:
     """
     Decode brain activation to DNN activation or behavior data.
     """
-    def __init__(self, brain_activ=None, model_type=None, model_name=None, cv=3):
+    def __init__(self, brain_activ=None, map_type=None, estimator=None,
+                 cv=5, scoring=None):
         """
         Parameters
         ----------
@@ -589,61 +590,62 @@ class BrainDecoder:
             Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type : str
-            Choices=('uv','mv').
-            'uv': univariate prediction model.
-            'mv': multivariate prediction model.
-        model_name : str
-            Name of a model used to do prediction.
+        map_type : str
+            choices=(uv, mv).
+            uv: univariate mapping.
+            mv: multivariate mapping.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
             If is 'corr', it just uses correlation rather than prediction.
-            And the model_type must be 'uv'.
-        cv : int 
-            Cross validation fold number
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(brain_activ, model_type, model_name, cv)
+        self.set_activ(brain_activ)
+        self.set_mapper(map_type, estimator, cv, scoring)
 
-    def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
+    def set_activ(self, brain_activ):
         """
-        Set some parameters.
+        Set brain activation
 
         Parameters
         ----------
-        brain_activ : ndarray 
+        brain_activ : ndarray
             Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type : str
-            Choices=('uv','mv')
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name : str
-            Name of a model used to do prediction.
-            If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv : int 
-            Cross validation fold number.
         """
-        if brain_activ is not None:
-            self.brain_activ = brain_activ
+        self.brain_activ = brain_activ
 
-        if model_type is None:
+    def set_mapper(self, map_type, estimator, cv, scoring):
+        """
+        Set mapper parameters.
+
+        Parameters
+        ----------
+        map_type : str
+            choices=(uv, mv).
+            uv: univariate mapping.
+            mv: multivariate mapping.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            If is 'corr', it just uses correlation rather than prediction.
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
+        """
+        if map_type is None:
             pass
-        elif model_type == 'uv':
-            self.model = UnivariatePredictionModel()
-        elif model_type == 'mv':
-            self.model = MultivariatePredictionModel()
+        elif map_type == 'uv':
+            self.mapper = UnivariateMapping(estimator, cv, scoring)
+        elif map_type == 'mv':
+            self.mapper = MultivariateMapping(estimator, cv, scoring)
         else:
-            raise ValueError('model_type must be one of the (uv, mv).')
-
-        if model_name is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(model_name)
-
-        if cv is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(cv=cv)
+            raise ValueError('map_type must be one of the (uv, mv).')
 
     def decode_dnn(self, dnn_activ):
         """
@@ -654,56 +656,43 @@ class BrainDecoder:
         dnn_activ : Activation  
             DNN activation.
 
-        Return
-        ------
+        Returns
+        -------
         decode_dict : dict
-            It depends on model type.    
+            It depends on map type.
                 
             +-------+---------+----------------------------------------------------------------------+
             |       |         |                           First value                                |
             |       |         +-----------+----------------------------------------------------------+
-            | model |First    |Second     |                       Second value                       |
+            | Map   |First    |Second     |                       Second value                       |
             | type  |key      |key        |                                                          |
             +=======+=========+===========+==========================================================+
-            | *uv*  | layer   |'max_score'|A array with shape as (n_chn, n_row, n_col).              |
-            |       |         |           |Max scores.                                               |
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape|
+            |       |         |           |as (n_chn, n_row, n_col). Max scores                      |
+            |       |         |           |If estimator type is regressor, it's an array with shape  |
+            |       |         |           |as (n_chn, n_row, n_col, cv). The forth dimension contains|
+            |       |         |           |scores of each cross validation fold of the max scores.   |
             |       | (str)   +-----------+----------------------------------------------------------+
-            |       |         |'max_loc'  |A array with shape as (n_chn, n_row, n_col).              | 
-            |       |         |           |Locations of measurement                                  | 
+            |       |         | location  |An array with shape as (n_chn, n_row, n_col).             |
+            |       |         |           |Locations of measurement                                  |
             |       |         |           |indicators with max scores.                               |
             |       |         +-----------+----------------------------------------------------------+                                               
-            |       |         |'max_model'|A array with shape as (n_chn, n_row, n_col).              | 
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
             |       |         |           |fitted models of the max scores.                          | 
             |       |         |           |Note: only exists when model is regressor                 |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
-            |       |         |           |The forth dimension means scores of each                  | 
-            |       |         |           |cross validation folds of the max scores.                 |
-            |       |         |           |Note: only exists when model is regressor                 |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          |
-            |       |         |           |The forth dimension means confusion                       |
-            |       |         |           |matrices (n_label, n_label) of each cross                 |
-            |       |         |           |validation folds of the max scores.                       |
-            |       |         |           |Note: only exists when model is classifier                |
             +-------+---------+-----------+----------------------------------------------------------+
-            | *mv*  | layer   |'score'    |A array with shape as (n_chn, n_row, n_col, cv).          |
-            |       |         |           |The forth dimension means scores of each                  |
-            |       | (str)   |           |cross validation folds at each unit.                      |
-            |       |         |           |                                                          |
+            |  mv   | layer   | score     |An array with shape as (n_chn, n_row, n_col, cv).         |
+            |       |         |           |The forth dimension contains scores of each               |
+            |       | (str)   |           |cross validation fold at each unit.                       |
             |       |         +-----------+----------------------------------------------------------+
-            |       |         |'model'    |A array with shape as (n_chn, n_row, n_col).              |
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
             |       |         |           |Each element is a model fitted at the                     |
-            |       |         |           |corresponding unit.                                       |         
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'conf_m'   |A array with shape as (n_chn, n_row, n_col, cv).          | 
-            |       |         |           |The forth dimension means confusion matrices              |
-            |       |         |           |(n_label, n_label) of each cross validation               |
-            |       |         |           |folds at the corresponding unit.                          |
-            |       |         |           |Note: only exists when model is classifier                |
-            +-------+---------+-----------+----------------------------------------------------------+               
-
+            |       |         |           |corresponding unit.                                       |
+            +-------+---------+-----------+----------------------------------------------------------+
         """
+        if self.mapper.estimator_type not in ('regressor', 'correlation'):
+            raise ValueError("Not supported estimator type: {}".format(self.mapper.estimator_type))
+
         decode_dict = dict()
         for layer in dnn_activ.layers:
             # get DNN activation
@@ -711,10 +700,13 @@ class BrainDecoder:
             n_stim, *shape = activ.shape
             activ = activ.reshape((n_stim, -1))
 
-            data = self.model.predict(self.brain_activ, activ)
+            data = self.mapper.map(self.brain_activ, activ)
             for k, v in data.items():
-                if k in ('score', 'conf_m'):
-                    data[k] = v.reshape(shape+[self.model.cv])
+                if k == 'score':
+                    if self.mapper.estimator_type == 'correlation':
+                        data[k] = v.reshape(shape)
+                    else:
+                        data[k] = v.reshape(shape+[self.mapper.cv])
                 else:
                     data[k] = v.reshape(shape)
             decode_dict[layer] = data
@@ -728,58 +720,57 @@ class BrainDecoder:
         Decode brain activation to behavior data.
 
         Parameters
-        ---------
+        ----------
         beh_data : ndarray 
             Behavior data with shape as (n_stim, n_beh).
 
-        Return
-        ------
+        Returns
+        -------
         decode_dict : dict
-            It depends on model type.  
-            
-            +-------+---------+----------------------------------------------------------------------+
-            |       |         |                           First value                                |
-            |       |         +-----------+----------------------------------------------------------+
-            | model |First    |Second     |                       Second value                       |
-            | type  |key      |key        |                                                          |
-            +=======+=========+===========+==========================================================+
-            | *uv*  | layer   |'max_score'|A array with shape as (n_beh,).                           |
-            |       |         |           |Max scores.                                               |
-            |       | (str)   +-----------+----------------------------------------------------------+
-            |       |         |'max_loc'  |A array with shape as (n_beh,).                           | 
-            |       |         |           |Locations of measurement                                  | 
-            |       |         |           |indicators with max scores.                               |
-            |       |         +-----------+----------------------------------------------------------+                                               
-            |       |         |'max_model'|A array with shape as (n_beh,).                           |
-            |       |         |           |Fitted models of the max scores.                          |
-            |       |         |           |Note: only exists when model is classifier or regressor   |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'score'    |A array with shape as (n_beh, cv).                        |
-            |       |         |           |The second dimension means scores of each                 | 
-            |       |         |           |cross validation folds of the max scores.                 |
-            |       |         |           |Note: only exists when model is classifier  or regressor  |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
-            |       |         |           |The second dimension means confusion                      |
-            |       |         |           |matrices (n_label, n_label) of each cross                 |
-            |       |         |           |validation folds of the max scores.                       |
-            |       |         |           |Note: only exists when model is classifier                |
-            +-------+---------+-----------+----------------------------------------------------------+
-            | *mv*  | layer   |'score'    |A array with shape as (n_beh, cv).                        |
-            |       |         |           |The forth dimension means scores of each                  |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'model'    |A array with shape as (n_beh,).                           |
-            |       |         |           |Each element is a model fitted at the                     |
-            |       |         |           |corresponding behavior.                                   |         
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         |'conf_m'   |A array with shape as (n_beh, cv).                        |
-            |       |         |           |The second dimension means confusion                      |
-            |       |         |           |matrices (n_label, n_label) of each cross                 |
-            |       |         |           |validation folds of the max scores.                       |
-            |       |         |           |Note: only exists when model is classifier                |
-            +-------+---------+-----------+----------------------------------------------------------+            
-            
+            It depends on map type.
+
+            +----------+-----------+--------------------------------------------------------------+
+            | map type | key       | value                                                        |
+            +==========+===========+==============================================================+
+            | uv       | score     | If estimator type is correlation, it's an array with shape as|
+            |          |           | (n_beh,). Each element is the maximal pearson r among all    |
+            |          |           | measurements correlating to the corresponding behavior.      |
+            |          |           | If estimator type is regressor or classifier, it's an array  |
+            |          |           | with shape as (n_beh, cv). Each row contains scores of each  |
+            |          |           | cross validation fold, when using the measurement at         |
+            |          |           | the maximal location to predict the corresponding behavior.  |
+            |          +-----------+--------------------------------------------------------------+
+            |          | location  | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a location of the measurement                |
+            |          |           | which makes the maximal score.                               |
+            |          +-----------+--------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a model fitted by the measurement            |
+            |          |           | at the maximal location and the corresponding behavior.      |
+            |          |           | Note: not exist when estimator type is correlation           |
+            |          +-----------+--------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains confusion matrices                         |
+            |          |           | (n_label, n_label) of each cross validation                  |
+            |          |           | fold, when using the measurement at the maximal location to  |
+            |          |           | predict the corresponding behavior.                          |
+            |          |           | Note: only exists when estimator type is classifier          |
+            +----------+-----------+--------------------------------------------------------------+
+            |  mv      | score     | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains scores of each cross validation fold, when |
+            |          |           | using all measurements to predict the corresponding behavior.|
+            |          +-----------+--------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a model fitted by all measurements           |
+            |          |           | and the corresponding behavior.                              |
+            |          +-----------+--------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains confusion matrices (n_label, n_label) of   |
+            |          |           | each cross validation fold, when using all measurements to   |
+            |          |           | predict the corresponding behavior.                          |
+            |          |           | Note: only exists when estimator type is classifier          |
+            |----------+-----------+--------------------------------------------------------------+
         """
-        decode_dict = self.model.predict(self.brain_activ, beh_data)
+        decode_dict = self.mapper.map(self.brain_activ, beh_data)
 
         return decode_dict
