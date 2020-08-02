@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
-from dnnbrain.dnn.base import UnivariatePredictionModel, MultivariatePredictionModel
+from dnnbrain.dnn.base import UnivariateMapping, MultivariateMapping
 from dnnbrain.brain.algo import convolve_hrf
 
 

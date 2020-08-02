@@ -632,7 +632,7 @@ class UnivariateMapping:
     and record location, prediction score and model of the feature with maximal
     predictive ability.
     """
-    def __init__(self, estimator=None, cv=None, scoring=None):
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
         Parameters
         ----------
@@ -887,7 +887,7 @@ class UnivariateMapping:
 
 class MultivariateMapping:
 
-    def __init__(self, estimator=None, cv=None, scoring=None):
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
         Parameters
         ----------
