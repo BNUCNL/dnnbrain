@@ -23,22 +23,21 @@ def main():
                         required=True,
                         type=str,
                         choices=('uv', 'mv'),
-                        help="uva: Do univariate analysis. "
-                             "mva: Do multivariate analysis.")
+                        help="uv: Do univariate mapping."
+                             "mv: Do multivariate mapping.")
     parser.add_argument('-resp',
                         metavar='Response',
                         required=True,
                         type=str,
                         help='a .roi.h5/.nii file '
                              'If it is .nii file, -roi will be ignored. '
-                             "All voxels' activation will be regarded as the "
-                             "predictors of a regression task. "
                              'If it is .roi.h5 file, -bmask will be ignored')
     parser.add_argument('-bmask',
                         metavar='BrainMask',
                         type=str,
                         help='Brain mask is used to extract activation locally. '
-                             'Only used when the response file is .nii file.')
+                             'Only used when the response file is .nii file. '
+                             'If not given, the whole brain response will be used.')
     parser.add_argument('-roi',
                         metavar='RoiName',
                         type=str,
@@ -54,9 +53,7 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="layer names of interest "
-                             "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. ")
+                        help="layer names of interest")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
@@ -73,7 +70,7 @@ def main():
                         required=True,
                         type=str,
                         choices=('glm', 'lasso'),
-                        help='Select a model to predict brain or behavior responses by dnn activation. '
+                        help='Select a model to predict dnn activation by brain responses. '
                              'Use glm (general linear model) for regression. '
                              'Use lasso (lasso regression) for regression.')
     parser.add_argument('-cv',
