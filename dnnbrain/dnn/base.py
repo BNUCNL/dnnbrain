@@ -599,135 +599,161 @@ def cross_val_confusion(classifier, X, y, cv=None):
     return conf_ms, accuracies
 
 
-class UnivariatePredictionModel:
+def gen_estimator_from_name(name):
     """
-    
-    This class contains univariate regression models.
-    
+    Generate sklearn estimator from name
+
+    Parameters
+    ----------
+    name : str
+        name of estimator
+
+    Returns
+    -------
+    estimator : sklearn estimator
     """
-    def __init__(self, model_name=None, cv=3, scoring=None):
+    if name == 'lrc':
+        estimator = LogisticRegression()
+    elif name == 'svc':
+        estimator = SVC(kernel='linear', C=0.025)
+    elif name == 'glm':
+        estimator = LinearRegression()
+    elif name == 'lasso':
+        estimator = Lasso()
+    else:
+        raise ValueError("Not supported estimator name: {}".format(name))
+
+    return estimator
+
+
+class UnivariateMapping:
+    """
+    For each target samples, evaluate every feature samples' predictive ability
+    and record location, prediction score and model of the feature with maximal
+    predictive ability.
+    """
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
         Parameters
         ----------
-        model_name: str
-            Name of a model used to do prediction.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            There are some optional names at below:
                         
-            +------------+------------+---------------------+
-            | Model name | Model type |  Model description  |
-            +============+============+=====================+
-            |    lrc     | classifier | Logistic Regression |
-            +------------+------------+---------------------+
-            |    svc     | classifier |         SVC         |
-            +------------+------------+---------------------+
-            |    glm     | regressor  |  Linear Regression  |
-            +------------+------------+---------------------+
-            |   lasso    | regressor  |        Lasso        |
-            +------------+------------+---------------------+  
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
                 
-            *Note*: If is 'corr', it just uses correlation rather than prediction.
+            *Note*: If name is 'corr', it just uses correlation rather than prediction.
         
-        cv: int
-            Number of Cross Validation folds, default=3.
+        cv : int
+            the number of cross validation folds.
         
-        scoring : str
-            Model evaluation rule.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-
-        self.set(model_name, cv)
+        self.set_estimator(estimator)
+        self.set_cv(cv)
         self.set_scoring(scoring)
 
-    def set(self, model_name=None, cv=None):
+    def set_estimator(self, estimator):
         """
-        Set some parameters of prediction model.
-
         Parameters
         ----------
-        model_name: str
-            Name of a model used to do prediction.
-                
-            +------------+------------+---------------------+
-            | Model name | Model type |  Model description  |
-            +============+============+=====================+
-            |    lrc     | classifier | Logistic Regression |
-            +------------+------------+---------------------+
-            |    svc     | classifier |         SVC         |
-            +------------+------------+---------------------+
-            |    glm     | regressor  |  Linear Regression  |
-            +------------+------------+---------------------+
-            |   lasso    | regressor  |        Lasso        |
-            +------------+------------+---------------------+
-            
-            *Note*: If is 'corr', it just uses correlation rather than prediction.
-        
-        cv: int
-        
-            Number of Cross Validation folds.
-           
-        """
-        if model_name is None:
-            pass
-        elif model_name == 'lrc':
-            self.model = LogisticRegression()
-            self.model_type = 'classifier'
-        elif model_name == 'svc':
-            self.model = SVC(kernel='linear', C=0.025)
-            self.model_type = 'classifier'
-        elif model_name == 'glm':
-            self.model = LinearRegression()
-            self.model_type = 'regressor'
-        elif model_name == 'lasso':
-            self.model = Lasso()
-            self.model_type = 'regressor'
-        elif model_name == 'corr':
-            self.model = None
-            self.model_type = model_name
-        else:
-            raise ValueError('unsupported model:', model_name)
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            There are some optional names at below:
 
-        if cv is not None:
-            self.cv = cv
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+
+            *Note*: If name is 'corr', it just uses correlation rather than prediction.
+        """
+        if estimator is None:
+            return
+        elif isinstance(estimator, str):
+            if estimator == 'corr':
+                self.estimator = None
+                self.estimator_type = 'correlation'
+            else:
+                self.estimator = gen_estimator_from_name(estimator)
+                self.estimator_type = getattr(self.estimator, "_estimator_type")
+        else:
+            self.estimator = estimator
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+
+        if self.estimator_type not in ('classifier', 'regressor', 'correlation'):
+            raise ValueError("Not supported estimator type: {}".format(self.estimator_type))
+
+    def set_cv(self, cv):
+        """
+        Parameters
+        ----------
+        cv : int
+            the number of cross validation folds.
+        """
+        self.cv = cv
 
     def set_scoring(self, scoring):
         """
         Parameters
         ----------
         scoring : str or callable
-        
-            Model evaluation method.
-               
-            +--------------+-----------------------------------------------+
-            | model type   | Scoring notes                                 |
-            +==============+===============================================+
-            | 'classifier' | no need to set, default                       |       
-            |              | is accuracy and confusion matrix              |
-            +--------------+-----------------------------------------------+
-            |'regression'  |need to set the metric supported by **sklearn**|
-            +--------------+-----------------------------------------------+
-            | 'corr'       | no need for evaluation rule                   |
-            +--------------+-----------------------------------------------+
-        
-            
-            
+            the method to evaluate the predictions on the test set.
+            It depends on estimator type.
+
+            +----------------+----------------------------------------------+
+            | estimator type | Scoring description                          |
+            +================+==============================================+
+            | classifier     | The evaluation method is fixed as accuracy   |
+            |                | and confusion matrix.                        |
+            +----------------+----------------------------------------------+
+            | regressor      | scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'  |
+            +----------------+----------------------------------------------+
+            | correlation    | no evaluation method is needed               |
+            +----------------+----------------------------------------------+
         """
         if scoring is None:
-            self.scoring = None
-        elif hasattr(self, 'model_type'):
-            if self.model_type == 'classifier':
-                print("The model evaluation rule of a classifier "
+            self.scoring = scoring
+        elif hasattr(self, 'estimator_type'):
+            if self.estimator_type == 'classifier':
+                print("The evaluation method of a classifier "
                       "is fixed as accuracy and confusion matrix.")
                 self.scoring = None
-            elif self.model_type == 'regressor':
+            elif self.estimator_type == 'regressor':
                 if scoring == 'correlation':
                     self.scoring = correlation_score
                 else:
                     self.scoring = scoring
             else:
-                print("Univariate analysis doesn't need model evaluation rule.")
+                print("correlation analysis doesn't need evaluation method.")
                 self.scoring = None
         else:
-            raise RuntimeError("You have to set model first!")
+            raise ValueError("You have to set estimator first!")
 
-    def predict(self, X, Y):
+    def map(self, X, Y):
         """
         Use all columns of **X** (one-by-one) to predict each column of **Y**;
         
@@ -737,72 +763,61 @@ class UnivariatePredictionModel:
 
         Parameters
         ----------
-        X: ndarray
+        X : ndarray
             shape=(n_sample, n_feature)
             
-        Y: ndarray 
+        Y : ndarray
             shape=(n_sample, n_target)
 
-        Return
-        ----------
-        pred_dict: dict
-            It depends on model type.
+        Returns
+        -------
+        map_dict: dict
+            It depends on estimator type.
         
             +------------+-----------+--------------------------------------------------------------+
-            |Model       |Key        |Value                                                         |
-            |            |           |                                                              |
-            |type        |           |                                                              |
+            | estimator  | key       | value                                                        |
+            | type       |           |                                                              |
             +============+===========+==============================================================+
-            |'classifier'|'max_score'|An array with shape as (n_target,).                           |
-            |            |           |Each element is the maximal accuracy,                         |
-            |            |           |among all features predicting to the                          |
-            |            |           |corresponding target.                                         |
+            | classifier | score     | (n_target, cv)                                               |
+            |            |           | Each row contains accuracies of each cross                   |
+            |            |           | validation folds, when using the feature at                  |
+            |            |           | the maximal location to predict the corresponding target.    |
             |            +-----------+--------------------------------------------------------------+
-            |            |'max_loc'  |(n_target,)                                                   |
-            |            |           |Each element is a location of the feature                     | 
-            |            |           |which makes the max score.                                    | 
+            |            | location  | (n_target,)                                                  |
+            |            |           | Each element is a location of the feature                    |
+            |            |           | which makes the maximal score.                               |
             |            +-----------+--------------------------------------------------------------+                                               
-            |            |'max_model'|(n_target,)                                                   |
-            |            |           |Each element is a model fitted by the feature                 |
-            |            |           |at the max loc and the corresponding target.                  |
+            |            | model     | (n_target,)                                                  |
+            |            |           | Each element is a model fitted by the feature                |
+            |            |           | at the maximal location and the corresponding target.        |
             |            +-----------+--------------------------------------------------------------+
-            |            |'score'    |(n_target, cv)                                                |
-            |            |           |Each row contains accuracies of each cross                    | 
-            |            |           |validation folds, when using the feature at                   |
-            |            |           |the max loc to predict the corresponding target.              |
-            |            +-----------+--------------------------------------------------------------+
-            |            |'conf_m'   |(n_target, cv)                                                |
-            |            |           |Each row contains confusion matrices                          |
-            |            |           |(n_label, n_label) of each cross validation                   |
-            |            |           |folds, when using the feature at the max loc to               |
-            |            |           |predict the corresponding target.                             |
+            |            | conf_m    | (n_target, cv)                                               |
+            |            |           | Each row contains confusion matrices                         |
+            |            |           | (n_label, n_label) of each cross validation                  |
+            |            |           | folds, when using the feature at the maximal location to     |
+            |            |           | predict the corresponding target.                            |
             +------------+-----------+--------------------------------------------------------------+
-            |'regressor' |'max_score'|(n_target,)                                                   |
-            |            |           |Each element is the maximal score                             |
-            |            |           |among all features predicting to the                          |
-            |            |           |corresponding target.                                         |
+            | regressor  | score     | (n_target, cv)                                               |
+            |            |           | Each row contains scores of each cross                       |
+            |            |           | validation folds, when using the feature at                  |
+            |            |           | the maximal location to predict the corresponding target.    |
             |            +-----------+--------------------------------------------------------------+
-            |            |'max_loc'  |(n_target,)                                                   |
-            |            |           |Each element is a location of the feature                     | 
-            |            |           |which makes the max score.                                    |         
+            |            | location  | (n_target,)                                                  |
+            |            |           | Each element is a location of the feature                    |
+            |            |           | which makes the maximal score.                               |
             |            +-----------+--------------------------------------------------------------+
-            |            |'max_model'|(n_target,)                                                   |
-            |            |           |Each element is a model fitted by the feature                 |
-            |            |           |at the max loc and the corresponding target.                  |         
-            |            +-----------+--------------------------------------------------------------+
-            |            |'score'    |(n_target, cv)                                                |
-            |            |           |Each row contains scores of each cross                        |
-            |            |           |validation folds, when using the feature at                   |
-            |            |           |the max loc to predict the corresponding target.              |
+            |            | model     | (n_target,)                                                  |
+            |            |           | Each element is a model fitted by the feature                |
+            |            |           | at the maximal location and the corresponding target.        |
             +------------+-----------+--------------------------------------------------------------+           
-            |'corr'      |'max_score'|(n_target,)                                                   |
-            |            |           |Each element is the maximal pearson r among                   |
-            |            |           |all features correlating to the                               |
-            |            |           |corresponding target.                                         |
+            |'corr'      | score     | (n_target,)                                                  |
+            |            |           | Each element is the maximal pearson r among                  |
+            |            |           | all features correlating to the                              |
+            |            |           | corresponding target.                                        |
             |            +-----------+--------------------------------------------------------------+
-            |            |'max_loc'  |(n_target,)                                                   |
-            |            |           |Each element is a location of the feature                     | 
-            |            |           |which makes the max score.                                    | 
+            |            | location  | (n_target,)                                                  |
+            |            |           | Each element is a location of the feature                    |
+            |            |           | which makes the maximal score.                               |
             +------------+-----------+--------------------------------------------------------------+ 
             
         """
@@ -813,138 +828,163 @@ class UnivariatePredictionModel:
         n_feat = X.shape[1]
         n_trg = Y.shape[1]
 
-        # initialize prediction dict
-        pred_dict = {
-            'max_score': np.zeros((n_trg,)),
-            'max_loc': np.zeros((n_trg,), dtype=np.int)
-        }
-        if self.model_type == 'classifier':
-            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
-            pred_dict['score'] = np.zeros((n_trg, self.cv))
-            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
-        elif self.model_type == 'regressor':
-            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
-            pred_dict['score'] = np.zeros((n_trg, self.cv))
+        # initialize mapping dict
+        map_dict = {'location': np.zeros((n_trg,), dtype=np.int)}
+        if self.estimator_type == 'classifier':
+            map_dict['model'] = np.zeros((n_trg,), dtype=np.object)
+            map_dict['score'] = np.zeros((n_trg, self.cv))
+            map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+        elif self.estimator_type == 'regressor':
+            map_dict['model'] = np.zeros((n_trg,), dtype=np.object)
+            map_dict['score'] = np.zeros((n_trg, self.cv))
+        else:
+            map_dict['score'] = np.zeros((n_trg,))
 
         # do cross validation for each target
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            if self.model_type == 'corr':
+            if self.estimator_type == 'correlation':
                 # calculate pearson r
                 scores_tmp = pairwise_distances(X.T, y.reshape(1, -1), 'correlation')
                 scores_tmp = 1 - scores_tmp.ravel()
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-            elif self.model_type == 'regressor':
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_tmp[max_feat_idx]
+            elif self.estimator_type == 'regressor':
                 # cross validation
                 scores_cv = np.zeros((n_feat, self.cv))
                 for feat_idx in range(n_feat):
-                    scores_cv[feat_idx] = cross_val_score(self.model, X[:, [feat_idx]], y,
+                    scores_cv[feat_idx] = cross_val_score(self.estimator, X[:, [feat_idx]], y,
                                                           scoring=self.scoring, cv=self.cv)
                 scores_tmp = np.mean(scores_cv, 1)
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
-                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X[:, [max_feat_idx]], y))
             else:
                 # cross validation
                 scores_cv = np.zeros((n_feat, self.cv))
                 conf_ms_cv = np.zeros((n_feat, self.cv), dtype=np.object)
                 for feat_idx in range(n_feat):
-                    conf_ms, accs = cross_val_confusion(self.model, X[:, [feat_idx]], y, cv=self.cv)
+                    conf_ms, accs = cross_val_confusion(self.estimator, X[:, [feat_idx]], y, cv=self.cv)
                     scores_cv[feat_idx] = accs
                     conf_ms_cv[feat_idx] = conf_ms
                 scores_tmp = np.mean(scores_cv, 1)
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
-                pred_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
-                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                map_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X[:, [max_feat_idx]], y))
 
             print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
-        return pred_dict
+        return map_dict
 
 
-class MultivariatePredictionModel:
+class MultivariateMapping:
 
-    def __init__(self, model_name=None, cv=3, scoring=None):
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
         Parameters
         ----------
-        model_name : str  
-            Name of a model used to do prediction.
-        cv : int   
-            Cross validation fold number.
-        scoring : str
-            Model evaluation rule.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            There are some optional names at below:
+
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+
+        cv : int
+            the number of cross validation folds.
+
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(model_name, cv)
+        self.set_estimator(estimator)
+        self.set_cv(cv)
         self.set_scoring(scoring)
 
-    def set(self, model_name=None, cv=None):
+    def set_estimator(self, estimator):
         """
-        Set some attributes
-
         Parameters
         ----------
-        model_name : str  
-            Name of a model used to do prediction.
-            
-            +------------+------------+---------------------+
-            | Model name | Model type |  Model description  |
-            +============+============+=====================+
-            |    lrc     | classifier | Logistic Regression |
-            +------------+------------+---------------------+
-            |    svc     | classifier |         SVC         |
-            +------------+------------+---------------------+
-            |    glm     | regressor  |  Linear Regression  |
-            +------------+------------+---------------------+
-            |   lasso    | regressor  |        Lasso        |
-            +------------+------------+---------------------+            
-            
-        cv : int   
-            Cross validation fold number.
-        """
-        if model_name is None:
-            pass
-        elif model_name == 'lrc':
-            self.model = LogisticRegression()
-            self.model_type = 'classifier'
-        elif model_name == 'svc':
-            self.model = SVC(kernel='linear', C=0.025)
-            self.model_type = 'classifier'
-        elif model_name == 'glm':
-            self.model = LinearRegression()
-            self.model_type = 'regressor'
-        elif model_name == 'lasso':
-            self.model = Lasso()
-            self.model_type = 'regressor'
-        else:
-            raise ValueError('unsupported model:', model_name)
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            There are some optional names at below:
 
-        if cv is not None:
-            self.cv = cv
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+        """
+        if estimator is None:
+            return
+        elif isinstance(estimator, str):
+            self.estimator = gen_estimator_from_name(estimator)
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+        else:
+            self.estimator = estimator
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+
+        if self.estimator_type not in ('classifier', 'regressor'):
+            raise ValueError("Not supported estimator type: {}".format(self.estimator_type))
+
+    def set_cv(self, cv):
+        """
+        Parameters
+        ----------
+        cv : int
+            the number of cross validation folds.
+        """
+        self.cv = cv
 
     def set_scoring(self, scoring):
         """
         Parameters
-        -----------
-        scoring : str
-            Model evaluation rule.
+        ----------
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
+            It depends on estimator type.
+
+            +----------------+----------------------------------------------+
+            | estimator type | Scoring description                          |
+            +================+==============================================+
+            | classifier     | The evaluation method is fixed as accuracy   |
+            |                | and confusion matrix.                        |
+            +----------------+----------------------------------------------+
+            | regressor      | scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'  |
+            +----------------+----------------------------------------------+
         """
         if scoring is None:
             self.scoring = None
-        elif hasattr(self, 'model_type'):
-            if self.model_type == 'classifier':
-                print("The model evaluation rule of a classifier "
+        elif hasattr(self, 'estimator_type'):
+            if self.estimator_type == 'classifier':
+                print("The evaluation method of a classifier "
                       "is fixed as accuracy and confusion matrix.")
                 self.scoring = None
             else:
@@ -953,54 +993,52 @@ class MultivariatePredictionModel:
                 else:
                     self.scoring = scoring
         else:
-            raise RuntimeError("You have to set model first!")
+            raise ValueError("You have to set estimator first!")
 
-    def predict(self, X, Y):
+    def map(self, X, Y):
         """
         Use all columns of X to predict each column of Y.
 
         Parameters
         ----------
         X : ndarray  
-            Shape=(n_sample, n_feature)
+            shape=(n_sample, n_feature)
         Y : ndarray  
-            Shape=(n_sample, n_target)
+            shape=(n_sample, n_target)
 
-        Return
-        ------
-        pred_dict: dict
-            It depends on model type.
+        Returns
+        -------
+        map_dict: dict
+            It depends on estimator type.
         
             +------------+-----------+--------------------------------------------------------------+
-            |Model       |Key        |Value                                                         |
-            |            |           |                                                              |
-            |type        |           |                                                              |
+            | estimator  | key       | value                                                        |
+            | type       |           |                                                              |
             +============+===========+==============================================================+
-            |'classifier'|'score'    |(n_target, cv)                                                |
-            |            |           |Each row contains accuracies of each cross                    |
-            |            |           |validation folds, when using all features to                  |
-            |            |           |predict the corresponding target.                             |
+            | classifier | score     | (n_target, cv)                                               |
+            |            |           | Each row contains accuracies of each cross                   |
+            |            |           | validation folds, when using all features to                 |
+            |            |           | predict the corresponding target.                            |
             |            +-----------+--------------------------------------------------------------+
-            |            |'model'    |(n_target,)                                                   |
-            |            |           |Each element is a model fitted by all features                | 
-            |            |           |and the corresponding target.                                 |
+            |            | model     | (n_target,)                                                  |
+            |            |           | Each element is a model fitted by all features               |
+            |            |           | and the corresponding target.                                |
             |            +-----------+--------------------------------------------------------------+
-            |            |'conf_m'   |(n_target, cv)                                                |
-            |            |           |Each row contains confusion matrices                          |
-            |            |           |(n_label, n_label) of each cross validation                   |
-            |            |           |folds, when using all features to predict the                 |
-            |            |           |corresponding target.                                         |
+            |            | conf_m    | (n_target, cv)                                               |
+            |            |           | Each row contains confusion matrices                         |
+            |            |           | (n_label, n_label) of each cross validation                  |
+            |            |           | folds, when using all features to predict the                |
+            |            |           | corresponding target.                                        |
             +------------+-----------+--------------------------------------------------------------+
-            |'regressor' |'score'    |(n_target, cv)                                                |
-            |            |           |Each row contains scores of each cross                        |
-            |            |           |validation folds, when using all features to                  |
-            |            |           |predict the corresponding target.                             |
+            | regressor  | score     | (n_target, cv)                                               |
+            |            |           | Each row contains scores of each cross                       |
+            |            |           | validation folds, when using all features to                 |
+            |            |           | predict the corresponding target.                            |
             |            +-----------+--------------------------------------------------------------+
-            |            |'model'    |(n_target,)                                                   |
-            |            |           |Each element is a model fitted by all features                | 
-            |            |           |and the corresponding target.                                 |          
-            +------------+-----------+--------------------------------------------------------------+           
-
+            |            | model     | (n_target,)                                                  |
+            |            |           | Each element is a model fitted by all features               |
+            |            |           | and the corresponding target.                                |
+            +------------+-----------+--------------------------------------------------------------+
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
@@ -1008,29 +1046,29 @@ class MultivariatePredictionModel:
                                          'same number of samples!'
         n_trg = Y.shape[1]
         # initialize prediction dict
-        pred_dict = {
+        map_dict = {
             'score': np.zeros((n_trg, self.cv)),
             'model': np.zeros((n_trg,), dtype=np.object)
         }
-        if self.model_type == 'classifier':
-            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+        if self.estimator_type == 'classifier':
+            map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
 
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            if self.model_type == 'classifier':
-                conf_ms, scores_tmp = cross_val_confusion(self.model, X, y, self.cv)
-                pred_dict['conf_m'][trg_idx] = conf_ms
+            if self.estimator_type == 'classifier':
+                conf_ms, scores_tmp = cross_val_confusion(self.estimator, X, y, self.cv)
+                map_dict['conf_m'][trg_idx] = conf_ms
             else:
-                scores_tmp = cross_val_score(self.model, X, y,
+                scores_tmp = cross_val_score(self.estimator, X, y,
                                              scoring=self.scoring, cv=self.cv)
             # recording
-            pred_dict['score'][trg_idx] = scores_tmp
-            pred_dict['model'][trg_idx] = deepcopy(self.model.fit(X, y))
+            map_dict['score'][trg_idx] = scores_tmp
+            map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, y))
 
             print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
-        return pred_dict
+        return map_dict
 
 
 def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):

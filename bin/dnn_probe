@@ -8,7 +8,6 @@ import os
 import time
 import argparse
 import numpy as np
-import pandas as pd
 
 from os.path import join as pjoin
 from dnnbrain.dnn.core import Stimulus, Activation, DnnProbe
@@ -22,8 +21,8 @@ def main():
                         required=True,
                         type=str,
                         choices=('uv', 'mv'),
-                        help="uva: Do univariate analysis. "
-                             "mva: Do multivariate analysis.")
+                        help="uv: Do univariate analysis. "
+                             "mv: Do multivariate analysis.")
     parser.add_argument('-act',
                         metavar='Activation',
                         required=True,
@@ -68,7 +67,7 @@ def main():
                         required=True,
                         type=str,
                         nargs='+',
-                        help='Specify behaviors as the ground truth. ')
+                        help='Specify behaviors as the ground truth.')
     parser.add_argument('-model',
                         metavar='Model',
                         required=True,
@@ -80,6 +79,12 @@ def main():
                              'Use svc (support vector machine) for classification. '
                              'Use lrc (logistic regression) for classification.'
                              'Use corr (pearson correlation) for correlation analysis.')
+    parser.add_argument('-scoring',
+                        metavar='Scoring',
+                        type=str,
+                        help="model evaluation rules: "
+                             "Only used when the task is regression."
+                             "correlation or sklearn scoring parameters")
     parser.add_argument('-cv',
                         metavar='FoldNumber',
                         type=int,
@@ -116,7 +121,7 @@ def main():
 
     # -probe start-
     time1 = time.time()
-    probe = DnnProbe(activation, args.anal, args.model, args.cv)
+    probe = DnnProbe(activation, args.anal, args.model, args.cv, args.scoring)
     probe_dict = probe.probe(beh_data, args.iteraxis)
     print('Finish probe: cost {} seconds.'.format(time.time()-time1))
     # -probe end-
@@ -133,11 +138,7 @@ def main():
                 os.makedirs(trg_dir)
 
         for k, v in data.items():
-            if k == 'max_score':
-                df = pd.DataFrame(v, columns=args.beh)
-                df.to_csv(pjoin(trg_dir, '{}.csv'.format(k)), index=False)
-            else:
-                np.save(pjoin(trg_dir, k), v)
+            np.save(pjoin(trg_dir, k), v)
 
         print('Finish save {}.'.format(layer))
     # -save out end-

@@ -9,7 +9,6 @@ Requirements
 -  nibabel>=2.4.1
 -  nipy>=0.4.2
 -  h5py>=2.9.0
--  pandas>=0.24.2
 -  scikit-image>=0.15.0
 -  scikit-learn>=0.19.1
 -  scipy>=1.3.1
