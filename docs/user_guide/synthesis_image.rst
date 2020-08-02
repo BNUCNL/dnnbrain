@@ -63,28 +63,6 @@ Code
    sm_meth = 'Fourier' # Method name: Fourier filter
    factor = 0.3
 
-
-   #1.3 utiliz
-       # If you want to see interim images in iteration,
-       # or you want to know how loss function value changes
-       # we provide method for such purpose
-
-   #1.3.1 Save interval images in iteration 
-       # Such method can help you know the evolution of
-       # optimal image
-   save_out_interval = True
-   save_interval = 10 # every 10 iteration save one
-
-   #1.3.2 Print when iterating
-   print_inter_loss = True
-   step = 10 # print loss every 10 iterations
-
-   # Above are parameters available of SynthesisImage
-   # following we will use some parameters to synthesize
-   # the optimal image for fc3 131. Specifically, we
-   # will use Total Variance.
-
-
    #2: Synthesize
 
    #Get Network
@@ -105,20 +83,22 @@ Code
        # you need to give 'None' value,
        # here we only adopt smooth_metric
        # but all the metrics should be set
-   synthesis.set_loss_function(activ_metric='mean', regular_metric=reg_meth,regular_lambda=reg_lambda)
-   synthesis.set_precondition(precondition_metric=pre_meth,GB_radius=GB_radius)                  
+   synthesis.set_loss(activ_metric='mean', regular_metric=reg_meth,regular_lambda=reg_lambda)
+   synthesis.set_precondition(precondition_metric=pre_meth,GB_radius=GB_radius)  
    synthesis.set_smooth_gradient(smooth_metric=sm_meth, factor=factor)
 
-   #Set utiliz parameters
-       # Here we set both to be True,
-       # then essential parameters should be set
-       # in synthesize()
-   synthesis.set_utiliz_loss(print_inter_loss, step=step)
-   synthesis.set_utiliz_save(save_out_interval, save_path=path, save_interval=save_interval)
    #start synthesize
-       # In this example you can omit init_image & unit & factor & GB_radius if not necessary
-   optimal_img = synthesis.synthesize(init_image=None, unit=None, lr=lr, regular_lambda=reg_lambda,
-                                      n_iter=n_iter, GB_radius=GB_radius, factor=factor)
+       # In this example you can omit init_image & unit if not necessary.
+	   # Parameter verbose is for loss printing, save_path & save_step is for interval image saving,  
+	   # if save_path has an input but save_step is none, only the final image will be stored out. 
+   
+   # Save interval images in iteration 
+   save_out_path = path
+   save_step = 10 # every 10 iteration save one
+   # Print during iteration
+   print_inter_loss = True
+   
+   optimal_img = synthesis.synthesize(init_image=None, unit=None, lr=lr, n_iter=n_iter, verbose=print_inter_loss, save_path=save_out_path, save_step=save_step)
 
    # Save final images
    # name the image path
