@@ -639,7 +639,7 @@ class BrainDecoder:
             the method to evaluate the predictions on the test set.
         """
         if map_type is None:
-            pass
+            return
         elif map_type == 'uv':
             self.mapper = UnivariateMapping(estimator, cv, scoring)
         elif map_type == 'mv':

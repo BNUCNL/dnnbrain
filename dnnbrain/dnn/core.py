@@ -916,65 +916,67 @@ class DnnProbe:
     Decode DNN activation to behavior data. As a result,
     probe the ability of DNN activation to predict the behavior.
     """
-    def __init__(self, dnn_activ=None, model_type=None, model_name=None, cv=3):
+    def __init__(self, dnn_activ=None, map_type=None, estimator=None,
+                 cv=5, scoring=None):
         """
         Parameters
         ----------
         dnn_activ : Activation
             DNN activation
-        model_type : str
-            Choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name : str
-            Name of a model used to do prediction.
+        map_type : str
+            choices=(uv, mv)
+            uv: univariate mapping
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
             If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
+                And the map_type must be 'uv'.
         cv : int
-            Cross validation fold number
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(dnn_activ, model_type, model_name, cv)
+        self.set_activ(dnn_activ)
+        self.set_mapper(map_type, estimator, cv, scoring)
 
-    def set(self, dnn_activ=None, model_type=None, model_name=None, cv=None):
+    def set_activ(self, dnn_activ):
         """
-        Set some attributes
+        Set DNN activation
 
         Parameters
         ----------
         dnn_activ : Activation
             DNN activation
-        model_type : str
-            Choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name : str
-            Name of a model used to do prediction.
-            If is 'corr', it just uses correlation rather than prediction.
-            And the model_type must be 'uv'.
-        cv : int
-            Cross validation fold number
         """
-        if dnn_activ is not None:
-            self.dnn_activ = dnn_activ
+        self.dnn_activ = dnn_activ
 
-        if model_type is None:
-            pass
-        elif model_type == 'uv':
-            self.model = UnivariatePredictionModel()
-        elif model_type == 'mv':
-            self.model = MultivariatePredictionModel()
+    def set_mapper(self, map_type, estimator, cv, scoring):
+        """
+        Set mapping attributes
+
+        Parameters
+        ----------
+        map_type : str
+            choices=(uv, mv)
+            uv: univariate mapping
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            If is 'corr', it just uses correlation rather than prediction.
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
+        """
+        if map_type is None:
+            return
+        elif map_type == 'uv':
+            self.mapper = UnivariateMapping(estimator, cv, scoring)
+        elif map_type == 'mv':
+            self.mapper = MultivariateMapping(estimator, cv, scoring)
         else:
-            raise ValueError('model_type must be one of the (uv, mv).')
-
-        if model_name is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(model_name)
-
-        if cv is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(cv=cv)
+            raise ValueError('map_type must be one of the (uv, mv).')
 
     def probe(self, beh_data, iter_axis=None):
         """
@@ -985,71 +987,78 @@ class DnnProbe:
         beh_data : ndarray
             Behavior data with shape as (n_stim, n_beh)
         iter_axis : str
-            Iterate along the specified axis. Different model have different operations. 
+            Iterate along the specified axis. Different map type have different operations.
             
-            +-------------+-------------+-------------------------------------------+
-            | Model type  |  iter_axis  |       Model description                   |
-            +=============+=============+===========================================+
-            |     *uv*    |   channel   | Summarize the maximal prediction          |
-            |             |             | score for each channel.                   |
-            |             +-------------+-------------------------------------------+
-            |             |   row_col   | Summarize the maximal prediction score    |
-            |             |             | for each position (row_idx, col_idx).     |
-            |             +-------------+-------------------------------------------+
-            |             |   default   | Summarize the maximal prediction score    |
-            |             |             | for the whole layer.                      |
-            +-------------+-------------+-------------------------------------------+
-            |     *mv*    |   channel   | Do multivariate prediction using          |
-            |             |             | all units in each channel.                |
-            |             +-------------+-------------------------------------------+
-            |             |   row_col   | Do multivariate prediction using all      |
-            |             |             | units in each position (row_idx, col_idx).|
-            |             +-------------+-------------------------------------------+
-            |             |   default   | Do multivariate prediction using          |
-            |             |             | all units in the whole layer.             |
-            +-------------+-------------+-------------------------------------------+
+            +-------+---------+----------------------------------------------------------+
+            | map   |iter_axis|  description                                             |
+            | type  |         |                                                          |
+            +=======+=========+==========================================================+
+            | uv    | channel |Summarize the maximal prediction score for each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Summarize the maximal prediction score for each position  |
+            |       |         |(row_idx, col_idx)                                        |
+            |       +---------+----------------------------------------------------------+
+            |       | None    |Summarize the maximal prediction score for the whole layer|
+            +-------+---------+----------------------------------------------------------+
+            |  mv   | channel |Multivariate prediction using all units in each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Multivariate prediction using all units in each           |
+            |       |         |position (row_idx, col_idx)                               |
+            |       +---------+----------------------------------------------------------+
+            |       | None    |Multivariate prediction using all units in the whole layer|
+            +-------+---------+----------------------------------------------------------+
 
         Returns
         -------
         probe_dict : dict
-            A dict containing the score information 
+            A dict containing the score information
 
-            +-------------+-------------+--------------+------------------------------------------------------------------------+
-            |             |             |                First value                                                            |
-            |  Model type |  First key  +--------------+------------------------------------------------------------------------+
-            |             |             |  Second key  |   Second value                                                         |      
-            +=============+=============+==============+========================================================================+
-            |     *uv*    |  layer(str) |   max_score  | An array with shape as (n_iter, n_beh). Max scores at each iteration.  |
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |    max_loc   | An array with shape as (n_iter, n_beh, 3).                             |
-            |             |             |              | Max locations of the max scores, the size 3 of the third               |
-            |             |             |              | dimension means channel, row and column locations respectively.        |
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |   max_model  | An array with shape as (n_iter, n_beh).                                |
-            |             |             |              | Fitted models of the max scores.                                       |
-            |             |             |              | Note: only exists when model is classifier or regressor.               |
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |     score    | An array with shape as (n_iter, n_beh, cv).                            |
-            |             |             |              | The third dimension means scores of each                               |
-            |             |             |              | cross validation folds of the max scores                               |
-            |             |             |              | Note: only exists when model is classifier or regressor.               |
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |    conf_m    | An array with shape as (n_iter, n_beh, cv).                            |
-            |             |             |              | The third dimension means confusion matrices                           |
-            |             |             |              | (n_label, n_label). of each cross validation                           |
-            |             |             |              | folds of the max scores. Note: only exists when model is classifier.   |
-            +-------------+-------------+--------------+------------------------------------------------------------------------+
-            |     *mv*    |  layer(str) |     score    | An array with shape as (n_iter, n_beh, cv). The third dimension means  |
-            |             |             |              | scores of each cross validation folds at each iteration and behavior.  |
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |     model    | An array with shape as (n_iter, n_beh).Each element is                 |
-            |             |             |              | a model fitted at the corresponding iteration and behavior.            |              
-            |             |             +--------------+------------------------------------------------------------------------+
-            |             |             |    conf_m    | An array with shape as (n_iter, n_beh, cv).                            |
-            |             |             |              | The third dimension means confusion matrices                           |
-            |             |             |              | (n_label, n_label). of each cross validation                           |
-            |             |             |              | folds of the max scores. Note: only exists when model is classifier.   |
-            +-------------+-------------+--------------+------------------------------------------------------------------------+
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
+            |       |         |           |as (n_iter, n_beh). Each element is the maximal pearson r  |
+            |       |         |           |among all features at corresponding iteration correlating  |
+            |       |         |           |to the corresponding behavior.                             |
+            |       |         |           |If estimator type is regressor or classifier, it's an array|
+            |       |         |           |with shape as (n_iter, n_beh, cv). For each iteration and  |
+            |       |         |           |behavior, the third axis contains scores of each cross     |
+            |       |         |           |validation fold, when using the feature with maximal score |
+            |       |         |           |to predict the corresponding behavior.                     |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_iter, n_beh, 3)                  |
+            |       |         |           |Max locations of the max scores, the                       |
+            |       |         |           |size 3 of the third dimension means                        |
+            |       |         |           |channel, row and column respectively.                      |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_iter, n_beh).                    |
+            |       |         |           |fitted models of the max scores.                           |
+            |       |         |           |Note: not exists when estimator type is correlation        |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv).                |
+            |       |         |           |The third dimension means confusion matrices               |
+            |       |         |           |(n_label, n_label) of each cross validation                |
+            |       |         |           |fold of the max scores.                                    |
+            |       |         |           |Note: only exists when estimator type is classifier        |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_iter, n_beh, cv).                |
+            |       |         |           |The third dimension means scores of each                   |
+            |       | (str)   |           |cross validation fold at each iteration                    |
+            |       |         |           |and behavior                                               |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_iter, n_beh).                    |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding iteration and behavior.                      |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv).                |
+            |       |         |           |The third dimension means confusion matrices               |
+            |       |         |           |(n_label, n_label) of each cross validation                |
+            |       |         |           |fold at the corresponding iteration and behavior.          |
+            |       |         |           |Note: only exists when estimator type is classifier.       |
+            +-------+---------+-----------+-----------------------------------------------------------+
         """
         _, n_beh = beh_data.shape
 
@@ -1072,21 +1081,30 @@ class DnnProbe:
                 raise ValueError("Unsupported iter_axis:", iter_axis)
             n_stim, n_iter, n_elem = activ.shape
 
-            # start probing
-            if isinstance(self.model, UnivariatePredictionModel):
-                # prepare layer dict
+            # prepare layer dict
+            if self.mapper.estimator_type == 'correlation':
+                probe_dict[layer] = {'score': np.zeros((n_iter, n_beh))}
+            elif self.mapper.estimator_type == 'regressor':
                 probe_dict[layer] = {
-                    'max_score': np.zeros((n_iter, n_beh)),
-                    'max_loc': np.zeros((n_iter, n_beh, 3), dtype=np.int),
-                    'max_model': np.zeros((n_iter, n_beh), dtype=np.object),
-                    'score': np.zeros((n_iter, n_beh, self.model.cv)),
-                    'conf_m': np.zeros((n_iter, n_beh, self.model.cv), dtype=np.object)
+                    'score': np.zeros((n_iter, n_beh, self.mapper.cv)),
+                    'model': np.zeros((n_iter, n_beh), dtype=np.object)
                 }
+            else:
+                probe_dict[layer] = {
+                    'score': np.zeros((n_iter, n_beh, self.mapper.cv)),
+                    'model': np.zeros((n_iter, n_beh), dtype=np.object),
+                    'conf_m': np.zeros((n_iter, n_beh, self.mapper.cv), dtype=np.object)
+                }
+
+            # start probing
+            if isinstance(self.mapper, UnivariateMapping):
+                probe_dict[layer]['location'] = np.zeros((n_iter, n_beh, 3), dtype=np.int)
+
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    data = self.mapper.map(activ[:, iter_idx, :], beh_data)
                     for k, v in data.items():
-                        if k == 'max_loc':
+                        if k == 'location':
                             if iter_axis is None:
                                 chn_idx = v // n_row_col
                                 row_idx = v % n_row_col // n_col
@@ -1105,23 +1123,10 @@ class DnnProbe:
                         else:
                             probe_dict[layer][k][iter_idx] = v
                     print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
-                # clear layer dict
-                if self.model.model_type == 'corr':
-                    probe_dict[layer].pop('max_model')
-                    probe_dict[layer].pop('score')
-                    probe_dict[layer].pop('conf_m')
-                elif self.model.model_type == 'regressor':
-                    probe_dict[layer].pop('conf_m')
             else:
-                # prepare layer dict
-                probe_dict[layer] = {
-                    'score': np.zeros((n_iter, n_beh, self.model.cv)),
-                    'model': np.zeros((n_iter, n_beh), dtype=np.object),
-                    'conf_m': np.zeros((n_iter, n_beh, self.model.cv), dtype=np.object)
-                }
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    data = self.mapper.map(activ[:, iter_idx, :], beh_data)
                     for k, v in data.items():
                         probe_dict[layer][k][iter_idx] = v
 
