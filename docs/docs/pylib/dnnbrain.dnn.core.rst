@@ -5,3 +5,7 @@ dnnbrain.dnn.core module
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. |br| raw:: html
+
+    <br/>
