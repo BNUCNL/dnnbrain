@@ -818,7 +818,10 @@ class UnivariateMapping:
             |            |           | Each element is a location of the feature |br|               |
             |            |           | which makes the maximal score.                               |
             +------------+-----------+--------------------------------------------------------------+ 
-            
+
+            .. |br| raw:: html
+
+               <br/>
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
@@ -1038,6 +1041,10 @@ class MultivariateMapping:
             |            |           | Each element is a model fitted by all features |br|          |
             |            |           | and the corresponding target.                                |
             +------------+-----------+--------------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
