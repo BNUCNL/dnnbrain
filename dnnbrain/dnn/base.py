@@ -29,16 +29,18 @@ def normalize(array):
     """
     Normalize an array's value domain to [0, 1]
     Note: the original normalize function is at dnnbrain/utils/util.py
-        but 'from dnnbrain.dnn.core import Mask' in the file causes import conflicts.
-        Fix the conflicts in future.
+    but 'from dnnbrain.dnn.core import Mask' in the file causes import conflicts.
+    Fix the conflicts in future.
 
-    Parameter:
+    parameters
     ---------
-    array[ndarray]: a numpy array
+    array : ndarray  
+        A numpy array waiting normalize.
 
-    Return:
+    Return
     ------
-    array[ndarray]: a numpy array after normalization
+    array : ndarray  
+        A numpy array after normalization.
     """
     array = (array - array.min()) / (array.max() - array.min())
 
@@ -49,18 +51,23 @@ def array_statistic(arr, method, axis=None, keepdims=False):
     """
     extract statistic of an array
 
-    Parameters:
+    Parameters
     ----------
-    arr[array]: a numpy array
-    method[str]: feature extraction method
-    axis[int|tuple]: None or int or tuple of ints
+    arr : ndarray
+        A numpy array.
+    method : str
+        Feature extraction method
+    axis : int, tuple
+        None or int or tuple of ints.
         Axis or axes along which to operate.
         If it's None, operate on the whole array.
-    keepdims[bool]: keep the axis which is reduced
+    keepdims : bool  
+        Keep the axis which is reduced.
 
-    Return:
+    Return
     ------
-    arr[array]: extracted statistic
+    arr : ndarray   
+        Extracted statistic.
     """
     if method == 'max':
         arr = np.max(arr, axis, keepdims=keepdims)
@@ -79,7 +86,11 @@ def array_statistic(arr, method, axis=None, keepdims=False):
 
 
 class ImageProcessor:
-
+    """
+    Metrics for pre-processing pictures to further DNN operations.
+    
+    
+    """
     def __init__(self):
         self.str2pil_interp = {
             'nearest': Image.NEAREST,
@@ -99,10 +110,11 @@ class ImageProcessor:
         """
         Check if the image is valid.
 
-        Parameter:
+        parameters
         ---------
-        image[ndarray|Tensor|PIL.Image]: image data
-            If is ndarray or Tensor, its shape is (height, width) or (3, height, width)
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
+            If is ndarray or Tensor, its shape is (height, width) or (3, height, width).
         """
         if isinstance(image, (np.ndarray, torch.Tensor)):
             if image.ndim == 2:
@@ -120,15 +132,17 @@ class ImageProcessor:
 
     def to_array(self, image):
         """
-        Convert image to array
+        Convert image to array.
 
-        Parameter:
-        ---------
-        image[ndarray|Tensor|PIL.Image]: image data
-
-        Return:
-        ------
-        arr[ndarray]: image array
+        Parameters
+        ----------
+        image : ndarray, Tensor, PIL.Image
+            Image data.
+        
+        Return
+        -------
+        arr : ndarray
+            Image array.
         """
         self._check_image(image)
 
@@ -151,13 +165,15 @@ class ImageProcessor:
         """
         Convert image to tensor
 
-        Parameter:
+        parameters
         ---------
-        image[ndarray|Tensor|PIL.Image]: image data
+        image : ndarray, Tensor, PIL.Image
+            Image data.
 
-        Return:
+        Return
         ------
-        tensor[Tensor]: image tensor
+        tensor: Tensor 
+            Image tensor.
         """
         self._check_image(image)
 
@@ -174,15 +190,18 @@ class ImageProcessor:
         """
         Convert image to PIL.Image
 
-        Parameter:
-        ---------
-        image[ndarray|Tensor|PIL.Image]: image data
-        normalization[bool]: normalization
-            If is True, normalize image data to integers in [0, 255].
+        Parameters
+        ----------
+        image : ndarray, Tensor, PIL.Image 
+            Image data.
+        normalization : bool
+            Normalization operation.
+            If is **True**, normalize image data to integers in [0, 255].
 
-        Return:
+        Return
         ------
-        image[PIL.Image]: PIL.Image
+        image : PIL.Image
+            Output image with type of PIL.Image.
         """
         self._check_image(image)
 
@@ -201,20 +220,23 @@ class ImageProcessor:
 
     def resize(self, image, size, interpolation='nearest'):
         """
-        Resize image
+        Resize image.
 
-        Parameters:
+        Parameters
         ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        size[tuple]: the target size
-            as a 2-tuple: (height, width)
-        interpolation[str]: interpolation method for resize
-            check self.str2pil_interp and self.str2cv2_interp to
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
+        size : tuple   
+            The target size as a 2-tuple: (height, width).
+        interpolation : str  
+            Interpolation method for resize,
+            check *self.str2pil_interp* and *self.str2cv2_interp* to
             find the available interpolation.
 
-        Return:
+        Return
         ------
-        image[ndarray|Tensor|PIL.Image]: image data after resizing
+        image : ndarray, Tensor, PIL.Image  
+            Image data after resizing.
         """
         self._check_image(image)
 
@@ -244,17 +266,19 @@ class ImageProcessor:
 
     def crop(self, image, box):
         """
-        Crop image with a rectangular region
+        Crop image with a rectangular region.
 
-        Parameters:
+        Parameters
         ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        box[tuple]: the crop rectangle
-            as a (left, upper, right, lower)-tuple
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
+        box : tuple   
+            The crop rectangle as a (left, upper, right, lower)-tuple.
 
-        Return:
+        Return
         ------
-        image[ndarray|Tensor|PIL.Image]: image data after crop
+        image : ndarray, Tensor, PIL.Image  
+            Image data after crop.
         """
         self._check_image(image)
 
@@ -271,22 +295,27 @@ class ImageProcessor:
     def translate(self, image, bkg, startpoint, endpoint, stride):
         """
         Translate image on a background based on given startpoint and stride,
-        only support one axis now
+        only support one axis now.
 
-        Parameters:
+        Parameters
         ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        bkg[ndarray|Tensor|PIL.Image]: same type with image.Remember bkg must bigger than image
-        startpoint[tuple]: the start point of translating in upper left position
-            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
-        endpoint[tuple]: the end point of translating in upper left position
-            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis
-        stride[int]: stride of each translation
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
+        bkg : ndarray, Tensor, PIL.Image  
+            Same type with image.Remember bkg must bigger than image.
+        startpoint : tuple   
+            The start point of translating in upper left position
+            as a (x_axis,y_axis)-tuple, horizontal:x_axis, vertical:y_axis.
+        endpoint : tuple   
+            The end point of translating in upper left position
+            as a (x_axis,y_axis)-tuple (horizontal: x_axis; vertical: y_axis).
+        stride : int   
+            Stride of each translation.
         
-        Return:
+        Return
         ------
-        image_tran[ndarray|Tensor|PIL.Image]: image data after translating,
-                    which add a dim in the first axis meaning n_stim.
+        image_tran : ndarray, Tensor, PIL.Image  
+            Image data after translating, which add a dim in the first axis meaning n_stim.
         """
         self._check_image(image)
         self._check_image(bkg)
@@ -326,16 +355,21 @@ class ImageProcessor:
 
     def norm(self, image, ord):
         """
-        Calculate norms of the image by the following formula
-        sum(abs(image)**ord)**(1./ord)
+        Calculate norms of the image by the following formula:
+        
+        *sum(abs(image)**ord)**(1./ord)*
 
-        Parameters:
+        Parameters
         ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        ord[int]: the order of the norm
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
+        ord : int   
+            The order of the norm.
 
-        Return:
-        norm[float]: the norm of the image
+        Return
+        -------
+        norm : float   
+            The norm of the image.
         """
         image = self.to_array(image)
         norm = np.linalg.norm(image.ravel(), ord)
@@ -344,15 +378,17 @@ class ImageProcessor:
 
     def total_variation(self, image):
         """
-        Calculate total variation of the image
+        Calculate total variation of the image.
 
-        Parameter:
-        ---------
-        image[ndarray|Tensor|PIL.Image]: image data
+        Parameters
+        ----------
+        image : ndarray, Tensor, PIL.Image  
+            Image data.
 
-        Return:
+        Return
         ------
-        tv[float]: total variation
+        tv : float   
+            Total variation.
         """
         image = self.to_array(image)
 
@@ -371,18 +407,22 @@ class ImageProcessor:
 
 class ImageSet:
     """
-    Build a dataset to load image
+    Build a dataset to load image.
     """
     def __init__(self, img_dir, img_ids, labels=None, transform=None):
         """
         Initialize ImageSet
 
-        Parameters:
+        Parameters
         ----------
-        img_dir[str]: images' parent directory
-        img_ids[list]: Each img_id is a path which can find the image file relative to img_dir.
-        labels[list]: Each image's label.
-        transform[callable function]: optional transform to be applied on a stimulus.
+        img_dir : str   
+            Images' parent directory.
+        img_ids : list   
+            Each img_id is a path which can find the image file relative to img_dir.
+        labels : list   
+            Each image's label.
+        transform : callable function   
+            Optional transform to be applied on a stimulus.
         """
         self.img_dir = img_dir
         self.img_ids = img_ids
@@ -400,14 +440,14 @@ class ImageSet:
         """
         Get image data and corresponding labels
 
-        Parameter:
-        ---------
+        Parameters
+        ----------
         indices[int|list|slice]: subscript indices
 
-        Returns:
+        Returns 
         -------
-        data[tensor]: image data with shape as (n_stim, n_chn, height, weight)
-        labels[list]: image labels
+        data : tensor   image data with shape as (n_stim, n_chn, height, weight)
+        labels : list   image labels
         """
         # check availability and do preparation
         if isinstance(indices, int):
@@ -443,12 +483,15 @@ class VideoSet:
     """
     def __init__(self, vid_file, frame_nums, labels=None, transform=None):
         """
-        Parameters:
+        Parameters
         ----------
-        vid_file[str]: video data file
-        frame_nums[list]: sequence numbers of the frames of interest
-        labels[list]: each frame's label
-        transform[pytorch transform]
+        vid_file : str  
+            Video data file.
+        frame_nums : list   
+            Sequence numbers of the frames of interest.
+        labels : list   
+            Each frame's label.
+        transform : pytorch transform
         """
         self.vid_cap = cv2.VideoCapture(vid_file)
         self.frame_nums = frame_nums
@@ -460,14 +503,17 @@ class VideoSet:
         """
         Get frame data and corresponding labels
 
-        Parameter:
-        ---------
-        indices[int|list|slice]: subscript indices
+        Parameters
+        ----------
+        indices : int, list, slice
+            Subscript indices
 
-        Returns:
+        Returns 
         -------
-        data[tensor]: frame data with shape as (n_stim, n_chn, height, weight)
-        labels[list]: frame labels
+        data : tensor   
+            Frame data with shape as (n_stim, n_chn, height, weight).
+        labels : list   
+            Frame labels.
         """
         # check availability and do preparation
         if isinstance(indices, int):
@@ -502,7 +548,7 @@ class VideoSet:
 
     def __len__(self):
         """
-        Return the number of frames
+        Return the number of frames.
         """
         return len(self.frame_nums)
 
@@ -511,18 +557,23 @@ def cross_val_confusion(classifier, X, y, cv=None):
     """
     Evaluate confusion matrix and score from each fold of cross validation
 
-    Parameters:
+    Parameters
     ----------
     classifier:  classifier object
         The object used to fit the data.
-    X[ndarray]: shape=(n_sample, n_feature)
-    y[ndarray]: shape=(n_sample,)
-    cv[int]: the number of folds of the cross validation
+    X : ndarray  
+        Shape=(n_sample, n_feature).
+    y : ndarray  
+        Shape=(n_sample,).
+    cv : int   
+        The number of folds of the cross validation.
 
-    Returns:
+    Returns 
     -------
-    conf_ms[list]: confusion matrices of the folds
-    accuracies[list]: accuracies of the folds
+    conf_ms : list   
+        Confusion matrices of the folds.
+    accuracies : list   
+        Accuracies of the folds.
     """
     assert getattr(classifier, "_estimator_type", None) == "classifier", \
         "Estimator must be a classifier!"
@@ -548,130 +599,226 @@ def cross_val_confusion(classifier, X, y, cv=None):
     return conf_ms, accuracies
 
 
-class UnivariatePredictionModel:
+def gen_estimator_from_name(name):
+    """
+    Generate sklearn estimator from name
 
-    def __init__(self, model_name=None, cv=3, scoring=None):
+    Parameters
+    ----------
+    name : str
+        name of estimator
+
+    Returns
+    -------
+    estimator : sklearn estimator
+    """
+    if name == 'lrc':
+        estimator = LogisticRegression()
+    elif name == 'svc':
+        estimator = SVC(kernel='linear', C=0.025)
+    elif name == 'glm':
+        estimator = LinearRegression()
+    elif name == 'lasso':
+        estimator = Lasso()
+    else:
+        raise ValueError("Not supported estimator name: {}".format(name))
+
+    return estimator
+
+
+class UnivariateMapping:
+    """
+    For each target samples, evaluate every feature samples' predictive ability
+    and record location, prediction score and model of the feature with maximal
+    predictive ability.
+    """
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
-        Parameters:
-        -----------
-        model_name[str]: name of a model used to do prediction
-            If is 'corr', it just uses correlation rather than prediction.
-        cv[int]: cross validation fold number
-        scoring : str
-            model evaluation rule
+        Parameters
+        ----------
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping. |br|
+            There are some optional names at below:
+                        
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+                
+            *Note*: If name is 'corr', it just uses correlation rather than prediction.
+        
+        cv : int
+            The number of cross validation folds.
+        
+        scoring : str or callable
+            The method to evaluate the predictions on the test set.
         """
-        self.set(model_name, cv)
+        self.set_estimator(estimator)
+        self.set_cv(cv)
         self.set_scoring(scoring)
 
-    def set(self, model_name=None, cv=None):
+    def set_estimator(self, estimator):
         """
-        Set some attributes
-
-        Parameters:
+        Parameters
         ----------
-        model_name[str]: name of a model used to do prediction
-            If is 'corr', it just uses correlation rather than prediction.
-        cv[int]: cross validation fold number
-        """
-        if model_name is None:
-            pass
-        elif model_name == 'lrc':
-            self.model = LogisticRegression()
-            self.model_type = 'classifier'
-        elif model_name == 'svc':
-            self.model = SVC(kernel='linear', C=0.025)
-            self.model_type = 'classifier'
-        elif model_name == 'glm':
-            self.model = LinearRegression()
-            self.model_type = 'regressor'
-        elif model_name == 'lasso':
-            self.model = Lasso()
-            self.model_type = 'regressor'
-        elif model_name == 'corr':
-            self.model = None
-            self.model_type = model_name
-        else:
-            raise ValueError('unsupported model:', model_name)
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping. |br|
+            There are some optional names at below:
 
-        if cv is not None:
-            self.cv = cv
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+
+            *Note*: If name is 'corr', it just uses correlation rather than prediction.
+        """
+        if estimator is None:
+            return
+        elif isinstance(estimator, str):
+            if estimator == 'corr':
+                self.estimator = None
+                self.estimator_type = 'correlation'
+            else:
+                self.estimator = gen_estimator_from_name(estimator)
+                self.estimator_type = getattr(self.estimator, "_estimator_type")
+        else:
+            self.estimator = estimator
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+
+        if self.estimator_type not in ('classifier', 'regressor', 'correlation'):
+            raise ValueError("Not supported estimator type: {}".format(self.estimator_type))
+
+    def set_cv(self, cv):
+        """
+        Parameters
+        ----------
+        cv : int
+            The number of cross validation folds.
+        """
+        self.cv = cv
 
     def set_scoring(self, scoring):
         """
-        Parameters:
-        -----------
-        scoring : str
-            model evaluation rule
+        Parameters
+        ----------
+        scoring : str or callable
+            The method to evaluate the predictions on the test set.
+            It depends on estimator type.
+
+            +----------------+----------------------------------------------+
+            | estimator type | Scoring description                          |
+            +================+==============================================+
+            | classifier     | The evaluation method is fixed as accuracy   |
+            |                | and confusion matrix.                        |
+            +----------------+----------------------------------------------+
+            | regressor      | Scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'. |
+            +----------------+----------------------------------------------+
+            | correlation    | No evaluation method is needed.              |
+            +----------------+----------------------------------------------+
         """
         if scoring is None:
-            self.scoring = None
-        elif hasattr(self, 'model_type'):
-            if self.model_type == 'classifier':
-                print("The model evaluation rule of a classifier "
+            self.scoring = scoring
+        elif hasattr(self, 'estimator_type'):
+            if self.estimator_type == 'classifier':
+                print("The evaluation method of a classifier "
                       "is fixed as accuracy and confusion matrix.")
                 self.scoring = None
-            elif self.model_type == 'regressor':
+            elif self.estimator_type == 'regressor':
                 if scoring == 'correlation':
                     self.scoring = correlation_score
                 else:
                     self.scoring = scoring
             else:
-                print("Univariate analysis doesn't need model evaluation rule.")
+                print("correlation analysis doesn't need evaluation method.")
                 self.scoring = None
         else:
-            raise RuntimeError("You have to set model first!")
+            raise ValueError("You have to set estimator first!")
 
-    def predict(self, X, Y):
+    def map(self, X, Y):
         """
-        Use all columns of X (one-by-one) to predict each column of Y;
+        Use all columns of **X** (one-by-one) to predict each column of **Y**;
+        
         For each column of Y:
-            Find the location of the column of X which has the maximal prediction score;
-            Record the location, and corresponding score and model.
+        Find the location of the column of X which has the maximal prediction score;
+        Record the location, and corresponding score and model.
 
-        Parameters:
+        Parameters
         ----------
-        X[ndarray]: shape=(n_sample, n_feature)
-        Y[ndarray]: shape=(n_sample, n_target)
+        X : ndarray
+            shape=(n_sample, n_feature)
+            
+        Y : ndarray
+            shape=(n_sample, n_target)
 
-        Return:
-        ------
-        If model_type == 'classifier',
-            pred_dict[dict]:
-                max_score[ndarray]: shape=(n_target,)
-                    Each element is the maximal accuracy
-                    among all features predicting to the corresponding target.
-                max_loc[ndarray]: shape=(n_target,)
-                    Each element is a location of the feature which makes the max score.
-                max_model[ndarray]: shape=(n_target,)
-                    Each element is a model fitted by
-                    the feature at the max loc and the corresponding target.
-                score[ndarray]: shape=(n_target, cv)
-                    Each row contains accuracies of each cross validation folds,
-                    when using the feature at the max loc to predict the corresponding target.
-                conf_m[ndarray]: shape=(n_target, cv)
-                    Each row contains confusion matrices (n_label, n_label) of
-                    each cross validation folds, when using the feature at the max loc to
-                    predict the corresponding target.
-        If model_type == 'regressor',
-            pred_dict[dict]:
-                max_score[ndarray]: shape=(n_target,)
-                    Each element is the maximal score
-                    among all features predicting to the corresponding target.
-                max_loc[ndarray]: shape=(n_target,)
-                    Each element is a location of the feature which makes the max score.
-                max_model[ndarray]: shape=(n_target,)
-                    Each element is a model fitted by
-                    the feature at the max loc and the corresponding target.
-                score[ndarray]: shape=(n_target, cv)
-                    Each row contains scores of each cross validation folds,
-                    when using the feature at the max loc to predict the corresponding target.
-        If model_type == 'corr',
-            pred_dict[dict]:
-                max_score[ndarray]: shape=(n_target,)
-                    Each element is the maximal pearson r
-                    among all features correlating to the corresponding target.
-                max_loc[ndarray]: shape=(n_target,)
-                    Each element is a location of the feature which makes the max score.
+        Returns
+        -------
+        map_dict: dict
+            It depends on estimator type.
+        
+            +------------+-----------+--------------------------------------------------------------+
+            | estimator  | key       | value                                                        |
+            | type       |           |                                                              |
+            +============+===========+==============================================================+
+            | classifier | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains accuracies of each cross |br|              |
+            |            |           | validation folds, when using the feature at the |br|         |
+            |            |           | maximal location to predict the corresponding target.        |
+            |            +-----------+--------------------------------------------------------------+
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
+            |            |           | which makes the maximal score.                               |
+            |            +-----------+--------------------------------------------------------------+                                               
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by the feature |br|           |
+            |            |           | at the maximal location and the corresponding target.        |
+            |            +-----------+--------------------------------------------------------------+
+            |            | conf_m    | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains confusion matrices |br|                    |
+            |            |           | (n_label, n_label) of each cross validation folds, |br|      |
+            |            |           | when using the feature at the maximal location to |br|       |
+            |            |           | predict the corresponding target.                            |
+            +------------+-----------+--------------------------------------------------------------+
+            | regressor  | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains scores of each cross |br|                  |
+            |            |           | validation folds, when using the feature at |br|             |
+            |            |           | the maximal location to predict the corresponding target.    |
+            |            +-----------+--------------------------------------------------------------+
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
+            |            |           | which makes the maximal score.                               |
+            |            +-----------+--------------------------------------------------------------+
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by the feature |br|           |
+            |            |           | at the maximal location and the corresponding target.        |
+            +------------+-----------+--------------------------------------------------------------+           
+            |'corr'      | score     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is the maximal pearson r among all |br|         |
+            |            |           | features correlating to the corresponding target.            |
+            |            +-----------+--------------------------------------------------------------+
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
+            |            |           | which makes the maximal score.                               |
+            +------------+-----------+--------------------------------------------------------------+ 
+            
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
@@ -680,121 +827,163 @@ class UnivariatePredictionModel:
         n_feat = X.shape[1]
         n_trg = Y.shape[1]
 
-        # initialize prediction dict
-        pred_dict = {
-            'max_score': np.zeros((n_trg,)),
-            'max_loc': np.zeros((n_trg,), dtype=np.int)
-        }
-        if self.model_type == 'classifier':
-            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
-            pred_dict['score'] = np.zeros((n_trg, self.cv))
-            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
-        elif self.model_type == 'regressor':
-            pred_dict['max_model'] = np.zeros((n_trg,), dtype=np.object)
-            pred_dict['score'] = np.zeros((n_trg, self.cv))
+        # initialize mapping dict
+        map_dict = {'location': np.zeros((n_trg,), dtype=np.int)}
+        if self.estimator_type == 'classifier':
+            map_dict['model'] = np.zeros((n_trg,), dtype=np.object)
+            map_dict['score'] = np.zeros((n_trg, self.cv))
+            map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+        elif self.estimator_type == 'regressor':
+            map_dict['model'] = np.zeros((n_trg,), dtype=np.object)
+            map_dict['score'] = np.zeros((n_trg, self.cv))
+        else:
+            map_dict['score'] = np.zeros((n_trg,))
 
         # do cross validation for each target
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            if self.model_type == 'corr':
+            if self.estimator_type == 'correlation':
                 # calculate pearson r
                 scores_tmp = pairwise_distances(X.T, y.reshape(1, -1), 'correlation')
                 scores_tmp = 1 - scores_tmp.ravel()
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-            elif self.model_type == 'regressor':
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_tmp[max_feat_idx]
+            elif self.estimator_type == 'regressor':
                 # cross validation
                 scores_cv = np.zeros((n_feat, self.cv))
                 for feat_idx in range(n_feat):
-                    scores_cv[feat_idx] = cross_val_score(self.model, X[:, [feat_idx]], y,
+                    scores_cv[feat_idx] = cross_val_score(self.estimator, X[:, [feat_idx]], y,
                                                           scoring=self.scoring, cv=self.cv)
                 scores_tmp = np.mean(scores_cv, 1)
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
-                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X[:, [max_feat_idx]], y))
             else:
                 # cross validation
                 scores_cv = np.zeros((n_feat, self.cv))
                 conf_ms_cv = np.zeros((n_feat, self.cv), dtype=np.object)
                 for feat_idx in range(n_feat):
-                    conf_ms, accs = cross_val_confusion(self.model, X[:, [feat_idx]], y, cv=self.cv)
+                    conf_ms, accs = cross_val_confusion(self.estimator, X[:, [feat_idx]], y, cv=self.cv)
                     scores_cv[feat_idx] = accs
                     conf_ms_cv[feat_idx] = conf_ms
                 scores_tmp = np.mean(scores_cv, 1)
                 # find maximal score and its location
                 max_feat_idx = np.nanargmax(scores_tmp)
-                pred_dict['max_loc'][trg_idx] = max_feat_idx
-                pred_dict['max_score'][trg_idx] = scores_tmp[max_feat_idx]
-                pred_dict['score'][trg_idx] = scores_cv[max_feat_idx]
-                pred_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
-                pred_dict['max_model'][trg_idx] = deepcopy(self.model.fit(X[:, [max_feat_idx]], y))
+                map_dict['location'][trg_idx] = max_feat_idx
+                map_dict['score'][trg_idx] = scores_cv[max_feat_idx]
+                map_dict['conf_m'][trg_idx] = conf_ms_cv[max_feat_idx]
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X[:, [max_feat_idx]], y))
 
             print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
-        return pred_dict
+        return map_dict
 
 
-class MultivariatePredictionModel:
+class MultivariateMapping:
 
-    def __init__(self, model_name=None, cv=3, scoring=None):
+    def __init__(self, estimator=None, cv=5, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        model_name[str]: name of a model used to do prediction
-        cv[int]: cross validation fold number
-        scoring : str
-            model evaluation rule
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping. |br|
+            There are some optional names at below:
+
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+
+        cv : int
+            The number of cross validation folds.
+
+        scoring : str or callable
+            The method to evaluate the predictions on the test set.
         """
-        self.set(model_name, cv)
+        self.set_estimator(estimator)
+        self.set_cv(cv)
         self.set_scoring(scoring)
 
-    def set(self, model_name=None, cv=None):
+    def set_estimator(self, estimator):
         """
-        Set some attributes
-
-        Parameters:
+        Parameters
         ----------
-        model_name[str]: name of a model used to do prediction
-        cv[int]: cross validation fold number
-        """
-        if model_name is None:
-            pass
-        elif model_name == 'lrc':
-            self.model = LogisticRegression()
-            self.model_type = 'classifier'
-        elif model_name == 'svc':
-            self.model = SVC(kernel='linear', C=0.025)
-            self.model_type = 'classifier'
-        elif model_name == 'glm':
-            self.model = LinearRegression()
-            self.model_type = 'regressor'
-        elif model_name == 'lasso':
-            self.model = Lasso()
-            self.model_type = 'regressor'
-        else:
-            raise ValueError('unsupported model:', model_name)
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping. |br|
+            There are some optional names at below:
 
-        if cv is not None:
-            self.cv = cv
+            +------------+------------+--------------------------------+
+            | name       | type       | description                    |
+            +============+============+================================+
+            |    lrc     | classifier | Logistic Regression Classifier |
+            +------------+------------+--------------------------------+
+            |    svc     | classifier | C-Support Vector Classification|
+            +------------+------------+--------------------------------+
+            |    glm     | regressor  | Ordinary least squares Linear  |
+            |            |            | Regression                     |
+            +------------+------------+--------------------------------+
+            |   lasso    | regressor  | Linear Model trained with L1   |
+            |            |            | prior as regularizer           |
+            +------------+------------+--------------------------------+
+        """
+        if estimator is None:
+            return
+        elif isinstance(estimator, str):
+            self.estimator = gen_estimator_from_name(estimator)
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+        else:
+            self.estimator = estimator
+            self.estimator_type = getattr(self.estimator, "_estimator_type")
+
+        if self.estimator_type not in ('classifier', 'regressor'):
+            raise ValueError("Not supported estimator type: {}".format(self.estimator_type))
+
+    def set_cv(self, cv):
+        """
+        Parameters
+        ----------
+        cv : int
+            The number of cross validation folds.
+        """
+        self.cv = cv
 
     def set_scoring(self, scoring):
         """
-        Parameters:
-        -----------
-        scoring : str
-            model evaluation rule
+        Parameters
+        ----------
+        scoring : str or callable
+            The method to evaluate the predictions on the test set.
+            It depends on estimator type.
+
+            +----------------+----------------------------------------------+
+            | estimator type | Scoring description                          |
+            +================+==============================================+
+            | classifier     | The evaluation method is fixed as accuracy   |
+            |                | and confusion matrix.                        |
+            +----------------+----------------------------------------------+
+            | regressor      | Scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'. |
+            +----------------+----------------------------------------------+
         """
         if scoring is None:
             self.scoring = None
-        elif hasattr(self, 'model_type'):
-            if self.model_type == 'classifier':
-                print("The model evaluation rule of a classifier "
+        elif hasattr(self, 'estimator_type'):
+            if self.estimator_type == 'classifier':
+                print("The evaluation method of a classifier "
                       "is fixed as accuracy and confusion matrix.")
                 self.scoring = None
             else:
@@ -803,37 +992,52 @@ class MultivariatePredictionModel:
                 else:
                     self.scoring = scoring
         else:
-            raise RuntimeError("You have to set model first!")
+            raise ValueError("You have to set estimator first!")
 
-    def predict(self, X, Y):
+    def map(self, X, Y):
         """
         Use all columns of X to predict each column of Y.
 
-        Parameters:
+        Parameters
         ----------
-        X[ndarray]: shape=(n_sample, n_feature)
-        Y[ndarray]: shape=(n_sample, n_target)
+        X : ndarray  
+            shape=(n_sample, n_feature)
+        Y : ndarray  
+            shape=(n_sample, n_target)
 
-        Return:
-        ------
-        If model_type == 'classifier',
-            pred_dict[dict]:
-                score[ndarray]: shape=(n_target, cv)
-                    Each row contains accuracies of each cross validation folds,
-                    when using all features to predict the corresponding target.
-                model[ndarray]: shape=(n_target,)
-                    Each element is a model fitted by all features and the corresponding target.
-                conf_m[ndarray]: shape=(n_target, cv)
-                    Each row contains confusion matrices (n_label, n_label) of
-                    each cross validation folds, when using all features to
-                    predict the corresponding target.
-        If model_type == 'regressor',
-            pred_dict[dict]:
-                score[ndarray]: shape=(n_target, cv)
-                    Each row contains scores of each cross validation folds,
-                    when using all features to predict the corresponding target.
-                model[ndarray]: shape=(n_target,)
-                    Each element is a model fitted by all features and the corresponding target.
+        Returns
+        -------
+        map_dict: dict
+            It depends on estimator type.
+        
+            +------------+-----------+--------------------------------------------------------------+
+            | estimator  | key       | value                                                        |
+            | type       |           |                                                              |
+            +============+===========+==============================================================+
+            | classifier | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains accuracies of each cross |br|              |
+            |            |           | validation folds, when using all features to |br|            |
+            |            |           | predict the corresponding target.                            |
+            |            +-----------+--------------------------------------------------------------+
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by all features |br|          |
+            |            |           | and the corresponding target.                                |
+            |            +-----------+--------------------------------------------------------------+
+            |            | conf_m    | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains confusion matrices |br|                    |
+            |            |           | (n_label, n_label) of each cross validation |br|             |
+            |            |           | folds, when using all features to predict the |br|           |
+            |            |           | corresponding target.                                        |
+            +------------+-----------+--------------------------------------------------------------+
+            | regressor  | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains scores of each cross |br|                  |
+            |            |           | validation folds, when using all features to |br|            |
+            |            |           | predict the corresponding target.                            |
+            |            +-----------+--------------------------------------------------------------+
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by all features |br|          |
+            |            |           | and the corresponding target.                                |
+            +------------+-----------+--------------------------------------------------------------+
         """
         assert X.ndim == 2, "X's shape must be (n_sample, n_feature)!"
         assert Y.ndim == 2, "Y's shape must be (n_sample, n_target)!"
@@ -841,53 +1045,58 @@ class MultivariatePredictionModel:
                                          'same number of samples!'
         n_trg = Y.shape[1]
         # initialize prediction dict
-        pred_dict = {
+        map_dict = {
             'score': np.zeros((n_trg, self.cv)),
             'model': np.zeros((n_trg,), dtype=np.object)
         }
-        if self.model_type == 'classifier':
-            pred_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
+        if self.estimator_type == 'classifier':
+            map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
 
         for trg_idx in range(n_trg):
             time1 = time.time()
             y = Y[:, trg_idx]
-            if self.model_type == 'classifier':
-                conf_ms, scores_tmp = cross_val_confusion(self.model, X, y, self.cv)
-                pred_dict['conf_m'][trg_idx] = conf_ms
+            if self.estimator_type == 'classifier':
+                conf_ms, scores_tmp = cross_val_confusion(self.estimator, X, y, self.cv)
+                map_dict['conf_m'][trg_idx] = conf_ms
             else:
-                scores_tmp = cross_val_score(self.model, X, y,
+                scores_tmp = cross_val_score(self.estimator, X, y,
                                              scoring=self.scoring, cv=self.cv)
             # recording
-            pred_dict['score'][trg_idx] = scores_tmp
-            pred_dict['model'][trg_idx] = deepcopy(self.model.fit(X, y))
+            map_dict['score'][trg_idx] = scores_tmp
+            map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, y))
 
             print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
 
-        return pred_dict
+        return map_dict
 
 
 def dnn_mask(dnn_acts, channels='all', rows='all', columns='all'):
     """
     Extract DNN activation
 
-    Parameters:
+    Parameters
     ----------
-    dnn_acts[array]: DNN activation
-        A 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    channels[str|list]: channels of interest.
+    dnn_acts : ndarray   
+        DNN activation
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
+    channels: str, list   
+        Channels of interest.
         If is str, it must be 'all' which means all channels.
         If is list, its elements are serial numbers of channels.
-    rows[str|list]: rows of interest.
+    rows: str, list   
+        rows of interest.
         If is str, it must be 'all' which means all rows.
         If is list, its elements are serial numbers of rows.
-    columns[str|list]: columns of interest.
+    columns: str, list   
+        Columns of interest.
         If is str, it must be 'all' which means all columns.
         If is list, its elements are serial numbers of columns.
 
-    Return:
+    Return
     ------
-    dnn_acts[array]: DNN activation after mask
-        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    dnn_acts : ndarray   
+        DNN activation after mask.
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
     """
     if isinstance(channels, list):
         channels = [chn-1 for chn in channels]
@@ -906,33 +1115,50 @@ def dnn_fe(dnn_acts, method, n_feat, axis=None):
     """
     Extract features of DNN activation
 
-    Parameters:
+    Parameters
     ----------
-    dnn_acts[array]: DNN activation
-        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
-    method[str]: feature extraction method, choices=(pca, hist, psd)
-        pca: use n_feat principal components as features
-        hist: use histogram of activation as features
-            Note: n_feat equal-width bins in the given range will be used!
-        psd: use power spectral density as features
-    n_feat[int|float]: The number of features to extract
-        Note: It can be a float only when the method is pca.
-    axis{str}: axis for feature extraction, choices=(chn, row_col)
-        If is chn, extract feature along channel axis.
-            The result will be an array with shape
-            as (n_stim, n_feat, n_row, n_col)
-        If is row_col, extract feature alone row and column axis.
-            The result will be an array with shape
-            as (n_stim, n_chn, n_feat, 1)
-        If is None, extract features from the whole layer.
-            The result will be an array with shape
-            as (n_stim, n_feat, 1, 1)
-        We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
+    dnn_acts : ndarray   
+        DNN activation.
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
+    method : str  
+        Feature extraction method, choices: ('pca', 'hist', 'psd')
+        
+        +------------+-------------------------------------------+
+        | method name|          description                      |
+        +============+===========================================+
+        | pca        |use n_feat principal components as features|
+        +------------+-------------------------------------------+
+        | hist       |use histogram of activation as features    |
+        +------------+-------------------------------------------+
+        | psd        |use power spectral density as features     |
+        +------------+-------------------------------------------+
+        
+        *Note*: In 'hist', n_feat equal-width bins in the given range will be used!
+    
+    n_feat : int, float
+        The number of features to extract.
+        *Note*: It can be a float only when the method is pca.
+    
+    axis : str 
+        axis for feature extraction, choices=(chn, row_col)
+        
+        +----------+----------------------------------+
+        |   axis   |          array shape             |
+        +==========+==================================+
+        |   chn    |  (n_stim, n_feat, n_row, n_col)  |
+        +----------+----------------------------------+
+        |  row_col |  (n_stim, n_chn, n_feat, 1)      |
+        +----------+----------------------------------+
+        |   None   |  (n_stim, n_feat, 1, 1)          |
+        +----------+----------------------------------+
+        
+        *Note*: We always regard the shape of the result as (n_stim, n_chn, n_row, n_col)
 
-    Return:
+    Return
     ------
-    dnn_acts_new[array]: DNN activation
-        a 4D array with its shape as (n_stim, n_chn, n_row, n_col)
+    dnn_acts_new : ndarray   
+        DNN activation.
+        A 4D array with its shape as (n_stim, n_chn, n_row, n_col).
     """
     # adjust iterative axis
     n_stim, n_chn, n_row, n_col = dnn_acts.shape

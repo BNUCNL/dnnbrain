@@ -13,13 +13,14 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
+os.environ['DNNBRAIN_DATA'] = ''  # reserved for autodoc which will import DNNBrain modules
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'DNNBrain'
-copyright = '2020, Xiayu Chen, Ming Zhou, Taicheng Huang, Xingyu Liu, Zonglei Zhen'
-author = 'Xiayu Chen, Ming Zhou, Taicheng Huang, Xingyu Liu, Zonglei Zhen'
+copyright = '2020, Xiayu Chen, Ming Zhou, Zhengxin Gong, Wei Xu, Xingyu Liu, Taicheng Huang, Zonglei Zhen, Jia Liu'
+author = 'Xiayu Chen, Ming Zhou, Zhengxin Gong, Wei Xu, Xingyu Liu, Taicheng Huang, Zonglei Zhen, Jia Liu'
 
 # The full version, including alpha/beta/rc tags
 release = '1.0a'
@@ -30,7 +31,7 @@ release = '1.0a'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc'
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.napoleon'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

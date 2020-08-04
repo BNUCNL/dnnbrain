@@ -11,7 +11,7 @@ with open('README.md', 'r') as rf:
 setup(
     name='dnnbrain',
     version='1.0a',
-    author='Xiayu Chen, Ming Zhou, Taicheng Huang, Xingyu Liu, Zonglei Zhen',
+    author='Xiayu Chen, Ming Zhou, Zhengxin Gong, Wei Xu, Xingyu Liu, Taicheng Huang, Zonglei Zhen, Jia Liu',
     author_email='sunshine_drizzle@foxmail.com',
     description='Exploring representations in both DNN and brain.',
     long_description=long_description,

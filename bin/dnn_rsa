@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Characterise DNN activation's representation dissimilarity matrix.
+Characterise DNN activation's representation dissimilarity matrix (RDM).
 """
 
 import time
@@ -25,9 +25,7 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="layer names of interest "
-                             "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. ")
+                        help="layer names of interest")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
@@ -66,7 +64,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='an output filename with suffix .rdm.h5')
+                        help='output filename with suffix .rdm.h5')
     args = parser.parse_args()
 
     # -load activation start-
