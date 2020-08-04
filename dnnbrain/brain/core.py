@@ -426,40 +426,44 @@ class BrainEncoder:
         encode_dict : dict
             It depends on map type.
            
-            +-------+---------+-----------------------------------------------------------------------+
-            |       |         |                           First value                                 |
-            |       |         +-----------+-----------------------------------------------------------+
-            | Map   |First    |Second     |                       Second value                        |
-            | type  |key      |key        |                                                           |
-            +=======+=========+===========+===========================================================+
-            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
-            |       |         |           |as (n_iter, n_meas). Each element is the maximal pearson r |
-            |       |         |           |among all features at corresponding iteration correlating  |
-            |       |         |           |to the corresponding measurement.                          |
-            |       |         |           |If estimator type is regressor, it's an array with shape as|
-            |       |         |           |(n_iter, n_meas, cv). For each iteration and measurement,  |
-            |       |         |           |the third axis contains scores of each cross validation    |
-            |       |         |           |folds, when using the feature with maximal score to predict|
-            |       |         |           |the corresponding measurement.                             |
-            |       | (str)   +-----------+-----------------------------------------------------------+
-            |       |         | location  |An array with shape as (n_iter, n_meas, 3)                 |
-            |       |         |           |Max locations of the max scores, the                       | 
-            |       |         |           |size 3 of the third dimension means                        | 
-            |       |         |           |channel, row and column respectively.                      |
-            |       |         +-----------+-----------------------------------------------------------+                                               
-            |       |         | model     |An array with shape as (n_iter, n_meas).                   |
-            |       |         |           |fitted models of the max scores.                           |
-            |       |         |           |Note: only exists when estimator type is regressor         |
-            +-------+---------+-----------+-----------------------------------------------------------+
-            |  mv   | layer   | score     |A array with shape as (n_iter, n_meas, cv).                |
-            |       |         |           |The third dimension means scores of each                   |
-            |       | (str)   |           |cross validation folds at each iteration                   |
-            |       |         |           |and measurement                                            |
-            |       |         +-----------+-----------------------------------------------------------+
-            |       |         | model     |A array with shape as (n_iter, n_meas).                    |
-            |       |         |           |Each element is a model fitted at the                      |
-            |       |         |           |corresponding iteration and measurement.                   |         
-            +-------+---------+-----------+-----------------------------------------------------------+
+            +-------+---------+-----------------------------------------------------------------------------+
+            |       |         |                           First value                                       |
+            |       |         +-----------+-----------------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                              |
+            | type  |key      |key        |                                                                 |
+            +=======+=========+===========+=================================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |br|  |
+            |       |         |           |as (n_iter, n_meas). |br|                                        |
+            |       |         |           |Each element is the maximal pearson r among all features at |br| |
+            |       |         |           |corresponding iteration correlating to the corresponding |br|    |
+            |       |         |           |measurement. |br|                                                |
+            |       |         |           |If estimator type is regressor, it's an array with shape as |br| |
+            |       |         |           |(n_iter, n_meas, cv). |br|                                       |
+            |       |         |           |For each iteration and measurement, the third axis contains |br| |
+            |       |         |           |scores of each cross validation folds, when using the |br|       |
+            |       |         |           |feature with maximal score to predict the corresponding |br|     |
+            |       |         |           |measurement.                                                     |
+            |       | (str)   +-----------+-----------------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_iter, n_meas, 3) |br|                  |
+            |       |         |           |Max locations of the max scores, the size 3 of the third |br|    |
+            |       |         |           |dimension means channel, row and column respectively.            |
+            |       |         +-----------+-----------------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_iter, n_meas). |br|                    |
+            |       |         |           |Fitted models of the max scores. |br|                            |
+            |       |         |           |**Note**: only exists when estimator type is regressor           |
+            +-------+---------+-----------+-----------------------------------------------------------------+
+            |  mv   | layer   | score     |A array with shape as (n_iter, n_meas, cv). |br|                 |
+            |       |         |           |The third dimension means scores of each cross validation  |br|  |
+            |       | (str)   |           |folds at each iteration and measurement.                         |
+            |       |         +-----------+-----------------------------------------------------------------+
+            |       |         | model     |A array with shape as (n_iter, n_meas). |br|                     |
+            |       |         |           |Each element is a model fitted at the corresponding |br|         |
+            |       |         |           |iteration and measurement.                                       |
+            +-------+---------+-----------+-----------------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         _, n_meas = self.brain_activ.shape
 
@@ -542,35 +546,38 @@ class BrainEncoder:
         encode_dict : dict
             It depends on map type.
             
-            +-------+---------+-----------------------------------------------------------------------+
-            |       |         |                           First value                                 |
-            |       |         +-----------+-----------------------------------------------------------+
-            | Map   |First    |Second     |                       Second value                        |
-            | type  |key      |key        |                                                           |
-            +=======+=========+===========+===========================================================+
-            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
-            |       |         |           |as (n_meas,). Max scores                                   |
-            |       |         |           |If estimator type is regressor, it's an array with shape as|
-            |       |         |           |(n_meas, cv). The second dimension contains scores of each |
-            |       |         |           |cross validation fold at maximal location.                 |
-            |       | (str)   +-----------+-----------------------------------------------------------+
-            |       |         | location  |An array with shape as (n_meas,).                          |
-            |       |         |           |Max locations of the max scores                            |
-            |       |         |           |                                                           |
-            |       |         +-----------+-----------------------------------------------------------+                                               
-            |       |         | model     |An array with shape as (n_meas,).                          |
-            |       |         |           |Fitted models of the max scores                            |
-            |       |         |           |Note: only exists when model is regressor.                 |
-            +-------+---------+-----------+-----------------------------------------------------------+
-            |  mv   | layer   | score     |An array with shape as (n_meas, cv).                       |
-            |       |         |           |The second dimension contains scores of each               |
-            |       | (str)   |           |cross validation fold                                      |
-            |       |         +-----------+-----------------------------------------------------------+
-            |       |         | model     |An array with shape as (n_meas,).                          |
-            |       |         |           |Each element is a model fitted at the                      |
-            |       |         |           |corresponding measurement.                                 |         
-            +-------+---------+-----------+-----------------------------------------------------------+        
-            
+            +-------+---------+-----------------------------------------------------------------------------+
+            |       |         |                           First value                                       |
+            |       |         +-----------+-----------------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                              |
+            | type  |key      |key        |                                                                 |
+            +=======+=========+===========+=================================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |br|  |
+            |       |         |           |as (n_meas,) of max scores. |br|                                 |
+            |       |         |           |If estimator type is regressor, it's an array with shape as |br| |
+            |       |         |           |(n_meas, cv). |br|                                               |
+            |       |         |           |The second dimension contains scores of each |br|                |
+            |       |         |           |cross validation fold at maximal location.                       |
+            |       | (str)   +-----------+-----------------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_meas,). |br|                           |
+            |       |         |           |Max locations of the max scores.                                 |
+            |       |         +-----------+-----------------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_meas,). |br|                           |
+            |       |         |           |Fitted models of the max scores. |br|                            |
+            |       |         |           |Note: only exists when model is regressor.                       |
+            +-------+---------+-----------+-----------------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_meas, cv). |br|                        |
+            |       |         |           |The second dimension contains scores of each cross |br|          |
+            |       | (str)   |           |validation  fold.                                                |
+            |       |         +-----------+-----------------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_meas,). |br|                           |
+            |       |         |           |Each element is a model fitted at the corresponding |br|         |
+            |       |         |           |measurement.                                                     |
+            +-------+---------+-----------+-----------------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         encode_dict = self.mapper.map(beh_data, self.brain_activ)
 
@@ -661,34 +668,37 @@ class BrainDecoder:
         decode_dict : dict
             It depends on map type.
                 
-            +-------+---------+----------------------------------------------------------------------+
-            |       |         |                           First value                                |
-            |       |         +-----------+----------------------------------------------------------+
-            | Map   |First    |Second     |                       Second value                       |
-            | type  |key      |key        |                                                          |
-            +=======+=========+===========+==========================================================+
-            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape|
-            |       |         |           |as (n_chn, n_row, n_col). Max scores                      |
-            |       |         |           |If estimator type is regressor, it's an array with shape  |
-            |       |         |           |as (n_chn, n_row, n_col, cv). The forth dimension contains|
-            |       |         |           |scores of each cross validation fold of the max scores.   |
-            |       | (str)   +-----------+----------------------------------------------------------+
-            |       |         | location  |An array with shape as (n_chn, n_row, n_col).             |
-            |       |         |           |Locations of measurement                                  |
-            |       |         |           |indicators with max scores.                               |
-            |       |         +-----------+----------------------------------------------------------+                                               
-            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
-            |       |         |           |fitted models of the max scores.                          | 
-            |       |         |           |Note: only exists when model is regressor                 |
-            +-------+---------+-----------+----------------------------------------------------------+
-            |  mv   | layer   | score     |An array with shape as (n_chn, n_row, n_col, cv).         |
-            |       |         |           |The forth dimension contains scores of each               |
-            |       | (str)   |           |cross validation fold at each unit.                       |
-            |       |         +-----------+----------------------------------------------------------+
-            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
-            |       |         |           |Each element is a model fitted at the                     |
-            |       |         |           |corresponding unit.                                       |
-            +-------+---------+-----------+----------------------------------------------------------+
+            +-------+---------+----------------------------------------------------------------------------+
+            |       |         |                           First value                                      |
+            |       |         +-----------+----------------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                             |
+            | type  |key      |key        |                                                                |
+            +=======+=========+===========+================================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |br| |
+            |       |         |           |as (n_chn, n_row, n_col) of max scores. |br|                    |
+            |       |         |           |If estimator type is regressor, it's an array with shape |br|   |
+            |       |         |           |as (n_chn, n_row, n_col, cv). |br|                              |
+            |       |         |           |The forth dimension contains scores of each cross |br|          |
+            |       |         |           |validation fold of the max scores.                              |
+            |       | (str)   +-----------+----------------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_chn, n_row, n_col). |br|              |
+            |       |         |           |Locations of measurement indicators with max scores. |br|       |
+            |       |         +-----------+----------------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col). |br|              |
+            |       |         |           |fitted models of the max scores. |br|                           |
+            |       |         |           |**Note**: only exists when model is regressor                   |
+            +-------+---------+-----------+----------------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_chn, n_row, n_col, cv). |br|          |
+            |       |         |           |The forth dimension contains scores of each |br|                |
+            |       | (str)   |           |cross validation fold at each unit.                             |
+            |       |         +-----------+----------------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col). |br|              |
+            |       |         |           |Each element is a model fitted at the corresponding unit.       |
+            +-------+---------+-----------+----------------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         if self.mapper.estimator_type not in ('regressor', 'correlation'):
             raise ValueError("Not supported estimator type: {}".format(self.mapper.estimator_type))
@@ -729,47 +739,52 @@ class BrainDecoder:
         decode_dict : dict
             It depends on map type.
 
-            +----------+-----------+--------------------------------------------------------------+
-            | map type | key       | value                                                        |
-            +==========+===========+==============================================================+
-            | uv       | score     | If estimator type is correlation, it's an array with shape as|
-            |          |           | (n_beh,). Each element is the maximal pearson r among all    |
-            |          |           | measurements correlating to the corresponding behavior.      |
-            |          |           | If estimator type is regressor or classifier, it's an array  |
-            |          |           | with shape as (n_beh, cv). Each row contains scores of each  |
-            |          |           | cross validation fold, when using the measurement at         |
-            |          |           | the maximal location to predict the corresponding behavior.  |
-            |          +-----------+--------------------------------------------------------------+
-            |          | location  | An array with shape as (n_beh,)                              |
-            |          |           | Each element is a location of the measurement                |
-            |          |           | which makes the maximal score.                               |
-            |          +-----------+--------------------------------------------------------------+
-            |          | model     | An array with shape as (n_beh,)                              |
-            |          |           | Each element is a model fitted by the measurement            |
-            |          |           | at the maximal location and the corresponding behavior.      |
-            |          |           | Note: not exist when estimator type is correlation           |
-            |          +-----------+--------------------------------------------------------------+
-            |          | conf_m    | An array with shape as (n_beh, cv)                           |
-            |          |           | Each row contains confusion matrices                         |
-            |          |           | (n_label, n_label) of each cross validation                  |
-            |          |           | fold, when using the measurement at the maximal location to  |
-            |          |           | predict the corresponding behavior.                          |
-            |          |           | Note: only exists when estimator type is classifier          |
-            +----------+-----------+--------------------------------------------------------------+
-            |  mv      | score     | An array with shape as (n_beh, cv)                           |
-            |          |           | Each row contains scores of each cross validation fold, when |
-            |          |           | using all measurements to predict the corresponding behavior.|
-            |          +-----------+--------------------------------------------------------------+
-            |          | model     | An array with shape as (n_beh,)                              |
-            |          |           | Each element is a model fitted by all measurements           |
-            |          |           | and the corresponding behavior.                              |
-            |          +-----------+--------------------------------------------------------------+
-            |          | conf_m    | An array with shape as (n_beh, cv)                           |
-            |          |           | Each row contains confusion matrices (n_label, n_label) of   |
-            |          |           | each cross validation fold, when using all measurements to   |
-            |          |           | predict the corresponding behavior.                          |
-            |          |           | Note: only exists when estimator type is classifier          |
-            |----------+-----------+--------------------------------------------------------------+
+            +----------+-----------+--------------------------------------------------------------------+
+            | map type | key       | value                                                              |
+            +==========+===========+====================================================================+
+            | uv       | score     | If estimator type is correlation, it's an array with shape as |br| |
+            |          |           | (n_beh,). |br|                                                     |
+            |          |           | Each element is the maximal pearson r among all measurements |br|  |
+            |          |           | correlating to the corresponding behavior. |br|                    |
+            |          |           | If estimator type is regressor or classifier, it's an array |br|   |
+            |          |           | with shape as (n_beh, cv). |br|                                    |
+            |          |           | Each row contains scores of each cross validation fold, when |br|  |
+            |          |           | using the measurement at the maximal location to predict the |br|  |
+            |          |           | corresponding behavior.                                            |
+            |          +-----------+--------------------------------------------------------------------+
+            |          | location  | An array with shape as (n_beh,). |br|                              |
+            |          |           | Each element is a location of the measurement which makes the |br| |
+            |          |           | maximal score.                                                     |
+            |          +-----------+--------------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,). |br|                              |
+            |          |           | Each element is a model fitted by the measurement at the |br|      |
+            |          |           | maximal location and the corresponding behavior. |br|              |
+            |          |           | **Note**: not exist when estimator type is correlation             |
+            |          +-----------+--------------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv). |br|                           |
+            |          |           | Each row contains confusion matrices (n_label, n_label) of |br|    |
+            |          |           | each cross validation fold, when using the measurement at the |br| |
+            |          |           | maximal location to predict the corresponding behavior. |br|       |
+            |          |           | **Note**: only exists when estimator type is classifier            |
+            +----------+-----------+--------------------------------------------------------------------+
+            |  mv      | score     | An array with shape as (n_beh, cv). |br|                           |
+            |          |           | Each row contains scores of each cross validation fold, when |br|  |
+            |          |           | using all measurements to predict the corresponding behavior.      |
+            |          +-----------+--------------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,). |br|                              |
+            |          |           | Each element is a model fitted by all measurements and the |br|    |
+            |          |           | corresponding behavior.                                            |
+            |          +-----------+--------------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv). |br|                           |
+            |          |           | Each row contains confusion matrices (n_label, n_label) of |br|    |
+            |          |           | each cross validation fold, when using all measurements to |br|    |
+            |          |           | predict the corresponding behavior. |br|                           |
+            |          |           | **Note**: only exists when estimator type is classifier            |
+            +----------+-----------+--------------------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         decode_dict = self.mapper.map(self.brain_activ, beh_data)
 
