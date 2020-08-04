@@ -913,7 +913,7 @@ class RDM:
 
 class DnnProbe:
     """
-    Decode DNN activation to behavior data. As a result,
+    Decode DNN activation to behavior data. As a result, |br|
     probe the ability of DNN activation to predict the behavior.
     """
     def __init__(self, dnn_activ=None, map_type=None, estimator=None,
@@ -956,18 +956,19 @@ class DnnProbe:
 
         Parameters
         ----------
-        map_type : str
-            choices=(uv, mv)
-            uv: univariate mapping
+        map_type : str 
+            choices=(uv, mv) |br|
+            uv: univariate mapping |br|
             mv: multivariate mapping
         estimator : str | sklearn estimator or pipeline
-            If is str, it is a name of a estimator used to do mapping.
-            If is 'corr', it just uses correlation rather than prediction.
-                And the map_type must be 'uv'.
+            Estimator used in mapping. |br|
+            If is str, it is a name of a estimator used to do mapping. |br|
+            If the name is 'corr', it just uses correlation rather than prediction, |br|
+            and the map_type must be 'uv'.
         cv : int
-            the number of cross validation folds.
+            The number of cross validation folds.
         scoring : str or callable
-            the method to evaluate the predictions on the test set.
+            The method to evaluate the predictions on the test set.
         """
         if map_type is None:
             return
@@ -1019,44 +1020,46 @@ class DnnProbe:
             | Map   |First    |Second     |                       Second value                        |
             | type  |key      |key        |                                                           |
             +=======+=========+===========+===========================================================+
-            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
-            |       |         |           |as (n_iter, n_beh). Each element is the maximal pearson r  |
-            |       |         |           |among all features at corresponding iteration correlating  |
-            |       |         |           |to the corresponding behavior.                             |
-            |       |         |           |If estimator type is regressor or classifier, it's an array|
-            |       |         |           |with shape as (n_iter, n_beh, cv). For each iteration and  |
-            |       |         |           |behavior, the third axis contains scores of each cross     |
-            |       |         |           |validation fold, when using the feature with maximal score |
+            |  uv   | layer   | score     |If estimator type is correlation, it's an                  |
+            |       |         |           |array with shape as (n_iter, n_beh). |br|                  |
+            |       |         |           |Each element is the maximal pearson r among all            |
+            |       |         |           |features at corresponding iteration correlating            |
+            |       |         |           |to the corresponding behavior. |br|                        |
+            |       |         |           |If estimator type is regressor or classifier,              |
+            |       |         |           |it's an array with shape as (n_iter, n_beh, cv). |br|      |
+            |       |         |           |For each iteration and behavior, the third axis            |
+            |       |         |           |contains scores of each cross validation fold,             |
+            |       |         |           |when using the feature with maximal score                  |
             |       |         |           |to predict the corresponding behavior.                     |
             |       | (str)   +-----------+-----------------------------------------------------------+
-            |       |         | location  |An array with shape as (n_iter, n_beh, 3)                  |
-            |       |         |           |Max locations of the max scores, the                       |
-            |       |         |           |size 3 of the third dimension means                        |
+            |       |         | location  |An array with shape as (n_iter, n_beh, 3) |br|             |
+            |       |         |           |Max locations of the max scores, the |br|                  |
+            |       |         |           |size 3 of the third dimension means |br|                   |
             |       |         |           |channel, row and column respectively.                      |
             |       |         +-----------+-----------------------------------------------------------+
-            |       |         | model     |An array with shape as (n_iter, n_beh).                    |
-            |       |         |           |fitted models of the max scores.                           |
-            |       |         |           |Note: not exists when estimator type is correlation        |
+            |       |         | model     |An array with shape as (n_iter, n_beh). |br|               |
+            |       |         |           |Fitted models of the max scores. |br|                      |
+            |       |         |           |Note: not exists when estimator type is correlation.       |
             |       |         +-----------+-----------------------------------------------------------+
-            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv).                |
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv) |br|            |
             |       |         |           |The third dimension means confusion matrices               |
             |       |         |           |(n_label, n_label) of each cross validation                |
-            |       |         |           |fold of the max scores.                                    |
-            |       |         |           |Note: only exists when estimator type is classifier        |
+            |       |         |           |fold of the max scores. |br|                               |
+            |       |         |           |Note: only exists when estimator type is classifier.       |
             +-------+---------+-----------+-----------------------------------------------------------+
-            |  mv   | layer   | score     |An array with shape as (n_iter, n_beh, cv).                |
+            |  mv   | layer   | score     |An array with shape as (n_iter, n_beh, cv) |br|            |
             |       |         |           |The third dimension means scores of each                   |
             |       | (str)   |           |cross validation fold at each iteration                    |
-            |       |         |           |and behavior                                               |
+            |       |         |           |and behavior.                                              |
             |       |         +-----------+-----------------------------------------------------------+
-            |       |         | model     |An array with shape as (n_iter, n_beh).                    |
-            |       |         |           |Each element is a model fitted at the                      |
+            |       |         | model     |An array with shape as (n_iter, n_beh). |br|               |
+            |       |         |           |Each element is a model fitted at the |br|                 |
             |       |         |           |corresponding iteration and behavior.                      |
             |       |         +-----------+-----------------------------------------------------------+
-            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv).                |
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv). |br|           |
             |       |         |           |The third dimension means confusion matrices               |
             |       |         |           |(n_label, n_label) of each cross validation                |
-            |       |         |           |fold at the corresponding iteration and behavior.          |
+            |       |         |           |fold at the corresponding iteration and behavior. |br|     |
             |       |         |           |Note: only exists when estimator type is classifier.       |
             +-------+---------+-----------+-----------------------------------------------------------+
         """

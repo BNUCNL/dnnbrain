@@ -637,7 +637,7 @@ class UnivariateMapping:
         Parameters
         ----------
         estimator : str | sklearn estimator or pipeline
-            If is str, it is a name of a estimator used to do mapping.
+            If is str, it is a name of a estimator used to do mapping. |br|
             There are some optional names at below:
                         
             +------------+------------+--------------------------------+
@@ -657,10 +657,10 @@ class UnivariateMapping:
             *Note*: If name is 'corr', it just uses correlation rather than prediction.
         
         cv : int
-            the number of cross validation folds.
+            The number of cross validation folds.
         
         scoring : str or callable
-            the method to evaluate the predictions on the test set.
+            The method to evaluate the predictions on the test set.
         """
         self.set_estimator(estimator)
         self.set_cv(cv)
@@ -671,7 +671,7 @@ class UnivariateMapping:
         Parameters
         ----------
         estimator : str | sklearn estimator or pipeline
-            If is str, it is a name of a estimator used to do mapping.
+            If is str, it is a name of a estimator used to do mapping. |br|
             There are some optional names at below:
 
             +------------+------------+--------------------------------+
@@ -711,7 +711,7 @@ class UnivariateMapping:
         Parameters
         ----------
         cv : int
-            the number of cross validation folds.
+            The number of cross validation folds.
         """
         self.cv = cv
 
@@ -720,7 +720,7 @@ class UnivariateMapping:
         Parameters
         ----------
         scoring : str or callable
-            the method to evaluate the predictions on the test set.
+            The method to evaluate the predictions on the test set.
             It depends on estimator type.
 
             +----------------+----------------------------------------------+
@@ -729,10 +729,10 @@ class UnivariateMapping:
             | classifier     | The evaluation method is fixed as accuracy   |
             |                | and confusion matrix.                        |
             +----------------+----------------------------------------------+
-            | regressor      | scoring parameters or strategies supported   |
-            |                | by **sklearn** in addition to 'correlation'  |
+            | regressor      | Scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'. |
             +----------------+----------------------------------------------+
-            | correlation    | no evaluation method is needed               |
+            | correlation    | No evaluation method is needed.              |
             +----------------+----------------------------------------------+
         """
         if scoring is None:
@@ -778,45 +778,44 @@ class UnivariateMapping:
             | estimator  | key       | value                                                        |
             | type       |           |                                                              |
             +============+===========+==============================================================+
-            | classifier | score     | (n_target, cv)                                               |
-            |            |           | Each row contains accuracies of each cross                   |
-            |            |           | validation folds, when using the feature at                  |
-            |            |           | the maximal location to predict the corresponding target.    |
+            | classifier | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains accuracies of each cross |br|              |
+            |            |           | validation folds, when using the feature at the |br|         |
+            |            |           | maximal location to predict the corresponding target.        |
             |            +-----------+--------------------------------------------------------------+
-            |            | location  | (n_target,)                                                  |
-            |            |           | Each element is a location of the feature                    |
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
             |            |           | which makes the maximal score.                               |
             |            +-----------+--------------------------------------------------------------+                                               
-            |            | model     | (n_target,)                                                  |
-            |            |           | Each element is a model fitted by the feature                |
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by the feature |br|           |
             |            |           | at the maximal location and the corresponding target.        |
             |            +-----------+--------------------------------------------------------------+
-            |            | conf_m    | (n_target, cv)                                               |
-            |            |           | Each row contains confusion matrices                         |
-            |            |           | (n_label, n_label) of each cross validation                  |
-            |            |           | folds, when using the feature at the maximal location to     |
+            |            | conf_m    | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains confusion matrices |br|                    |
+            |            |           | (n_label, n_label) of each cross validation folds, |br|      |
+            |            |           | when using the feature at the maximal location to |br|       |
             |            |           | predict the corresponding target.                            |
             +------------+-----------+--------------------------------------------------------------+
-            | regressor  | score     | (n_target, cv)                                               |
-            |            |           | Each row contains scores of each cross                       |
-            |            |           | validation folds, when using the feature at                  |
+            | regressor  | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains scores of each cross |br|                  |
+            |            |           | validation folds, when using the feature at |br|             |
             |            |           | the maximal location to predict the corresponding target.    |
             |            +-----------+--------------------------------------------------------------+
-            |            | location  | (n_target,)                                                  |
-            |            |           | Each element is a location of the feature                    |
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
             |            |           | which makes the maximal score.                               |
             |            +-----------+--------------------------------------------------------------+
-            |            | model     | (n_target,)                                                  |
-            |            |           | Each element is a model fitted by the feature                |
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by the feature |br|           |
             |            |           | at the maximal location and the corresponding target.        |
             +------------+-----------+--------------------------------------------------------------+           
-            |'corr'      | score     | (n_target,)                                                  |
-            |            |           | Each element is the maximal pearson r among                  |
-            |            |           | all features correlating to the                              |
-            |            |           | corresponding target.                                        |
+            |'corr'      | score     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is the maximal pearson r among all |br|         |
+            |            |           | features correlating to the corresponding target.            |
             |            +-----------+--------------------------------------------------------------+
-            |            | location  | (n_target,)                                                  |
-            |            |           | Each element is a location of the feature                    |
+            |            | location  | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a location of the feature |br|               |
             |            |           | which makes the maximal score.                               |
             +------------+-----------+--------------------------------------------------------------+ 
             
@@ -892,7 +891,7 @@ class MultivariateMapping:
         Parameters
         ----------
         estimator : str | sklearn estimator or pipeline
-            If is str, it is a name of a estimator used to do mapping.
+            If is str, it is a name of a estimator used to do mapping. |br|
             There are some optional names at below:
 
             +------------+------------+--------------------------------+
@@ -910,10 +909,10 @@ class MultivariateMapping:
             +------------+------------+--------------------------------+
 
         cv : int
-            the number of cross validation folds.
+            The number of cross validation folds.
 
         scoring : str or callable
-            the method to evaluate the predictions on the test set.
+            The method to evaluate the predictions on the test set.
         """
         self.set_estimator(estimator)
         self.set_cv(cv)
@@ -924,7 +923,7 @@ class MultivariateMapping:
         Parameters
         ----------
         estimator : str | sklearn estimator or pipeline
-            If is str, it is a name of a estimator used to do mapping.
+            If is str, it is a name of a estimator used to do mapping. |br|
             There are some optional names at below:
 
             +------------+------------+--------------------------------+
@@ -958,7 +957,7 @@ class MultivariateMapping:
         Parameters
         ----------
         cv : int
-            the number of cross validation folds.
+            The number of cross validation folds.
         """
         self.cv = cv
 
@@ -967,7 +966,7 @@ class MultivariateMapping:
         Parameters
         ----------
         scoring : str or callable
-            the method to evaluate the predictions on the test set.
+            The method to evaluate the predictions on the test set.
             It depends on estimator type.
 
             +----------------+----------------------------------------------+
@@ -976,8 +975,8 @@ class MultivariateMapping:
             | classifier     | The evaluation method is fixed as accuracy   |
             |                | and confusion matrix.                        |
             +----------------+----------------------------------------------+
-            | regressor      | scoring parameters or strategies supported   |
-            |                | by **sklearn** in addition to 'correlation'  |
+            | regressor      | Scoring parameters or strategies supported   |
+            |                | by **sklearn** in addition to 'correlation'. |
             +----------------+----------------------------------------------+
         """
         if scoring is None:
@@ -1015,28 +1014,28 @@ class MultivariateMapping:
             | estimator  | key       | value                                                        |
             | type       |           |                                                              |
             +============+===========+==============================================================+
-            | classifier | score     | (n_target, cv)                                               |
-            |            |           | Each row contains accuracies of each cross                   |
-            |            |           | validation folds, when using all features to                 |
+            | classifier | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains accuracies of each cross |br|              |
+            |            |           | validation folds, when using all features to |br|            |
             |            |           | predict the corresponding target.                            |
             |            +-----------+--------------------------------------------------------------+
-            |            | model     | (n_target,)                                                  |
-            |            |           | Each element is a model fitted by all features               |
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by all features |br|          |
             |            |           | and the corresponding target.                                |
             |            +-----------+--------------------------------------------------------------+
-            |            | conf_m    | (n_target, cv)                                               |
-            |            |           | Each row contains confusion matrices                         |
-            |            |           | (n_label, n_label) of each cross validation                  |
-            |            |           | folds, when using all features to predict the                |
+            |            | conf_m    | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains confusion matrices |br|                    |
+            |            |           | (n_label, n_label) of each cross validation |br|             |
+            |            |           | folds, when using all features to predict the |br|           |
             |            |           | corresponding target.                                        |
             +------------+-----------+--------------------------------------------------------------+
-            | regressor  | score     | (n_target, cv)                                               |
-            |            |           | Each row contains scores of each cross                       |
-            |            |           | validation folds, when using all features to                 |
+            | regressor  | score     | An array with shape as (n_target, cv). |br|                  |
+            |            |           | Each row contains scores of each cross |br|                  |
+            |            |           | validation folds, when using all features to |br|            |
             |            |           | predict the corresponding target.                            |
             |            +-----------+--------------------------------------------------------------+
-            |            | model     | (n_target,)                                                  |
-            |            |           | Each element is a model fitted by all features               |
+            |            | model     | An array with shape as (n_target,). |br|                     |
+            |            |           | Each element is a model fitted by all features |br|          |
             |            |           | and the corresponding target.                                |
             +------------+-----------+--------------------------------------------------------------+
         """
