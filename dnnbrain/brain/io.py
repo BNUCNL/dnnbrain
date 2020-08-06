@@ -81,11 +81,11 @@ def save_brainimg(imgpath, data, header):
         
     Parameters
     ----------
-    imgpath: str
+    imgpath : str
         Brain image path to be saved
-    data: array
+    data : ndarray
         Brain image data matrix
-    header: header
+    header : header
         Brain image header
     """
     imgname = os.path.basename(imgpath)
@@ -94,15 +94,15 @@ def save_brainimg(imgpath, data, header):
     imgsuffix = '.'.join(imgsuffix)
     
     if imgsuffix == 'nii.gz':
-        data = np.transpose(data,(1,2,3,0))
+        data = np.transpose(data, (1, 2, 3, 0))
         outimg = nib.Nifti1Image(data, None, header)
         nib.save(outimg, imgpath)
     elif imgsuffix == 'mgz' or imgsuffix == 'mgh':
-        data = np.transpose(data, (1,2,3,0))
+        data = np.transpose(data, (1, 2, 3, 0))
         outimg = nib.MGHImage(data, None, header)
         nib.save(outimg, imgpath)
     elif imgsuffix == 'dscalar.nii' or imgsuffix == 'dlabel.nii' or imgsuffix == 'dtseries.nii':
-        data = data[...,0,0]
+        data = data[..., 0, 0]
         map_name = ['']*data.shape[0]
         bm_full = header[1]
         cifti.write(imgpath, data, (cifti.Scalar.from_names(map_name), bm_full))

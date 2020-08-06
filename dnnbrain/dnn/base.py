@@ -810,7 +810,7 @@ class UnivariateMapping:
             |            |           | Each element is a model fitted by the feature |br|           |
             |            |           | at the maximal location and the corresponding target.        |
             +------------+-----------+--------------------------------------------------------------+           
-            |'corr'      | score     | An array with shape as (n_target,). |br|                     |
+            | correlation| score     | An array with shape as (n_target,). |br|                     |
             |            |           | Each element is the maximal pearson r among all |br|         |
             |            |           | features correlating to the corresponding target.            |
             |            +-----------+--------------------------------------------------------------+
