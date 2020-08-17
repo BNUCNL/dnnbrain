@@ -7,7 +7,7 @@ import numpy as np
 
 from PIL import Image
 from os.path import join as pjoin
-from sklearn.svm import SVC
+from sklearn.svm import SVC, SVR
 from sklearn.model_selection import cross_val_score
 from torchvision import transforms
 from dnnbrain.dnn import base as db_base
@@ -469,7 +469,7 @@ class TestUnivariateMapping:
 
 class TestMultivariateMapping:
 
-    def test_predict(self):
+    def test_map(self):
         mv = db_base.MultivariateMapping()
         cv = 3
         n_trg = 2
@@ -490,16 +490,27 @@ class TestMultivariateMapping:
             coef_test = copy.deepcopy(mv.estimator).fit(X, Y_c[:, trg_idx]).coef_
             np.testing.assert_equal(map_dict_c['model'][trg_idx].coef_, coef_test)
 
-        # test regressor
+        # test regressor (multi-target flag is True)
         mv.set_estimator('glm')
         mv.set_cv(cv)
         mv.set_scoring('explained_variance')
-        map_dict_r = mv.map(X, Y_r)
+        map_dict_r1 = mv.map(X, Y_r)
         for trg_idx in range(n_trg):
             scores_true = cross_val_score(mv.estimator, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
-            np.testing.assert_equal(map_dict_r['score'][trg_idx], scores_true)
+            np.testing.assert_almost_equal(map_dict_r1['score'][trg_idx], scores_true, 10)
             coef_test = copy.deepcopy(mv.estimator).fit(X, Y_r[:, trg_idx]).coef_
-            np.testing.assert_equal(map_dict_r['model'][trg_idx].coef_, coef_test)
+            np.testing.assert_equal(map_dict_r1['model'][trg_idx].coef_, coef_test)
+
+        # test regressor (multi-target flag is False)
+        mv.set_estimator(SVR(kernel='linear'))
+        mv.set_cv(cv)
+        mv.set_scoring('r2')
+        map_dict_r2 = mv.map(X, Y_r)
+        for trg_idx in range(n_trg):
+            scores_true = cross_val_score(mv.estimator, X, Y_r[:, trg_idx], scoring='r2', cv=cv)
+            np.testing.assert_almost_equal(map_dict_r2['score'][trg_idx], scores_true, 10)
+            coef_test = copy.deepcopy(mv.estimator).fit(X, Y_r[:, trg_idx]).coef_
+            np.testing.assert_equal(map_dict_r2['model'][trg_idx].coef_, coef_test)
 
 
 if __name__ == '__main__':

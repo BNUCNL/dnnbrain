@@ -11,8 +11,9 @@ from copy import deepcopy
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression, LogisticRegression, Lasso
 from sklearn.svm import SVC
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold, cross_val_score
 from sklearn.metrics import pairwise_distances, confusion_matrix
+from sklearn.metrics import r2_score, explained_variance_score
 from scipy.signal import periodogram
 from scipy.stats import pearsonr
 from torchvision import transforms
@@ -20,7 +21,65 @@ from torchvision import transforms
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
 
-def correlation_score(regressor, X, y):
+def correlation_score(y_true, y_pred, multioutput='uniform_average'):
+    """
+    Parameters
+    ----------
+    y_true : ndarray with shape as (n_samples,) or (n_samples, n_outputs)
+        Ground truth target values.
+
+    y_pred : ndarray with shape as (n_samples,) or (n_samples, n_outputs)
+        Estimated target values.
+
+    multioutput : string in ['raw_values', 'uniform_average']
+
+        'raw_values' :
+            Returns a full set of scores in case of multioutput input.
+
+        'uniform_average' :
+            Scores of all outputs are averaged with uniform weight.
+
+    Returns
+    -------
+    score : float or ndarray of floats
+        a single value if 'multioutput' is 'uniform_average'
+        a ndarray if 'multioutput' is 'raw_values'
+    """
+    # check y
+    if y_true.ndim == 1:
+        y_true = y_true[:, None]
+    elif y_true.ndim == 2:
+        pass
+    else:
+        raise ValueError("y_true is a ndarray with shape as (n_samples,) or "
+                         "(n_samples, n_outputs)")
+
+    if y_pred.ndim == 1:
+        y_pred = y_pred[:, None]
+    elif y_pred.ndim == 2:
+        pass
+    else:
+        raise ValueError("y_pred is a ndarray with shape as (n_samples,) or "
+                         "(n_samples, n_outputs)")
+    assert y_true.shape == y_pred.shape
+
+    # scoring
+    n_output = y_true.shape[1]
+    score = np.zeros(n_output)
+    for output_idx in range(n_output):
+        score[output_idx] = pearsonr(y_true[:, output_idx], y_pred[:, output_idx])[0]
+
+    if multioutput == 'raw_values':
+        pass
+    elif multioutput == 'uniform_average':
+        score = np.mean(score)
+    else:
+        raise ValueError("Not supported multioutput: {}".format(multioutput))
+
+    return score
+
+
+def correlation_scorer(regressor, X, y):
     y_preds = regressor.predict(X)
     return pearsonr(y, y_preds)[0]
 
@@ -599,6 +658,92 @@ def cross_val_confusion(classifier, X, y, cv=None):
     return conf_ms, accuracies
 
 
+def cross_val_scores(regressor, X, Y, scoring, cv=None):
+    """
+    Evaluate scores for each run of cross validation
+
+    Parameters
+    ----------
+    regressor:  regressor object
+        The estimator used to fit the data.
+    X : ndarray
+        Shape=(n_sample, n_feature).
+    Y : ndarray
+        Shape=(n_sample, n_target).
+    scoring : str | callable
+        see scoring of Regression at
+        https://scikit-learn.org/stable/modules/model_evaluation.html#common-cases-predefined-values
+        If is str, choices=(explained_variance, r2, correlation).
+        If is callable, the inputs and outputs should imitate scoring metrics in sklearn.
+            The input parameters should include y_true, y_pred, and multioutput at least.
+    cv : int
+        The number of runs of the cross validation.
+
+    Returns
+    -------
+    scores : ndarray
+        shape=(cv, n_target)
+    """
+    assert getattr(regressor, "_estimator_type", None) == "regressor", \
+        "Estimator must be a regressor!"
+
+    # get scoring metric
+    if isinstance(scoring, str):
+        if scoring == 'r2':
+            scoring = r2_score
+        elif scoring == 'explained_variance':
+            scoring = explained_variance_score
+        elif scoring == 'correlation':
+            scoring = correlation_score
+        else:
+            raise ValueError("If scoring is str, choices=(explained_variance, r2, correlation).")
+    elif callable(scoring):
+        pass
+    else:
+        raise ValueError("Not supported scoring")
+
+    # multi-target flag
+    X_tmp = np.random.randn(10, 3)
+    Y_tmp = np.random.randn(10, 2)
+    multi_trg_flag = True
+    try:
+        regressor.fit(X_tmp, Y_tmp)
+    except ValueError:
+        multi_trg_flag = False
+
+    # calculate CV metrics
+    n_trg = Y.shape[1]
+    scores = np.zeros((cv, n_trg))
+    regressor = copy.deepcopy(regressor)
+    kf = KFold(n_splits=cv)
+    for cv_idx, indices in enumerate(kf.split(X, Y)):
+        time1 = time.time()
+
+        # prepare train and test data
+        train_indices, test_indices = indices
+        X_train = X[train_indices]
+        Y_train = Y[train_indices]
+        X_test = X[test_indices]
+        Y_test = Y[test_indices]
+
+        # calculate Y_pred
+        if multi_trg_flag:
+            regressor.fit(X_train, Y_train)
+            Y_pred = regressor.predict(X_test)
+        else:
+            Y_pred = np.zeros_like(Y_test)
+            for trg_idx in range(n_trg):
+                regressor.fit(X_train, Y_train[:, trg_idx])
+                Y_pred[:, trg_idx] = regressor.predict(X_test)
+
+        # calculate scores
+        scores[cv_idx] = scoring(Y_test, Y_pred, multioutput='raw_values')
+        print('Finish CV-{}/{}, cost {} seconds'.format(cv_idx + 1, cv,
+                                                        time.time() - time1))
+
+    return scores
+
+
 def gen_estimator_from_name(name):
     """
     Generate sklearn estimator from name
@@ -744,7 +889,7 @@ class UnivariateMapping:
                 self.scoring = None
             elif self.estimator_type == 'regressor':
                 if scoring == 'correlation':
-                    self.scoring = correlation_score
+                    self.scoring = correlation_scorer
                 else:
                     self.scoring = scoring
             else:
@@ -990,10 +1135,7 @@ class MultivariateMapping:
                       "is fixed as accuracy and confusion matrix.")
                 self.scoring = None
             else:
-                if scoring == 'correlation':
-                    self.scoring = correlation_score
-                else:
-                    self.scoring = scoring
+                self.scoring = scoring
         else:
             raise ValueError("You have to set estimator first!")
 
@@ -1052,27 +1194,31 @@ class MultivariateMapping:
                                          'same number of samples!'
         n_trg = Y.shape[1]
         # initialize prediction dict
-        map_dict = {
-            'score': np.zeros((n_trg, self.cv)),
-            'model': np.zeros((n_trg,), dtype=np.object)
-        }
+        map_dict = {'model': np.zeros((n_trg,), dtype=np.object)}
+        print('Start mapping:')
         if self.estimator_type == 'classifier':
+            map_dict['score'] = np.zeros((n_trg, self.cv))
             map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
-
-        for trg_idx in range(n_trg):
-            time1 = time.time()
-            y = Y[:, trg_idx]
-            if self.estimator_type == 'classifier':
+            for trg_idx in range(n_trg):
+                time1 = time.time()
+                y = Y[:, trg_idx]
                 conf_ms, scores_tmp = cross_val_confusion(self.estimator, X, y, self.cv)
                 map_dict['conf_m'][trg_idx] = conf_ms
-            else:
-                scores_tmp = cross_val_score(self.estimator, X, y,
-                                             scoring=self.scoring, cv=self.cv)
-            # recording
-            map_dict['score'][trg_idx] = scores_tmp
-            map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, y))
+                map_dict['score'][trg_idx] = scores_tmp
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, y))
 
-            print('Finish target {}/{} in {} seconds.'.format(trg_idx+1, n_trg, time.time()-time1))
+                print('Finish target {}/{} in {} seconds.'.format(
+                    trg_idx + 1, n_trg, time.time() - time1))
+
+        else:
+            time1 = time.time()
+            scores_tmp = cross_val_scores(self.estimator, X, Y, scoring=self.scoring, cv=self.cv)
+            # recording
+            map_dict['score'] = scores_tmp.T
+            for trg_idx in range(n_trg):
+                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, Y[:, trg_idx]))
+
+            print('Finish mapping in {} seconds.'.format(time.time() - time1))
 
         return map_dict
 
