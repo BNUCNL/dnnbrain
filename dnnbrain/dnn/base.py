@@ -1196,11 +1196,12 @@ class MultivariateMapping:
         # initialize prediction dict
         map_dict = {'model': np.zeros((n_trg,), dtype=np.object)}
         print('Start mapping:')
+        time1 = time.time()
         if self.estimator_type == 'classifier':
             map_dict['score'] = np.zeros((n_trg, self.cv))
             map_dict['conf_m'] = np.zeros((n_trg, self.cv), dtype=np.object)
             for trg_idx in range(n_trg):
-                time1 = time.time()
+                time2 = time.time()
                 y = Y[:, trg_idx]
                 conf_ms, scores_tmp = cross_val_confusion(self.estimator, X, y, self.cv)
                 map_dict['conf_m'][trg_idx] = conf_ms
@@ -1208,17 +1209,15 @@ class MultivariateMapping:
                 map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, y))
 
                 print('Finish target {}/{} in {} seconds.'.format(
-                    trg_idx + 1, n_trg, time.time() - time1))
-
+                    trg_idx + 1, n_trg, time.time() - time2))
         else:
-            time1 = time.time()
             scores_tmp = cross_val_scores(self.estimator, X, Y, scoring=self.scoring, cv=self.cv)
             # recording
             map_dict['score'] = scores_tmp.T
             for trg_idx in range(n_trg):
                 map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, Y[:, trg_idx]))
 
-            print('Finish mapping in {} seconds.'.format(time.time() - time1))
+        print('Finish mapping in {} seconds.'.format(time.time() - time1))
 
         return map_dict
 
