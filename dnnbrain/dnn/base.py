@@ -1207,7 +1207,8 @@ class MultivariateMapping:
             # multi-target flag
             multi_trg_flag = True
             try:
-                self.estimator.fit(X, Y[:, :2])
+                Y_tmp = np.c_[Y[:, [0]], Y[:, [0]]]  # for fear that n_target is 1
+                self.estimator.fit(X, Y_tmp)
             except ValueError:
                 multi_trg_flag = False
             print('multi-target flag is', multi_trg_flag)
