@@ -499,7 +499,7 @@ class TestMultivariateMapping:
             scores_true = cross_val_score(mv.estimator, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
             np.testing.assert_almost_equal(map_dict_r1['score'][trg_idx], scores_true, 10)
             coef_test = copy.deepcopy(mv.estimator).fit(X, Y_r[:, trg_idx]).coef_
-            np.testing.assert_equal(map_dict_r1['model'][trg_idx].coef_, coef_test)
+            np.testing.assert_almost_equal(map_dict_r1['model'][0].coef_[trg_idx], coef_test, 10)
 
         # test regressor (multi-target flag is False)
         mv.set_estimator(SVR(kernel='linear'))
