@@ -686,6 +686,7 @@ def cross_val_scores(regressor, X, Y, scoring, cv=None):
     """
     assert getattr(regressor, "_estimator_type", None) == "regressor", \
         "Estimator must be a regressor!"
+    regressor = copy.deepcopy(regressor)
 
     # get scoring metric
     if isinstance(scoring, str):
@@ -703,18 +704,16 @@ def cross_val_scores(regressor, X, Y, scoring, cv=None):
         raise ValueError("Not supported scoring")
 
     # multi-target flag
-    X_tmp = np.random.randn(10, 3)
-    Y_tmp = np.random.randn(10, 2)
     multi_trg_flag = True
     try:
-        regressor.fit(X_tmp, Y_tmp)
+        regressor.fit(X, Y[:, :2])
     except ValueError:
         multi_trg_flag = False
+    print('multi-target flag is', multi_trg_flag)
 
     # calculate CV metrics
     n_trg = Y.shape[1]
     scores = np.zeros((cv, n_trg))
-    regressor = copy.deepcopy(regressor)
     kf = KFold(n_splits=cv)
     for cv_idx, indices in enumerate(kf.split(X, Y)):
         time1 = time.time()
