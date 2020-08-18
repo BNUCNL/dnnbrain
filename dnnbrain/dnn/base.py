@@ -658,7 +658,7 @@ def cross_val_confusion(classifier, X, y, cv=None):
     return conf_ms, accuracies
 
 
-def cross_val_scores(regressor, X, Y, scoring, cv=None):
+def cross_val_scores(regressor, X, Y, scoring, cv=None, multi_trg_flag=True):
     """
     Evaluate scores for each run of cross validation
 
@@ -678,6 +678,8 @@ def cross_val_scores(regressor, X, Y, scoring, cv=None):
             The input parameters should include y_true, y_pred, and multioutput at least.
     cv : int
         The number of runs of the cross validation.
+    multi_trg_flag : bool
+        Whether the regressor is able to fit multi-targets at onces or not.
 
     Returns
     -------
@@ -702,14 +704,6 @@ def cross_val_scores(regressor, X, Y, scoring, cv=None):
         pass
     else:
         raise ValueError("Not supported scoring")
-
-    # multi-target flag
-    multi_trg_flag = True
-    try:
-        regressor.fit(X, Y[:, :2])
-    except ValueError:
-        multi_trg_flag = False
-    print('multi-target flag is', multi_trg_flag)
 
     # calculate CV metrics
     n_trg = Y.shape[1]
@@ -1193,7 +1187,7 @@ class MultivariateMapping:
                                          'same number of samples!'
         n_trg = Y.shape[1]
         # initialize prediction dict
-        map_dict = {'model': np.zeros((n_trg,), dtype=np.object)}
+        map_dict = {'model': np.ones((n_trg,), dtype=np.object) * 'm'}
         print('Start mapping:')
         time1 = time.time()
         if self.estimator_type == 'classifier':
@@ -1210,11 +1204,23 @@ class MultivariateMapping:
                 print('Finish target {}/{} in {} seconds.'.format(
                     trg_idx + 1, n_trg, time.time() - time2))
         else:
-            scores_tmp = cross_val_scores(self.estimator, X, Y, scoring=self.scoring, cv=self.cv)
+            # multi-target flag
+            multi_trg_flag = True
+            try:
+                self.estimator.fit(X, Y[:, :2])
+            except ValueError:
+                multi_trg_flag = False
+            print('multi-target flag is', multi_trg_flag)
+
+            scores_tmp = cross_val_scores(self.estimator, X, Y,
+                                          self.scoring, self.cv, multi_trg_flag)
             # recording
             map_dict['score'] = scores_tmp.T
-            for trg_idx in range(n_trg):
-                map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, Y[:, trg_idx]))
+            if multi_trg_flag:
+                map_dict['model'][0] = deepcopy(self.estimator.fit(X, Y))
+            else:
+                for trg_idx in range(n_trg):
+                    map_dict['model'][trg_idx] = deepcopy(self.estimator.fit(X, Y[:, trg_idx]))
 
         print('Finish mapping in {} seconds.'.format(time.time() - time1))
 
