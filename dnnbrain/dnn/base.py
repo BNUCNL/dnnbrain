@@ -709,7 +709,7 @@ def cross_val_scores(regressor, X, Y, scoring, cv=None):
         regressor.fit(X, Y[:, :2])
     except ValueError:
         multi_trg_flag = False
-    print('multi-target flag is True')
+    print('multi-target flag is', multi_trg_flag)
 
     # calculate CV metrics
     n_trg = Y.shape[1]
