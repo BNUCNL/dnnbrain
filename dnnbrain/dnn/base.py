@@ -1209,6 +1209,7 @@ class MultivariateMapping:
             try:
                 Y_tmp = np.c_[Y[:, [0]], Y[:, [0]]]  # for fear that n_target is 1
                 self.estimator.fit(X, Y_tmp)
+                del Y_tmp
             except ValueError:
                 multi_trg_flag = False
             print('multi-target flag is', multi_trg_flag)

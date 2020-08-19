@@ -27,22 +27,77 @@ Secondly, do Z-score standardization to ignore the magnitude of each image's rep
         activ_arr = zscore(activ_arr, axis=1)
         activ.set(layer, activ_arr.reshape(shape))
     activ.save(out_file)
-
-Thirdly, reduce the dimension (i.e. the number of units) of the representations from each layer by PCA to retain the top 100 components:
-
-::
-
-    dnn_fe -act AlexNet_relu_zscore.act.h5 -meth pca 100 -out AlexNet_relu_zscore_PCA-100.act.h5
+	
 
 Voxel-wise encoding
 -------------------
-We train generalized linear models to map representation of each layer to each voxel within right VTC. The encoding accuracy is evaluated with the Pearson correlation between the measured responses and the predicted responses using a 10-fold cross validation procedure.
+We train generalized linear models to map representations of each layer to each voxel within right VTC. The encoding scores is evaluated by pearson correlation between the measured responses and the predicted responses using a 10-fold cross validation procedure.
+
+At each run of the cross validation before the generalized linear model, a PCA transformer will be fitted on the DNN representations splitted as training set, and then transform DNN representations both in training and testing set to keep the top 100 components.
 
 ::
 
-   db_encode -anal mv -act AlexNet_relu_zscore_PCA-100.act.h5 -resp beta_rh_all_run.nii.gz -bmask VTC_mask_rh.nii.gz -model glm -scoring correlation -cv 10 -out AlexNet_relu_zscore_PCA-100_glm-corr_cv-10_VVA_rh
+    import os
+    import numpy as np
+    from os.path import join as pjoin
+    from sklearn.decomposition import PCA
+    from sklearn.linear_model import LinearRegression
+    from sklearn.pipeline import make_pipeline
+    from dnnbrain.dnn.core import Activation
+    from dnnbrain.brain.core import BrainEncoder
+    from dnnbrain.brain.io import load_brainimg, save_brainimg
 
-The encoding accuracy maps of each layer are shown as Figure 1. The overall encoding accuracy of the VTC gradually increased for the hierarchical layers of AlexNet, indicating that as the complexity of the visual representations increase along the DNN hierarchy, the representations become increasingly VTC-like.
+    # load DNN activation
+    dnn_activ = Activation()
+    dnn_activ.load('AlexNet_relu_zscore.act.h5')
+
+    # get brain activation within a mask
+    brain_activ, header = load_brainimg('beta_rh_all_run.nii.gz')
+    bshape = brain_activ.shape[1:]  # reserve the brain volume shape for recovery
+    bmask, _ = load_brainimg('VTC_mask_rh.nii.gz', ismask=True)
+    bmask = bmask.astype(np.bool)
+    brain_activ = brain_activ[:, bmask]
+
+    # build pipeline with PCA and LinearRegression
+    pipe = make_pipeline(PCA(100), LinearRegression())
+
+    # initialize encode method with brain activation
+    # mv: multivariate mapping
+    # 10-fold cross validation
+    encoder = BrainEncoder(brain_activ, 'mv', pipe, 10, 'correlation')
+
+    # encode DNN activation layer-wisely
+    encode_dict = encoder.encode_dnn(dnn_activ)
+
+    # save out
+    out_dir = 'AlexNet_relu_zscore_PCA-100_glm_VTC-rh_cv-10_correlation'
+    for layer, data in encode_dict.items():
+        # prepare directory
+        trg_dir = pjoin(out_dir, layer)
+        if not os.path.isdir(trg_dir):
+            os.makedirs(trg_dir)
+
+        # save files while keeping brain volume's shape
+        bshape_pos = list(range(1, len(bshape) + 1))
+        for k, v in data.items():
+            if k == 'model':
+                arr = np.zeros((v.shape[0], *bshape), dtype=np.object)
+                arr[:, bmask] = v
+                arr = arr.transpose((*bshape_pos, 0))
+                np.save(pjoin(trg_dir, k), arr)
+            elif k == 'score':
+                # save all cross validation scores
+                arr = np.zeros((v.shape[0], *bshape, v.shape[-1]))
+                arr[:, bmask, :] = v
+                arr = arr.transpose((*bshape_pos, 0, -1))
+                np.save(pjoin(trg_dir, k), arr)
+
+                # save mean scores across cross validation folds
+                img = np.zeros((v.shape[0], *bshape))
+                img[:, bmask] = np.mean(v, 2)
+                save_brainimg(pjoin(trg_dir, f'{k}.nii.gz'), img, header)
+
+The encoding score maps of each layer are shown as Figure 1. The overall encoding score of the VTC gradually increased for the hierarchical layers of AlexNet, indicating that as the complexity of the visual representations increase along the DNN hierarchy, the representations become increasingly VTC-like.
 
 .. raw:: html
 
@@ -59,7 +114,13 @@ Representational similarity analysis
 ------------------------------------
 Instead of predicting brain responses directly, RSA compares the representations of the DNN and that of the brain using a representational dissimilarity matrix (RDM) as a bridge.
 
-The RDMs are first created to measure how similar the response patterns are for every pair of stimuli using the multivariate response patterns from the DNN and the brain, respectively.
+First of all, in order to reduce the computation load, the dimension (i.e. the number of units) of the representations from each layer reduced by PCA to retain the top 100 components:
+
+::
+
+    dnn_fe -act AlexNet_relu_zscore.act.h5 -meth pca 100 -out AlexNet_relu_zscore_PCA-100.act.h5
+
+Then, RDMs are created to measure how similar the response patterns are for every pair of stimuli using the multivariate response patterns from the DNN and the brain, respectively.
 
 ::
 
