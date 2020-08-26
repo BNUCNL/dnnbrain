@@ -585,3 +585,283 @@ if __name__ == '__main__':
     gs.fit(X_train, y_train[:, 0].reshape(len(y_train), 1))
 
 
+if __name__ == 'Draft':
+    def get_spatial_kernel(vf_size, kernel_size, center_x, center_y, rf_size):
+        """
+        For an image stimuli cover the visual field of **vf_size**(unit of deg.) with
+        height=width=**max_resolution**, this method generate the spatial receptive
+        field kernel in a gaussian manner with center at (**center_x**, **center_y**),
+        and sigma **rf_size**(unit of deg.).
+
+        parameters
+        ----------
+        vf_size : float
+
+        kernel_size : int
+            Usually the origin stimuli resolution.
+        center_x : float
+
+        center_y : float
+
+        rf_size : float
+
+        return
+        ------
+        spatial_kernel : array
+
+        """
+        # prepare parameter for np.meshgrid
+        low_bound = - int(vf_size / 2)
+        up_bound = int(vf_size / 2)
+        # center at (0,0)
+        x = y = np.linspace(low_bound, up_bound, kernel_size)
+        y = -y  # adjust orientation
+        # generate grid
+        xx, yy = np.meshgrid(x, y)
+        # prepare for spatial_kernel
+        coe = 1 / (2 * np.pi * rf_size ** 2)  # coeficient
+        ind = -((xx - center_x) ** 2 + (yy - center_y) ** 2) / (2 * rf_size ** 2)  # gaussian index
+
+        spatial_kernel = coe * np.exp(ind)  # initial spatial_kernel
+        # normalize
+        spatial_kernel = spatial_kernel / np.sum(spatial_kernel)
+        return spatial_kernel
+
+
+    def transfer_axis(vf_axis, vf_size, tar_size):
+        """
+        Transfer visual field location to pixel space location.
+        In the range of visual field, given as **vf_size**,
+        for an specific **vf_axis**(unit of deg.), this method help
+        to compute the discrete locations correspond to feature map with
+        height = width = **tar_size**.
+        The visual field axis should be smaller than range of vf_size.
+
+        vf_axis : array
+
+        vf_size : float
+
+        tar_size : int
+
+        return
+        ------
+        index
+        """
+        # check data requirement
+        if np.max(np.abs(vf_axis)) > vf_size:
+            raise AssertionError('Check your vf_axis, ')
+        else:
+            # initialize **index**
+            index = []
+            # norm axis to [0, 1]
+            norm_vf_axis = (vf_axis + vf_size / 2) / vf_size
+            # compute corresponding location within resolution
+            tar = (tar_size - 1) * norm_vf_axis
+            # floor the **tar** to get discrete **index**
+            if type(tar) == np.ndarray:
+                index = np.floor(tar).astype(np.int8)
+            elif type(tar) == float:
+                index = int(tar)
+            return index
+
+
+    def up_sampling(ori_map, vf_size, tar_map_size):
+        """
+        For a feature map **ori_map**, which should be correspond to
+        visual field size of **vf_size**(unit of deg.), this method
+        up-samples feature map to the size of **tar_map_size**
+        in order to evaluate element-wise multiplication.
+
+        parameters
+        ----------
+        ori_map : np.ndarray
+
+        vf_size : float
+
+        tar_map_size : int
+
+        """
+        # original resolution, original feature map size
+        resolution = ori_map.shape[0]
+        # target resolution, spatial kernel size
+        tar_resolution = tar_map_size
+        # initialize
+        tar_map = np.zeros((tar_resolution, tar_resolution))
+        # get new x & y index, shifting location of (tar_map) to location of ori_map
+        new_x = transfer_axis(vf_axis=np.linspace(-vf_size / 2, vf_size / 2, tar_resolution),
+                              vf_size=vf_size, tar_size=resolution)
+        new_y = transfer_axis(vf_axis=np.linspace(-vf_size / 2, vf_size / 2, tar_resolution),
+                              vf_size=vf_size, tar_size=resolution)
+        # assignment **tar_map**
+        for i in range(tar_resolution):
+            for j in range(tar_resolution):
+                x, y = new_x[i], new_y[j]
+                tar_map[i, j] = ori_map[x, y]
+        return tar_map
+
+
+    def old_spatial_kernel(map_size, center_x, center_y, rf_size):
+        """
+        This method is to generate the spatial receptive field kernel.
+
+        parameters
+        ----------
+        map_size : int
+            Size of feature.
+        center_x : float
+
+        center_y : float
+
+        rf_size : float
+
+        """
+        # prepare parameter for meshgrid
+        low_bound = - int(map_size / 2)
+        up_bound = int(map_size / 2)
+        # center at (0,0)
+        x = y = np.linspace(low_bound, up_bound, map_size)
+        y = -y  # adjust orientation
+        # generate grid
+        xx, yy = np.meshgrid(x, y)
+        # prepare for spatial_kernel
+        coe = 1 / (2 * np.pi * rf_size ** 2)  # coeficient
+        ind = -((xx - center_x) ** 2 + (yy - center_y) ** 2) / (2 * rf_size ** 2)  # gaussian index
+        spatial_kernel = coe * np.exp(ind)  # initial spatial_kernel
+        # normalize
+        spatial_kernel = spatial_kernel / np.sum(spatial_kernel)
+        return spatial_kernel
+
+
+    # get a spatial kernel
+    # whole visual angle is 20 degree, kernel size 100 pixels,
+    # center at (-3, 5), size of 3.2 degree
+    vf_size, kernel_size, center_x, center_y, rf_size = 20, 100, -3, 5, 3.2
+    spatial_kernel = get_spatial_kernel(vf_size, kernel_size, center_x, center_y, rf_size)
+
+    # generate random feature map
+    # np.random.seed(2020)
+    # feat1s, feat2s = [], []
+    # for i in range(100):
+    #     feature_map = 30 * np.random.randn(27, 27)*(5*np.random.randn(27, 27) > 1.5)
+    #     old_kernel = old_spatial_kernel(feature_map.shape[0], center_x, center_y, rf_size)
+    #     #
+    #     feat1 = (feature_map*old_kernel).sum()
+    #     # print('Old kernel convolution:', feat1)
+    #     #
+    #     # up sampling
+    #     up_feat_map = up_sampling(feature_map, vf_size, kernel_size)
+    #     feat2 = (up_feat_map*spatial_kernel).sum()
+    #     # print('New upsampling conv:', feat2)
+    #     feat1s.append(feat1)
+    #     feat2s.append(feat2)
+    # diff = np.abs(np.array(feat1s) - np.array(feat2s))
+    # plt.bar(np.linspace(1, 100, 100), diff, label='diff', color='k')
+    # plt.plot(np.linspace(1, 100, 100), feat1s, color='b', label='Old', ls='--', alpha=0.5)
+    # plt.plot(np.linspace(1, 100, 100), feat2s, color='r', label='Upsampling', ls='--', alpha=0.5)
+    # plt.legend()
+    # plt.show()
+    # print(diff.mean(), np.array(feat1s).mean(), np.array(feat2s).mean())
+    # pixel change*********************
+    np.random.seed(20)
+    plt.figure(figsize=(15, 10))
+    map_size = [55, 27, 13, 7, 1]
+    for i in range(5):
+        px = map_size[i]
+        feature_map = 10 * np.random.randn(px, px) * (5 * np.random.randn(px, px) > 2.5)
+        spatial_kernel = get_spatial_kernel(vf_size, px, center_x, center_y, rf_size)
+        # old_kernel = old_spatial_kernel(feature_map.shape[0], center_x, center_y, rf_size)
+        old_kernel = get_spatial_kernel(vf_size, kernel_size, center_x, center_y, rf_size)
+        up_feat_map = up_sampling(feature_map, vf_size, kernel_size)
+        # generate kernel in old manner
+        raw_kernel = old_spatial_kernel(px, center_x, center_y, rf_size)
+
+        plt.subplot(3, 5, i + 1)
+        plt.imshow(spatial_kernel, cmap='gray')
+        title = 'conv:  ' + str((spatial_kernel * feature_map).sum().astype(np.float16))
+        plt.xlabel(title)
+        plt.colorbar()
+        plt.subplot(3, 5, i + 6)
+        plt.imshow(old_kernel, cmap='gray')
+        title = 'conv:   ' + str((old_kernel * up_feat_map).sum().astype(np.float16))
+        plt.xlabel(title)
+        plt.colorbar()
+        plt.subplot(3, 5, i + 11)
+        plt.imshow(raw_kernel, cmap='gray')
+        title = 'conv:   ' + str((raw_kernel * feature_map).sum().astype(np.float16))
+        plt.xlabel(title)
+        plt.colorbar()
+    plt.show()
+
+    # Plot case******************************
+    # plt.figure(1)
+    # plt.subplot(1, 3, 1)
+    # plt.imshow(feature_map, cmap='gray')
+    # plt.subplot(1, 3, 2)
+    # plt.imshow(old_kernel, cmap='gray')
+    # plt.subplot(1, 3, 3)
+    # plt.imshow(feature_map*old_kernel, cmap='gray')
+    # plt.show()
+    # plt.figure(2)
+    # plt.subplot(1, 3, 1)
+    # plt.imshow(up_feat_map, cmap='gray')
+    # plt.subplot(1, 3, 2)
+    # plt.imshow(spatial_kernel, cmap='gray')
+    # plt.subplot(1, 3, 3)
+    # plt.imshow(up_feat_map*spatial_kernel, cmap='gray')
+    # plt.show()
+    px = np.arange(100) + 1
+    diff_floors, diff_rounds = [], []
+    for i in px:
+        x = np.linspace(-10, 10, i)
+        diff_floor = (np.floor((i - 1) * (x + 10) / 20) - np.arange(i)).mean()
+        diff_round = (np.round((i - 1) * (x + 10) / 20) - np.arange(i)).mean()
+        diff_floors.append(diff_floor)
+        diff_rounds.append(diff_round)
+    plt.plot(px, diff_floors, color='r', label='np.floor')
+    plt.plot(px, diff_rounds, color='k', label='np.round')
+    plt.legend()
+    plt.show()
+
+    plt.figure(figsize=(15, 5))
+    map_size = [1, 7, 13, 27, 55]
+
+    mean_feats, mean_up_feats, std_up_feats, std_feats = [], [], [], []
+    for i in range(5):
+        px = map_size[i]
+        feats, up_feats = [], []
+        #
+        for j in range(100):
+            feature_map1 = 10 * np.random.randn(px, px) * (5 * np.random.randn(px, px) > 2.5)
+            spatial_kernel = get_spatial_kernel(vf_size, px, center_x, center_y, rf_size)
+            #
+            up_feat_map1 = up_sampling(feature_map1, vf_size, px)
+            #
+            feat = (spatial_kernel * feature_map1).sum()
+            up_feat = (spatial_kernel * up_feat_map1).sum()
+            feats.append(feat)
+            up_feats.append(up_feat)
+        mean_feat, std_feat = np.mean(feats), np.std(feats)
+        mean_up_feat, std_up_feat = np.mean(up_feats), np.std(up_feats)
+
+        mean_feats.append(mean_feat)
+        mean_up_feats.append(mean_up_feat)
+        std_feats.append(std_feat)
+        std_up_feats.append(std_up_feat)
+    plt.bar(map_size, mean_feats, width=2.25, color='b')
+    plt.bar(np.array(map_size) + 3, mean_up_feats, width=2.25, color='r')
+    plt.errorbar(map_size, mean_feats, yerr=std_feats, ls='none', capsize=2, color='b')
+    plt.errorbar(np.array(map_size) + 3, mean_up_feats, yerr=std_up_feats, ls='none', capsize=2, color='r')
+    plt.show()
+    # plt.subplot(2, 5, i+1)
+    # plt.imshow(spatial_kernel*feature_map1)
+    # title = 'conv: '+str(np.round((spatial_kernel*feature_map1).sum()*100000)/100000)
+    # plt.title(title)
+    # plt.subplot(2, 5, i+6)
+    # plt.imshow(spatial_kernel*up_feat_map1)
+    # title = 'conv: '+ str(np.round((spatial_kernel*up_feat_map1).sum()*100000)/100000)
+    # plt.title(title)
+    diff = np.array(feats) - np.array(up_feats)
+    plt.plot(map_size, feats, color='r', label='without up-sample', alpha=0.5)
+    plt.plot(map_size, up_feats, color='b', label='with up-sample', alpha=0.5)
+    plt.bar(map_size, diff, color='k')
+    plt.show()
