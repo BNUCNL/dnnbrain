@@ -1,6 +1,8 @@
 import cv2
+import random
 import numpy as np
 
+from scipy.stats import pearsonr, spearmanr, kendalltau
 from dnnbrain.dnn.core import Mask
 
 
@@ -159,3 +161,67 @@ def topk_accuracy(pred_labels, true_labels, k):
     acc = acc / len(true_labels)
 
     return acc
+
+
+def permutation_RSA(rdm1, rdm2, corr_type='spearman', n_iter=10000):
+    """
+    Adapted from (Nili et al., 2014, PLOS Computational Biology)
+    Test the relatedness of two RDMs by permutating item labels.
+
+    Parameters
+    ----------
+    rdm1 : ndarray
+        shape=(n_item, n_item)
+    rdm2 : ndarray
+        shape=(n_item, n_item)
+    corr_type : str
+        correlation measure to be used
+        choices=('spearman', 'pearson', 'kendall')
+        Default is 'spearman'.
+    n_iter : int
+        the number of iterations of permutation
+        Default is 10000.
+
+    Returns
+    -------
+    observed_R : float
+        the correlation between two RDMs
+    permuted_Rs : ndarray
+        shape=(n_iter,)
+        correlations between two RDMs during permutation
+    P : float
+        P-value of the observed correlation based on the distribution of permuted correlations.
+    """
+    assert rdm1.shape[0] == rdm2.shape[0], "The number of items is unmatched between two RDMs."
+    n_item = rdm1.shape[0]
+
+    # prepare correlation method
+    if corr_type == 'spearman':
+        corr = spearmanr
+    elif corr_type == 'pearson':
+        corr = pearsonr
+    elif corr_type == 'kendall':
+        corr = kendalltau
+    else:
+        raise ValueError("Correlation type should be one of ('spearman', 'pearson', 'kendall')")
+
+    # calculate observed correlation
+    triu_idx_arr = np.tri(n_item, k=-1, dtype=np.bool).T
+    rdm1_vec = rdm1[triu_idx_arr]
+    rdm2_vec = rdm2[triu_idx_arr]
+    observed_R = corr(rdm1_vec, rdm2_vec)[0]
+
+    # calculate correlation between two RDMs at each iteration.
+    indices = list(range(n_item))
+    permuted_Rs = np.ones(n_iter) * np.nan
+    for iter_idx in range(n_iter):
+        random.shuffle(indices)
+        rdm1_vec = rdm1[indices][:, indices][triu_idx_arr]
+        permuted_Rs[iter_idx] = corr(rdm1_vec, rdm2_vec)[0]
+
+    # calculate p-value
+    n1 = np.sum(permuted_Rs >= observed_R)
+    n2 = np.sum(permuted_Rs <= observed_R)
+    P = min(n1, n2) / n_iter
+
+    return observed_R, permuted_Rs, P
