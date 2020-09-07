@@ -2,7 +2,7 @@ import cv2
 import random
 import numpy as np
 
-from scipy.stats import pearsonr, spearmanr, kendalltau
+from scipy.stats import pearsonr, spearmanr, kendalltau, zscore
 from dnnbrain.dnn.core import Mask
 
 
@@ -163,7 +163,7 @@ def topk_accuracy(pred_labels, true_labels, k):
     return acc
 
 
-def permutation_RSA(rdm1, rdm2, corr_type='spearman', n_iter=10000):
+def permutation_RSA(rdm1, rdm2, corr_type='pearson', n_iter=10000):
     """
     Adapted from (Nili et al., 2014, PLOS Computational Biology)
     Test the relatedness of two RDMs by permutating item labels.
@@ -176,8 +176,8 @@ def permutation_RSA(rdm1, rdm2, corr_type='spearman', n_iter=10000):
         shape=(n_item, n_item)
     corr_type : str
         correlation measure to be used
-        choices=('spearman', 'pearson', 'kendall')
-        Default is 'spearman'.
+        choices=('pearson', 'spearman', 'kendall')
+        Default is 'pearson'.
     n_iter : int
         the number of iterations of permutation
         Default is 10000.
@@ -203,7 +203,7 @@ def permutation_RSA(rdm1, rdm2, corr_type='spearman', n_iter=10000):
     elif corr_type == 'kendall':
         corr = kendalltau
     else:
-        raise ValueError("Correlation type should be one of ('spearman', 'pearson', 'kendall')")
+        raise ValueError("Correlation type should be one of ('pearson', 'spearman', 'kendall')")
 
     # calculate observed correlation
     triu_idx_arr = np.tri(n_item, k=-1, dtype=np.bool).T
@@ -225,3 +225,58 @@ def permutation_RSA(rdm1, rdm2, corr_type='spearman', n_iter=10000):
     P = min(n1, n2) / n_iter
 
     return observed_R, permuted_Rs, P
+
+
+def ceiling_RSA(rdms, corr_type='pearson'):
+    """
+    Adapted from (Nili et al., 2014, PLOS Computational Biology)
+    Given a set of observed RDMs (e.g. from multiple subjects), this function estimates
+    upper and lower bounds on the ceiling, i.e. the highest average RDM correlation
+    (across the observed RDMs) that the true model's RDM prediction achieves given the variability
+    of the estimates.
+
+    Parameters
+    ----------
+    rdms : ndarray
+        shape=(n_observation, n_item, n_item)
+        observed RDMs
+    corr_type : str
+        Correlation measure to be used, choices=('pearson',).
+        If is 'pearson', z-transforming the dissimilarities in each observed RDM before estimating.
+        Because the estimating procedure involves averaging across observations.
+        Default is 'pearson'.
+
+    Returns
+    -------
+    lower_boundary : float
+    upper_boundary : float
+    best_fitted_rdm : ndarray
+        shape=(n_item, n_item)
+        the average RDM across observations after preprocessing according to corr_type.
+    """
+    n_observation, n_item = rdms.shape[0], rdms.shape[1]
+    triu_idx_arr = np.tri(n_item, k=-1, dtype=np.bool).T
+    rdm_vecs = rdms[:, triu_idx_arr]
+
+    # prepare correlation
+    if corr_type == 'pearson':
+        rdm_vecs = zscore(rdm_vecs, 1)
+        corr = pearsonr
+    else:
+        raise ValueError("Correlation type should be one of ('pearson',)")
+
+    # estimate lower boundary by leave-one-out method
+    LOO_corrs = np.ones(n_observation) * np.nan
+    for i in range(n_observation):
+        fitted_rdm_vec = np.mean(np.delete(rdm_vecs, i, 0), 0)
+        LOO_corrs[i] = corr(fitted_rdm_vec, rdm_vecs[i])[0]
+    lower_boundary = np.mean(LOO_corrs)
+
+    # estimate upper boundary
+    best_fitted_rdm_vec = np.mean(rdm_vecs, 0)
+    upper_boundary = np.mean([corr(best_fitted_rdm_vec, rdm_vecs[i])[0] for i in range(n_observation)])
+    best_fitted_rdm = np.zeros((n_item, n_item))
+    best_fitted_rdm[triu_idx_arr] = best_fitted_rdm_vec
+    best_fitted_rdm = best_fitted_rdm + best_fitted_rdm.T
+
+    return lower_boundary, upper_boundary, best_fitted_rdm
