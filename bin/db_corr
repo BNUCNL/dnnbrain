@@ -1,14 +1,13 @@
 #! /usr/bin/env python
 
 """
-Correlate DNN activation with brain or behavior response
+Correlate DNN activation with brain response
 """
 
 import os
 import time
 import argparse
 import numpy as np
-import pandas as pd
 
 from os.path import join as pjoin
 from dnnbrain.dnn.core import Activation
@@ -28,9 +27,7 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="layer names of interest "
-                             "For example, 'conv1' represents the first convolution layer, and "
-                             "'fc1' represents the first full connection layer. ")
+                        help="layer names of interest")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
@@ -47,9 +44,9 @@ def main():
                         metavar='Axis',
                         choices=('channel', 'row_col'),
                         help="Iterate along the specified axis."
-                             "channel: Summarize the maximal R square for each channel. "
-                             "row_col: Summarize the maximal R square for each position (row_idx, col_idx). "
-                             "default: Summarize the maximal R square for the whole layer.")
+                             "channel: Summarize the maximal pearson r for each channel. "
+                             "row_col: Summarize the maximal pearson r for each position (row_idx, col_idx). "
+                             "default: Summarize the maximal pearson r for the whole layer.")
     parser.add_argument('-resp',
                         metavar='Response',
                         required=True,
@@ -72,7 +69,7 @@ def main():
                         metavar='Output',
                         required=True,
                         type=str,
-                        help='Pearson r and location saved in an output directory')
+                        help='output directory')
     args = parser.parse_args()
 
     # -Load response start-
@@ -130,29 +127,32 @@ def main():
         # save files
         if args.resp.endswith('.roi.h5'):
             # save score
-            score_df = pd.DataFrame(data['max_score'], columns=roi.rois)
-            score_df.to_csv(pjoin(trg_dir, 'max_score.csv'), index=False)
+            lines = [','.join(roi.rois)]
+            for row in data['score']:
+                lines.append(','.join(map(str, row)))
+            lines = '\n'.join(lines)
+            open(pjoin(trg_dir, 'score.csv'), 'w').write(lines)
 
             # save location
-            np.save(pjoin(trg_dir, 'max_loc'), data['max_loc'])
+            np.save(pjoin(trg_dir, 'location'), data['location'])
 
         else:
             resp_suffix = '.'.join(args.resp.split('.')[1:])
 
             # save score
-            n_iter = data['max_score'].shape[0]
+            n_iter = data['score'].shape[0]
             img = np.zeros((n_iter, *bshape))
-            img[:, bmask] = data['max_score']
-            save_brainimg(pjoin(trg_dir, 'max_score.{}'.format(resp_suffix)), img, header)
+            img[:, bmask] = data['score']
+            save_brainimg(pjoin(trg_dir, 'score.{}'.format(resp_suffix)), img, header)
 
             # save location
             bshape_pos = list(range(1, len(bshape)+1))
             arr = np.zeros((n_iter, *bshape, 3))
-            arr[:, bmask, :] = data['max_loc']
+            arr[:, bmask, :] = data['location']
             arr = arr.transpose((*bshape_pos, 0, -1))
-            np.save(pjoin(trg_dir, 'max_loc'), arr)
+            np.save(pjoin(trg_dir, 'location'), arr)
 
-        print(f'Finish saving for {layer}')
+        print('Finish saving for {}'.format(layer))
     # --save out end--
 
 

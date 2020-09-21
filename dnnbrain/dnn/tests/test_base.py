@@ -420,40 +420,44 @@ def test_cross_val_confusion():
     np.testing.assert_equal(accs_test, accs_true)
 
 
-class TestUnivariatePredictionModel:
+class TestUnivariateMapping:
 
-    def test_predict(self):
-        uv = db_base.UnivariatePredictionModel()
+    def test_map(self):
+        uv = db_base.UnivariateMapping()
         cv = 3
         n_trg = 1
         n_label = 2
         X = np.random.randn(30, 5)
         y_c = np.random.randint(0, n_label, (30, n_trg))
         y_r = np.random.randn(30, n_trg)
-        keys = ['max_score', 'max_loc', 'max_model', 'score', 'conf_m']
+        keys = ['score', 'location', 'model', 'conf_m']
 
         # test corr
-        uv.set('corr')
-        pred_dict_corr = uv.predict(X, y_r)
-        assert sorted(keys[:2]) == sorted(pred_dict_corr.keys())
-        for v in pred_dict_corr.values():
+        uv.set_estimator('corr')
+        uv.set_cv(3)
+        map_dict_corr = uv.map(X, y_r)
+        assert sorted(keys[:2]) == sorted(map_dict_corr.keys())
+        for v in map_dict_corr.values():
             assert v.shape == (n_trg,)
 
         # test regressor
-        uv.set('glm', cv)
-        pred_dict_r = uv.predict(X, y_r)
-        assert sorted(keys[:4]) == sorted(pred_dict_r.keys())
-        for k, v in pred_dict_r.items():
+        uv.set_estimator('glm')
+        uv.set_cv(cv)
+        uv.set_scoring('correlation')
+        map_dict_r = uv.map(X, y_r)
+        assert sorted(keys[:3]) == sorted(map_dict_r.keys())
+        for k, v in map_dict_r.items():
             if k == 'score':
                 assert v.shape == (n_trg, cv)
             else:
                 assert v.shape == (n_trg,)
 
         # test classifier
-        uv.set('lrc', cv)
-        pred_dict_c = uv.predict(X, y_c)
-        assert sorted(keys) == sorted(pred_dict_c.keys())
-        for k, v in pred_dict_c.items():
+        uv.set_estimator('lrc')
+        uv.set_cv(cv)
+        map_dict_c = uv.map(X, y_c)
+        assert sorted(keys) == sorted(map_dict_c.keys())
+        for k, v in map_dict_c.items():
             if k == 'score':
                 assert v.shape == (n_trg, cv)
             elif k == 'conf_m':
@@ -463,10 +467,10 @@ class TestUnivariatePredictionModel:
                 assert v.shape == (n_trg,)
 
 
-class TestMultivariatePredictionModel:
+class TestMultivariateMapping:
 
     def test_predict(self):
-        mv = db_base.MultivariatePredictionModel()
+        mv = db_base.MultivariateMapping()
         cv = 3
         n_trg = 2
         n_label = 2
@@ -475,24 +479,27 @@ class TestMultivariatePredictionModel:
         Y_r = np.random.randn(30, n_trg)
 
         # test classifier
-        mv.set('svc', cv)
-        pred_dict_c = mv.predict(X, Y_c)
+        mv.set_estimator('svc')
+        mv.set_cv(cv)
+        map_dict_c = mv.map(X, Y_c)
         for trg_idx in range(n_trg):
-            conf_ms_true, accs_true = db_base.cross_val_confusion(mv.model, X, Y_c[:, trg_idx], cv)
-            np.testing.assert_equal(pred_dict_c['score'][trg_idx], accs_true)
+            conf_ms_true, accs_true = db_base.cross_val_confusion(mv.estimator, X, Y_c[:, trg_idx], cv)
+            np.testing.assert_equal(map_dict_c['score'][trg_idx], accs_true)
             for cv_idx in range(cv):
-                np.testing.assert_equal(pred_dict_c['conf_m'][trg_idx, cv_idx], conf_ms_true[cv_idx])
-            coef_test = copy.deepcopy(mv.model).fit(X, Y_c[:, trg_idx]).coef_
-            np.testing.assert_equal(pred_dict_c['model'][trg_idx].coef_, coef_test)
+                np.testing.assert_equal(map_dict_c['conf_m'][trg_idx, cv_idx], conf_ms_true[cv_idx])
+            coef_test = copy.deepcopy(mv.estimator).fit(X, Y_c[:, trg_idx]).coef_
+            np.testing.assert_equal(map_dict_c['model'][trg_idx].coef_, coef_test)
 
         # test regressor
-        mv.set('glm', cv)
-        pred_dict_r = mv.predict(X, Y_r)
+        mv.set_estimator('glm')
+        mv.set_cv(cv)
+        mv.set_scoring('explained_variance')
+        map_dict_r = mv.map(X, Y_r)
         for trg_idx in range(n_trg):
-            scores_true = cross_val_score(mv.model, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
-            np.testing.assert_equal(pred_dict_r['score'][trg_idx], scores_true)
-            coef_test = copy.deepcopy(mv.model).fit(X, Y_r[:, trg_idx]).coef_
-            np.testing.assert_equal(pred_dict_r['model'][trg_idx].coef_, coef_test)
+            scores_true = cross_val_score(mv.estimator, X, Y_r[:, trg_idx], scoring='explained_variance', cv=cv)
+            np.testing.assert_equal(map_dict_r['score'][trg_idx], scores_true)
+            coef_test = copy.deepcopy(mv.estimator).fit(X, Y_r[:, trg_idx]).coef_
+            np.testing.assert_equal(map_dict_r['model'][trg_idx].coef_, coef_test)
 
 
 if __name__ == '__main__':

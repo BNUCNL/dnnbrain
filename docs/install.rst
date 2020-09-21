@@ -4,15 +4,16 @@ Get Started
 Requirements
 ------------
 
--  python>=3.6.7
--  numpy>=1.16.5
+-  python==3.6.x/3.7.x
+-  1.16.5=<numpy<1.18
 -  nibabel>=2.4.1
+-  nipy>=0.4.2
 -  h5py>=2.9.0
--  pandas>=0.24.2
 -  scikit-image>=0.15.0
 -  scikit-learn>=0.19.1
 -  scipy>=1.3.1
--  pytorch>=1.3.0
+-  torch>=1.3.0
+-  torchvision>=0.4.2
 -  pillow>=6.0.0
 -  opencv-python>=4.1.0.25
 -  matplotlib>=2.2.2
@@ -34,14 +35,14 @@ recommended).
 Install from source
 -------------------
 
-1. Get source code
+1. Get source code |br|
    Method1: Download source archive file (zip file) from
-   `GitHub <https://github.com/BNUCNL/dnnbrain>`__ and unpack it.
+   `GitHub <https://github.com/BNUCNL/dnnbrain>`__ and unpack it. |br|
    Method2: Clone the DNNBrain repostitory by executing:
    ``git clone https://github.com/BNUCNL/dnnbrain.git``
-2. Execute setup.py
-   Change to source directory (it should have the files README.md and
-   setup.py).
+
+2. Execute setup.py |br|
+   Change to source directory (it should have the files README.md and setup.py). |br|
    Run ``python setup.py install``
 
 | If you don’t have permission to install DNNBrain to the directory used
@@ -127,6 +128,8 @@ window.
 Windows
 ~~~~~~~
 
+**Note**: DNNBrain scripts in *path_to_dnnbrain_bin* are only executable in UNIX-like shell, such as `git bash <https://gitforwindows.org/>`__.
+
 Open the environment variable editor which can be found under “Windows
 Menu —> Control Panel —> Advanced System Settings —> Environment
 Variables”. Then:
@@ -171,3 +174,15 @@ in the “**models**” directory under the DNNBRAIN_DATA.
   `vgg11.pth <https://download.pytorch.org/models/vgg11-bbd30ac9.pth>`__
   \|
   `vgg_face_dag.pth <http://www.robots.ox.ac.uk/~albanie/models/pytorch-mcn/vgg_face_dag.pth>`__
+  \|
+  `vgg19_bn.pth <https://download.pytorch.org/models/vgg19_bn-c79401a0.pth>`__
+  \|
+  `googlenet.pth <https://download.pytorch.org/models/googlenet-1378be20.pth>`__
+  \|
+  `resnet152.pth <https://download.pytorch.org/models/resnet152-b121ed2d.pth>`__
+
+
+.. |br| raw:: html
+
+   <br />
+

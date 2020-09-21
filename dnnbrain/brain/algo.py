@@ -8,18 +8,25 @@ def convolve_hrf(X, onsets, durations, n_vol, tr, ops=100):
     """
     Convolve each X's column iteratively with HRF and align with the timeline of BOLD signal
 
-    parameters:
+    Parameters
     ----------
-    X[array]: [n_event, n_sample]
-    onsets[array_like]: in sec. size = n_event
-    durations[array_like]: in sec. size = n_event
-    n_vol[int]: the number of volumes of BOLD signal
-    tr[float]: repeat time in second
-    ops[int]: oversampling number per second
-
-    Returns:
-    ---------
-    X_hrfed[array]: the result after convolution and alignment
+    X : array
+        Shape = (n_event, n_sample)
+    onsets : array_like
+        In sec. size = n_event
+    durations : array_like
+        In sec. size = n_event
+    n_vol : int
+        The number of volumes of BOLD signal
+    tr : float
+        Repeat time in second
+    ops : int
+        Oversampling number per second
+    
+    Returns
+    -------
+    X_hrfed : array
+        The result after convolution and alignment
     """
     assert np.ndim(X) == 2, 'X must be a 2D array'
     assert X.shape[0] == len(onsets) and X.shape[0] == len(durations), \

@@ -9,22 +9,28 @@ except ModuleNotFoundError:
 
 def load_brainimg(imgpath, ismask=False):
     """
-    Load brain image identified by its suffix
-    suffix now support
+    Load brain image identified by its suffix.
+    The supporting suffixes are as follows:
       
     Nifti: .nii.gz
+    
     freesurfer: .mgz, .mgh
+    
     gifti: .func.gii, .shape.gii
+    
     cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
         
-    Parameters:
-    ------------
-    imgpath: brain image data path
+    Parameters
+    ----------
+    imgpath : str
+        Brain image data path
         
-    Returns:
-    ------------
-    brain_img[np.array]: data of brain image
-    header[header]: header of brain image
+    Returns
+    -------
+    brain_img : array
+        Data of brain image
+    header : header
+        Header of brain image
     """
     imgname = os.path.basename(imgpath)
 
@@ -61,24 +67,26 @@ def load_brainimg(imgpath, ismask=False):
     
 def save_brainimg(imgpath, data, header):
     """
-    Save brain image identified by its suffix
-    suffix now support
+    Save brain image identified by its suffix.
+    The supporting suffixes are as follows:
      
     Nifti: .nii.gz
-    freesurfer: .mgz, .mgh
-    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
     
+    freesurfer: .mgz, .mgh
+    
+    cifti: .dscalar.nii, .dlabel.nii, .dtseries.nii
+       
     Note that due to ways to store gifti image are differ from other images, 
     we didn't support to save data as a gifti image.
         
-    Parameters:
-    ------------
-    imgpath: brain image path to be saved
-    data: brain image data matrix
-    header: brain image header
-        
-    Returns:
-    --------
+    Parameters
+    ----------
+    imgpath: str
+        Brain image path to be saved
+    data: array
+        Brain image data matrix
+    header: header
+        Brain image header
     """
     imgname = os.path.basename(imgpath)
     imgsuffix = imgname.split('.')[1:]
@@ -106,19 +114,24 @@ def extract_brain_activation(brainimg, mask, roilabels, method='mean'):
     """
     Extract brain activation from ROI.
     
-    Parameters:
-    ------------
-    brainimg[array]: A 4D brain image array with the first dimension correspond to pictures and the rest 3D correspond to brain images
-    mask[array]: A 3D brain image array with the same size as the rest 3D of brainimg.
-    roilabels[list/array]: ROI labels
-    method[str]: method to integrate activation from each ROI, by default is 'mean'.
+    Parameters
+    ----------
+    brainimg : array
+        A 4D brain image array with the first dimension correspond to pictures and the rest 3D correspond to brain images
+    mask : array
+        A 3D brain image array with the same size as the rest 3D of brainimg.
+    roilabels : list, array
+        ROI labels
+    method : str
+        Method to integrate activation from each ROI, by default is 'mean'.
     
-    Returns:
-    ---------
-    roisignals[list]: Extracted brain activation. 
-                      Each element in the list is the extracted activation of the roilabels.
-                      Due to different label may contain different number of activation voxels, 
-                      the output activation could not stored as numpy array list.
+    Returns
+    -------
+    roisignals : list
+        Extracted brain activation. 
+        Each element in the list is the extracted activation of the roilabels.
+        Due to different label may contain different number of activation voxels, 
+        the output activation could not stored as numpy array list.
     """
     if method == 'mean':
         calc_way = partial(np.mean, axis=1)

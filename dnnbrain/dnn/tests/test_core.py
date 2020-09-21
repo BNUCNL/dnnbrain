@@ -597,23 +597,24 @@ class TestDnnProbe:
         n_beh = 2
         beh_c = np.random.randint(1, 3, (self.n_sample, n_beh))
         beh_r = np.random.randn(self.n_sample, n_beh)
-        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'corr', cv)
+        probe = dcore.DnnProbe(self.dnn_activ, 'uv', 'corr')
 
         # test uv/corr and iter_axis=None
         probe_dict1 = probe.probe(beh_r)
         assert list(probe_dict1.keys()) == self.dnn_activ.layers
-        v1_keys = sorted(['max_score', 'max_loc'])
+        v1_keys = sorted(['score', 'location'])
         for k1, v1 in probe_dict1.items():
             assert sorted(v1.keys()) == v1_keys
-            assert v1['max_score'].shape == (1, n_beh)
+            assert v1['score'].shape == (1, n_beh)
+            assert v1['location'].shape == (1, n_beh, 3)
             if k1 == 'conv5':
-                assert np.all(v1['max_loc'][..., 0] == 1)
+                assert np.all(v1['location'][..., 0] == 1)
             elif k1 == 'fc3':
-                assert np.all(v1['max_loc'][..., 1] == 1)
-                assert np.all(v1['max_loc'][..., 2] == 1)
+                assert np.all(v1['location'][..., 1] == 1)
+                assert np.all(v1['location'][..., 2] == 1)
 
         # test mv/lrc and iter_axis=channel
-        probe.set(model_type='mv', model_name='lrc', cv=cv)
+        probe.set_mapper('mv', 'lrc', cv, None)
         probe_dict2 = probe.probe(beh_c, 'channel')
         assert list(probe_dict2.keys()) == self.dnn_activ.layers
         v1_keys = sorted(['score', 'model', 'conf_m'])

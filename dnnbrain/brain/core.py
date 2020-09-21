@@ -1,8 +1,7 @@
 import numpy as np
 
 from dnnbrain.io.fileio import RoiFile
-from dnnbrain.dnn.base import UnivariatePredictionModel
-from dnnbrain.dnn.base import MultivariatePredictionModel
+from dnnbrain.dnn.base import UnivariateMapping, MultivariateMapping
 
 
 class ROI:
@@ -11,10 +10,12 @@ class ROI:
     """
     def __init__(self, rois=None, value=None):
         """
-        Parameters:
+        Parameters
         ----------
-        rois[str|list]: ROI names of interest
-        value[ndarray]: ROI data
+        rois : str, list 
+            ROI names of interest.
+        value : ndarray 
+            ROI data.
         """
         self.rois = []
         self.data = None
@@ -26,10 +27,12 @@ class ROI:
         """
         Load from ROI file.
 
-        Parameters:
+        Parameters
         ----------
-        fname[str]: file name with suffix as .roi.h5
-        rois[str|list]: ROI names of interest
+        fname : str
+            File name with suffix as .roi.h5 
+        rois : str, list 
+            ROI names of interest.
         """
         self.rois, self.data = RoiFile(fname).read(rois)
 
@@ -37,9 +40,10 @@ class ROI:
         """
         Save to ROI file.
 
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .roi.h5
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .roi.h5
         """
         RoiFile(fname).write(self.rois, self.data)
 
@@ -47,13 +51,15 @@ class ROI:
         """
         Get data according to ROI names
 
-        Parameter:
-        ---------
-        rois[str|list]: ROI names
+        Parameters
+        ----------
+        rois : str, list 
+            ROI names.
 
-        Return:
+        Return
         ------
-        arr[ndarray]: ROI data with shape as (n_vol, n_roi)
+        arr : ndarray 
+            ROI data with shape as (n_vol, n_roi).
         """
         if isinstance(rois, str):
             rois = [rois]
@@ -67,11 +73,14 @@ class ROI:
         """
         Set ROI data with names
 
-        Parameters:
+        Parameters
         ----------
-        rois[str|list]: ROI names
-        value[ndarray]: ROI data
-        index[int]: the position where the data is set
+        rois : str, list 
+            ROI names.
+        value : ndarray 
+            ROI data.
+        index : int 
+            The position where the data is set.
         """
         # preprocessing
         if isinstance(rois, str):
@@ -100,9 +109,10 @@ class ROI:
         """
         Delete data according to ROI names
 
-        Parameter:
-        ---------
-        rois[str|list]: ROI names
+        Parameters
+        ----------
+        rois : str, list 
+            ROI names.
         """
         # prepare indices
         if isinstance(rois, str):
@@ -122,13 +132,15 @@ class ROI:
         """
         Get part of the ROI object by imitating 2D array's subscript index
 
-        Parameter:
-        ---------
-        indices[int|list|tuple|slice]: subscript indices
+        Parameters
+        ----------
+        indices : int, list, tuple, slice
+            Subscript indices
 
-        Return:
+        Return
         ------
-        roi[ROI]: a part of the self.
+        roi : ROI 
+            A part of the self.
         """
         # parse subscript indices
         if isinstance(indices, int):
@@ -209,9 +221,10 @@ class ROI:
         """
         Check availability of the arithmetic operation for self
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
         """
         if not isinstance(other, ROI):
             raise TypeError("unsupported operand type(s): "
@@ -223,13 +236,15 @@ class ROI:
         """
         Do addition between two ROI objects
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -240,15 +255,17 @@ class ROI:
 
     def __sub__(self, other):
         """
-        Do subtraction between two ROI objects
+        Do subtraction between two ROI objects.
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -259,15 +276,17 @@ class ROI:
 
     def __mul__(self, other):
         """
-        Do multiplication between two ROI objects
+        Do multiplication between two ROI objects.
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -280,13 +299,15 @@ class ROI:
         """
         Do true division between two ROI objects
 
-        Parameter:
-        ---------
-        other[ROI]: ROI object
+        Parameters
+        ----------
+        other : ROI 
+            ROI object.
 
-        Return:
+        Return
         ------
-        roi[ROI]: ROI object
+        roi : ROI 
+            ROI object.
         """
         self._check_arithmetic(other)
 
@@ -300,116 +321,145 @@ class BrainEncoder:
     """
     Encode DNN activation or behavior data to brain activation.
     """
-    def __init__(self, brain_activ=None, model_type=None, model_name=None,
-                 cv=3, scoring=None):
+    def __init__(self, brain_activ=None, map_type=None, estimator=None,
+                 cv=5, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        map_type : str
+            choices=(uv, mv)
+            uv: univariate mapping
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
             If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
-        scoring : str
-            model evaluation rule
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(brain_activ, model_type, model_name, cv)
-        self.set_scoring(scoring)
+        self.set_activ(brain_activ)
+        self.set_mapper(map_type, estimator, cv, scoring)
 
-    def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
+    def set_activ(self, brain_activ):
         """
-        Set some attributes
+        Set brain activation
 
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
-            If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
         """
-        if brain_activ is not None:
-            self.brain_activ = brain_activ
+        self.brain_activ = brain_activ
 
-        if model_type is None:
-            pass
-        elif model_type == 'uv':
-            self.model = UnivariatePredictionModel()
-        elif model_type == 'mv':
-            self.model = MultivariatePredictionModel()
+    def set_mapper(self, map_type, estimator, cv, scoring):
+        """
+        Set UnivariateMapping or MultivariateMapping
+
+        Parameters
+        ----------
+        map_type : str
+            choices=(uv, mv)
+            uv: univariate mapping
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            If is 'corr', it just uses correlation rather than prediction.
+                And the map_type must be 'uv'.
+            NOTE: The estimator type can only be regressor or correlation
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
+        """
+        if map_type is None:
+            return
+        elif map_type == 'uv':
+            self.mapper = UnivariateMapping(estimator, cv, scoring)
+        elif map_type == 'mv':
+            self.mapper = MultivariateMapping(estimator, cv, scoring)
         else:
-            raise ValueError('model_type must be one of the (uv, mv).')
+            raise ValueError('map_type must be one of the (uv, mv).')
 
-        if model_name is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(model_name)
-
-        if cv is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(cv=cv)
-
-    def set_scoring(self, scoring):
-        """
-        Parameters:
-        -----------
-        scoring : str
-            model evaluation rule
-        """
-        self.model.set_scoring(scoring)
+        if self.mapper.estimator_type not in ('regressor', 'correlation'):
+            raise ValueError("Not supported estimator type: {}".format(self.mapper.estimator_type))
 
     def encode_dnn(self, dnn_activ, iter_axis=None):
         """
         Encode DNN activation to brain activation.
 
-        Parameters:
+        Parameters
         ----------
-        dnn_activ[Activation]: DNN activation
-        iter_axis[str]: iterate along the specified axis
-            ---for uv---
-            channel: Summarize the maximal prediction score for each channel.
-            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
-            default: Summarize the maximal prediction score for the whole layer.
-            ---for mv---
-            channel: Do multivariate prediction using all units in each channel.
-            row_col: Do multivariate prediction using all units in each position (row_idx, col_idx).
-            default: Do multivariate prediction using all units in the whole layer.
+        dnn_activ : Activation
+            DNN activation.
+        iter_axis : None or str
+            Iterate along the specified axis. Different map types have different operation.
+            
+            +-------+---------+----------------------------------------------------------+
+            | map   |iter_axis|  description                                             |
+            | type  |         |                                                          |
+            +=======+=========+==========================================================+
+            | uv    | channel |Summarize the maximal prediction score for each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Summarize the maximal prediction score for each position  |
+            |       |         |(row_idx, col_idx)                                        |
+            |       +---------+----------------------------------------------------------+                                               
+            |       | None    |Summarize the maximal prediction score for the whole layer|
+            +-------+---------+----------------------------------------------------------+
+            |  mv   | channel |Multivariate prediction using all units in each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Multivariate prediction using all units in each           |
+            |       |         |position (row_idx, col_idx)                               |
+            |       +---------+----------------------------------------------------------+
+            |       | None    |Multivariate prediction using all units in the whole layer|
+            +-------+---------+----------------------------------------------------------+
 
-        Return:
+        Return
         ------
-        encode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_iter, n_meas)
-                    max scores at each iteration
-                max_loc[ndarray]: shape=(n_iter, n_meas, 3)
-                    max locations of the max scores, the size 3 of the third dimension means
-                    channel, row and column locations respectively.
-                max_model[ndarray]: shape=(n_iter, n_meas)
-                    fitted models of the max scores
-                    Note: only exists when model is regressor
-                score[ndarray]: shape=(n_iter, n_meas, cv)
-                    The third dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is regressor
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_iter, n_meas, cv)
-                    The third dimension means scores of each cross validation folds
-                    at each iteration and measurement
-                model[ndarray]: shape=(n_iter, n_meas)
-                    Each element is a model fitted at the corresponding iteration and measurement.
+        encode_dict : dict
+            It depends on map type.
+           
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
+            |       |         |           |as (n_iter, n_meas). Each element is the maximal pearson r |
+            |       |         |           |among all features at corresponding iteration correlating  |
+            |       |         |           |to the corresponding measurement.                          |
+            |       |         |           |If estimator type is regressor, it's an array with shape as|
+            |       |         |           |(n_iter, n_meas, cv). For each iteration and measurement,  |
+            |       |         |           |the third axis contains scores of each cross validation    |
+            |       |         |           |folds, when using the feature with maximal score to predict|
+            |       |         |           |the corresponding measurement.                             |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_iter, n_meas, 3)                 |
+            |       |         |           |Max locations of the max scores, the                       | 
+            |       |         |           |size 3 of the third dimension means                        | 
+            |       |         |           |channel, row and column respectively.                      |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         | model     |An array with shape as (n_iter, n_meas).                   |
+            |       |         |           |fitted models of the max scores.                           |
+            |       |         |           |Note: only exists when estimator type is regressor         |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            |  mv   | layer   | score     |A array with shape as (n_iter, n_meas, cv).                |
+            |       |         |           |The third dimension means scores of each                   |
+            |       | (str)   |           |cross validation folds at each iteration                   |
+            |       |         |           |and measurement                                            |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |A array with shape as (n_iter, n_meas).                    |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding iteration and measurement.                   |         
+            +-------+---------+-----------+-----------------------------------------------------------+
         """
         _, n_meas = self.brain_activ.shape
 
@@ -432,20 +482,24 @@ class BrainEncoder:
                 raise ValueError("Unsupported iter_axis:", iter_axis)
             n_stim, n_iter, n_elem = activ.shape
 
-            # start encoding
-            if isinstance(self.model, UnivariatePredictionModel):
-                # prepare layer dict
+            # prepare layer dict
+            if self.mapper.estimator_type == 'correlation':
+                encode_dict[layer] = {'score': np.zeros((n_iter, n_meas))}
+            else:
                 encode_dict[layer] = {
-                    'max_score': np.zeros((n_iter, n_meas)),
-                    'max_loc': np.zeros((n_iter, n_meas, 3), dtype=np.int),
-                    'max_model': np.zeros((n_iter, n_meas), dtype=np.object),
-                    'score': np.zeros((n_iter, n_meas, self.model.cv))
+                    'score': np.zeros((n_iter, n_meas, self.mapper.cv)),
+                    'model': np.zeros((n_iter, n_meas), dtype=np.object),
                 }
+
+            # start encoding
+            if isinstance(self.mapper, UnivariateMapping):
+                encode_dict[layer]['location'] = np.zeros((n_iter, n_meas, 3), dtype=np.int)
+
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], self.brain_activ)
+                    data = self.mapper.map(activ[:, iter_idx, :], self.brain_activ)
                     for k, v in data.items():
-                        if k == 'max_loc':
+                        if k == 'location':
                             if iter_axis is None:
                                 chn_idx = v // n_row_col
                                 row_idx = v % n_row_col // n_col
@@ -464,22 +518,12 @@ class BrainEncoder:
                         else:
                             encode_dict[layer][k][iter_idx] = v
                     print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
-                # clear layer dict
-                if self.model.model_type == 'corr':
-                    encode_dict[layer].pop('max_model')
-                    encode_dict[layer].pop('score')
             else:
-                # prepare layer dict
-                encode_dict[layer] = {
-                    'score': np.zeros((n_iter, n_meas, self.model.cv)),
-                    'model': np.zeros((n_iter, n_meas), dtype=np.object)
-                }
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], self.brain_activ)
+                    data = self.mapper.map(activ[:, iter_idx, :], self.brain_activ)
                     for k, v in data.items():
                         encode_dict[layer][k][iter_idx] = v
-
                     print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
 
         return encode_dict
@@ -488,35 +532,47 @@ class BrainEncoder:
         """
         Encode behavior data to brain activation.
 
-        Parameter:
-        ---------
-        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+        Parameters
+        ----------
+        beh_data : ndarray 
+            Behavior data with shape as (n_stim, n_beh).
 
-        Return:
-        ------
-        encode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_meas,)
-                    max scores
-                max_loc[ndarray]: shape=(n_meas,)
-                    max locations of the max scores
-                max_model[ndarray]: shape=(n_meas,)
-                    fitted models of the max scores
-                    Note: only exists when model is regressor
-                score[ndarray]: shape=(n_meas, cv)
-                    The second dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is regressor
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_meas, cv)
-                    The second dimension means scores of each cross validation folds
-                    at each measurement
-                model[ndarray]: shape=(n_meas,)
-                    Each element is a model fitted at the corresponding measurement.
+        Returns
+        -------
+        encode_dict : dict
+            It depends on map type.
+            
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape |
+            |       |         |           |as (n_meas,). Max scores                                   |
+            |       |         |           |If estimator type is regressor, it's an array with shape as|
+            |       |         |           |(n_meas, cv). The second dimension contains scores of each |
+            |       |         |           |cross validation fold at maximal location.                 |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_meas,).                          |
+            |       |         |           |Max locations of the max scores                            |
+            |       |         |           |                                                           |
+            |       |         +-----------+-----------------------------------------------------------+                                               
+            |       |         | model     |An array with shape as (n_meas,).                          |
+            |       |         |           |Fitted models of the max scores                            |
+            |       |         |           |Note: only exists when model is regressor.                 |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_meas, cv).                       |
+            |       |         |           |The second dimension contains scores of each               |
+            |       | (str)   |           |cross validation fold                                      |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_meas,).                          |
+            |       |         |           |Each element is a model fitted at the                      |
+            |       |         |           |corresponding measurement.                                 |         
+            +-------+---------+-----------+-----------------------------------------------------------+        
+            
         """
-        encode_dict = self.model.predict(beh_data, self.brain_activ)
+        encode_dict = self.mapper.map(beh_data, self.brain_activ)
 
         return encode_dict
 
@@ -525,102 +581,118 @@ class BrainDecoder:
     """
     Decode brain activation to DNN activation or behavior data.
     """
-    def __init__(self, brain_activ=None, model_type=None, model_name=None, cv=3):
+    def __init__(self, brain_activ=None, map_type=None, estimator=None,
+                 cv=5, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray 
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        map_type : str
+            choices=(uv, mv).
+            uv: univariate mapping.
+            mv: multivariate mapping.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
             If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(brain_activ, model_type, model_name, cv)
+        self.set_activ(brain_activ)
+        self.set_mapper(map_type, estimator, cv, scoring)
 
-    def set(self, brain_activ=None, model_type=None, model_name=None, cv=None):
+    def set_activ(self, brain_activ):
         """
-        Set some attributes
+        Set brain activation
 
-        Parameters:
+        Parameters
         ----------
-        brain_activ[ndarray]: brain activation with shape as (n_vol, n_meas)
+        brain_activ : ndarray
+            Brain activation with shape as (n_vol, n_meas).
             For voxel-wise, n_meas is the number of voxels.
             For ROI-wise, n_meas is the number of ROIs.
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
-            If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
         """
-        if brain_activ is not None:
-            self.brain_activ = brain_activ
+        self.brain_activ = brain_activ
 
-        if model_type is None:
-            pass
-        elif model_type == 'uv':
-            self.model = UnivariatePredictionModel()
-        elif model_type == 'mv':
-            self.model = MultivariatePredictionModel()
+    def set_mapper(self, map_type, estimator, cv, scoring):
+        """
+        Set mapper parameters.
+
+        Parameters
+        ----------
+        map_type : str
+            choices=(uv, mv).
+            uv: univariate mapping.
+            mv: multivariate mapping.
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
+            If is 'corr', it just uses correlation rather than prediction.
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
+        """
+        if map_type is None:
+            return
+        elif map_type == 'uv':
+            self.mapper = UnivariateMapping(estimator, cv, scoring)
+        elif map_type == 'mv':
+            self.mapper = MultivariateMapping(estimator, cv, scoring)
         else:
-            raise ValueError('model_type must be one of the (uv, mv).')
-
-        if model_name is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(model_name)
-
-        if cv is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(cv=cv)
+            raise ValueError('map_type must be one of the (uv, mv).')
 
     def decode_dnn(self, dnn_activ):
         """
         Decode brain activation to DNN activation.
 
-        Parameter:
+        Parameters
         ---------
-        dnn_activ[Activation]: DNN activation
+        dnn_activ : Activation  
+            DNN activation.
 
-        Return:
-        ------
-        decode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_chn, n_row, n_col)
-                    max scores
-                max_loc[ndarray]: shape=(n_chn, n_row, n_col)
-                    locations of measurement indicators with max scores
-                max_model[ndarray]: shape=(n_chn, n_row, n_col)
-                    fitted models of the max scores
-                    Note: only exists when model is classifier or regressor
-                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is classifier or regressor
-                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
-
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means scores of each cross validation folds
-                    at each unit
-                model[ndarray]: shape=(n_chn, n_row, n_col)
-                    Each element is a model fitted at the corresponding unit.
-                conf_m[ndarray]: shape=(n_chn, n_row, n_col, cv)
-                    The forth dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds at the corresponding unit.
-                    Note: only exists when model is classifier
+        Returns
+        -------
+        decode_dict : dict
+            It depends on map type.
+                
+            +-------+---------+----------------------------------------------------------------------+
+            |       |         |                           First value                                |
+            |       |         +-----------+----------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                       |
+            | type  |key      |key        |                                                          |
+            +=======+=========+===========+==========================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an array with shape|
+            |       |         |           |as (n_chn, n_row, n_col). Max scores                      |
+            |       |         |           |If estimator type is regressor, it's an array with shape  |
+            |       |         |           |as (n_chn, n_row, n_col, cv). The forth dimension contains|
+            |       |         |           |scores of each cross validation fold of the max scores.   |
+            |       | (str)   +-----------+----------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_chn, n_row, n_col).             |
+            |       |         |           |Locations of measurement                                  |
+            |       |         |           |indicators with max scores.                               |
+            |       |         +-----------+----------------------------------------------------------+                                               
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
+            |       |         |           |fitted models of the max scores.                          | 
+            |       |         |           |Note: only exists when model is regressor                 |
+            +-------+---------+-----------+----------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_chn, n_row, n_col, cv).         |
+            |       |         |           |The forth dimension contains scores of each               |
+            |       | (str)   |           |cross validation fold at each unit.                       |
+            |       |         +-----------+----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_chn, n_row, n_col).             |
+            |       |         |           |Each element is a model fitted at the                     |
+            |       |         |           |corresponding unit.                                       |
+            +-------+---------+-----------+----------------------------------------------------------+
         """
+        if self.mapper.estimator_type not in ('regressor', 'correlation'):
+            raise ValueError("Not supported estimator type: {}".format(self.mapper.estimator_type))
+
         decode_dict = dict()
         for layer in dnn_activ.layers:
             # get DNN activation
@@ -628,10 +700,13 @@ class BrainDecoder:
             n_stim, *shape = activ.shape
             activ = activ.reshape((n_stim, -1))
 
-            data = self.model.predict(self.brain_activ, activ)
+            data = self.mapper.map(self.brain_activ, activ)
             for k, v in data.items():
-                if k in ('score', 'conf_m'):
-                    data[k] = v.reshape(shape+[self.model.cv])
+                if k == 'score':
+                    if self.mapper.estimator_type == 'correlation':
+                        data[k] = v.reshape(shape)
+                    else:
+                        data[k] = v.reshape(shape+[self.mapper.cv])
                 else:
                     data[k] = v.reshape(shape)
             decode_dict[layer] = data
@@ -644,42 +719,58 @@ class BrainDecoder:
         """
         Decode brain activation to behavior data.
 
-        Parameter:
-        ---------
-        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
+        Parameters
+        ----------
+        beh_data : ndarray 
+            Behavior data with shape as (n_stim, n_beh).
 
-        Return:
-        ------
-        decode_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_beh,)
-                    max scores
-                max_loc[ndarray]: shape=(n_beh,)
-                    locations of measurement indicators with max scores
-                max_model[ndarray]: shape=(n_beh,)
-                    fitted models of the max scores
-                    Note: only exists when model is classifier or regressor
-                score[ndarray]: shape=(n_beh, cv)
-                    The second dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is classifier or regressor
-                conf_m[ndarray]: shape=(n_beh, cv)
-                    The second dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
+        Returns
+        -------
+        decode_dict : dict
+            It depends on map type.
 
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_beh, cv)
-                    The second dimension means scores of each cross validation folds
-                    at each behavior
-                model[ndarray]: shape=(n_beh,)
-                    Each element is a model fitted at the corresponding behavior.
-                conf_m[ndarray]: shape=(n_beh, cv)
-                    The second dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
+            +----------+-----------+--------------------------------------------------------------+
+            | map type | key       | value                                                        |
+            +==========+===========+==============================================================+
+            | uv       | score     | If estimator type is correlation, it's an array with shape as|
+            |          |           | (n_beh,). Each element is the maximal pearson r among all    |
+            |          |           | measurements correlating to the corresponding behavior.      |
+            |          |           | If estimator type is regressor or classifier, it's an array  |
+            |          |           | with shape as (n_beh, cv). Each row contains scores of each  |
+            |          |           | cross validation fold, when using the measurement at         |
+            |          |           | the maximal location to predict the corresponding behavior.  |
+            |          +-----------+--------------------------------------------------------------+
+            |          | location  | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a location of the measurement                |
+            |          |           | which makes the maximal score.                               |
+            |          +-----------+--------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a model fitted by the measurement            |
+            |          |           | at the maximal location and the corresponding behavior.      |
+            |          |           | Note: not exist when estimator type is correlation           |
+            |          +-----------+--------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains confusion matrices                         |
+            |          |           | (n_label, n_label) of each cross validation                  |
+            |          |           | fold, when using the measurement at the maximal location to  |
+            |          |           | predict the corresponding behavior.                          |
+            |          |           | Note: only exists when estimator type is classifier          |
+            +----------+-----------+--------------------------------------------------------------+
+            |  mv      | score     | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains scores of each cross validation fold, when |
+            |          |           | using all measurements to predict the corresponding behavior.|
+            |          +-----------+--------------------------------------------------------------+
+            |          | model     | An array with shape as (n_beh,)                              |
+            |          |           | Each element is a model fitted by all measurements           |
+            |          |           | and the corresponding behavior.                              |
+            |          +-----------+--------------------------------------------------------------+
+            |          | conf_m    | An array with shape as (n_beh, cv)                           |
+            |          |           | Each row contains confusion matrices (n_label, n_label) of   |
+            |          |           | each cross validation fold, when using all measurements to   |
+            |          |           | predict the corresponding behavior.                          |
+            |          |           | Note: only exists when estimator type is classifier          |
+            |----------+-----------+--------------------------------------------------------------+
         """
-        decode_dict = self.model.predict(self.brain_activ, beh_data)
+        decode_dict = self.mapper.map(self.brain_activ, beh_data)
 
         return decode_dict

@@ -12,8 +12,8 @@ Welcome to DNNBrain's documentation!
    :caption: Contents:
    
    Get Started <install>
-   Tutorials <tutorials/index>
-   Examples <examples/index>
+   Tutorial <tutorials/index>
+   User Guide <user_guide/index>
    Docs <docs/index>
    Cite DNNBrain <cite>
 

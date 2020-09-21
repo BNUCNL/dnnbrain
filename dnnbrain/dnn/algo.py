@@ -7,6 +7,7 @@ import numpy as np
 
 from os import remove
 from os.path import join as pjoin
+from PIL import Image
 from scipy.ndimage.filters import gaussian_filter
 from torch.optim import Adam
 import torch.nn as nn
@@ -28,11 +29,14 @@ class Algorithm(abc.ABC):
 
     def __init__(self, dnn, layer=None, channel=None):
         """
-        Parameters:
+        Parameters
         ----------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
+        dnn : DNN
+            A dnnbrain's DNN object.
+        layer : str 
+            Name of the layer where the algorithm performs on.
+        channel : int 
+            Number of the channel where the algorithm performs on.
         """
         if np.logical_xor(layer is None, channel is None):
             raise ValueError("layer and channel must be used together!")
@@ -43,12 +47,15 @@ class Algorithm(abc.ABC):
 
     def set_layer(self, layer, channel):
         """
-        Set layer or its channel
+        Set layer or its channel.
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
+        layer : str 
+            Name of the layer where the algorithm performs on.
+        channel : int 
+            Number of the channel where the algorithm performs on
+            algorithm only support one channel operation at one time.
         """
         self.mask = Mask()
         self.mask.set(layer, channels=[channel])
@@ -57,10 +64,12 @@ class Algorithm(abc.ABC):
         """
         Get layer or its channel
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
+        layer : str
+            Name of the layer where the algorithm performs on.
+        channel : int 
+            Number of the channel where the algorithm performs on.
         """
         layer = self.mask.layers[0]
         channel = self.mask.get(layer)['chn'][0]
@@ -69,17 +78,20 @@ class Algorithm(abc.ABC):
 
 class SaliencyImage(Algorithm):
     """
-    An Abstract Base Classes class to define interfaces for gradient back propagation
+    An Abstract Base Classes class to define interfaces for gradient back propagation.
     Note: the saliency image values are not applied with absolute operation.
     """
 
     def __init__(self, dnn, from_layer=None, from_chn=None):
         """
-        Parameters:
+        Parameters
         ----------
-        dnn[DNN]: dnnbrain's DNN object
-        from_layer[str]: name of the layer where gradients back propagate from
-        from_chn[int]: sequence number of the channel where gradient back propagate from
+        dnn : DNN 
+            A dnnbrain's DNN object.
+        from_layer : str 
+            Name of the layer where gradients back propagate from.
+        from_chn : int 
+            umber of the channel where gradient back propagate from.
         """
         super(SaliencyImage, self).__init__(dnn, from_layer, from_chn)
 
@@ -91,8 +103,8 @@ class SaliencyImage(Algorithm):
     @abc.abstractmethod
     def register_hooks(self):
         """
-        Define register hook and register them to specific layer and channel.
-        As this a abstract method, it is needed to be override in every subclass
+        Define register hooks and register them to specific layer and channel.
+        As this a abstract method, it is needed to be override in every subclass.
         """
 
     def backprop(self, image, to_layer=None):
@@ -100,16 +112,19 @@ class SaliencyImage(Algorithm):
         Compute gradients of the to_layer corresponding to the from_layer and from_channel
         by back propagation algorithm.
 
-        Parameters:
-        ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        to_layer[str]: name of the layer where gradients back propagate to
+        Parameters
+        ---------
+        image : ndarray, Tensor, PIL.Image
+            Image data.
+        to_layer : str 
+            Name of the layer where gradients back propagate to.
             If is None, get the first layer in the layers recorded in DNN.
 
-        Return:
+        Return
         ------
-        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
-            If layer is the first layer of the model, its shape is (3, n_height, n_width)
+        gradient : ndarray 
+            Gradients of the to_layer with shape as (n_chn, n_row, n_col).
+            If layer is the first layer of the model, its shape is (3, n_height, n_width).
         """
         # register hooks
         self.to_layer = self.dnn.layers[0] if to_layer is None else to_layer
@@ -143,18 +158,23 @@ class SaliencyImage(Algorithm):
         Compute smoothed gradient.
         It will use the gradient method to compute the gradient and then smooth it
 
-        Parameters:
+        Parameters
         ----------
-        image[ndarray|Tensor|PIL.Image]: image data
-        n_iter[int]: the number of noisy images to be generated before average.
-        sigma_multiplier[int]: multiply when calculating std of noise
-        to_layer[str]: name of the layer where gradients back propagate to
+        image : ndarray, Tensor, PIL.Image
+            Image data
+        n_iter : int 
+            The number of noisy images to be generated before average.
+        sigma_multiplier : int 
+            Multiply when calculating std of noise.
+        to_layer : str 
+            Name of the layer where gradients back propagate to.
             If is None, get the first layer in the layers recorded in DNN.
 
-        Return:
+        Return
         ------
-        gradient[ndarray]: gradients of the to_layer with shape as (n_chn, n_row, n_col)
-            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width)
+        gradient : ndarray 
+            Gradients of the to_layer with shape as (n_chn, n_row, n_col).
+            If layer is the first layer of the model, its shape is (n_chn, n_height, n_width).
         """
         assert isinstance(n_iter, int) and n_iter > 0, \
             'The number of iterations must be a positive integer!'
@@ -272,22 +292,37 @@ class SynthesisImage(Algorithm):
     """
 
     def __init__(self, dnn, layer=None, channel=None,
-                 activ_metric='mean', regular_metric=None, precondition_metric=None, smooth_metric=None,
-                 save_out_interval=False, print_inter_loss=False):
+                 activ_metric='mean', regular_metric=None, regular_lambda=None,
+                 precondition_metric=None, GB_radius=None, smooth_metric=None, factor=None):
         """
-        Parameters:
+
+        Parameters
         ----------
-        dnn[DNN]: DNNBrain DNN
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
-        activ_metric[str]: The metric method to summarize activation
-        regular_metric[str]: The metric method of regularization
-        precondition_metric[str]: The metric method of precondition
-        smooth_metric[str]: the metric method of smoothing
+        dnn : DNN
+            A dnnbrain's dnn object
+        layer : str 
+            Name of the layer where the algorithm performs on
+        channel : int 
+            Number of the channel where the algorithm performs on
+        activ_metric : str 
+            The metric method to summarize activation
+        regular_metric : str 
+            The metric method of regularization
+        regular_lambda : float
+            The lambda of the regularization.
+        precondition_metric : str
+            The metric method of precondition
+        GB_radius : float
+            Radius parameter for 'GB', gaussian blur.
+        smooth_metric : str 
+            The metric method of smoothing.
+        factor : float
+            Factor parameter for 'Fourier', smooth fourier.
         """
         super(SynthesisImage, self).__init__(dnn, layer, channel)
-        self.set_metric(activ_metric, regular_metric, precondition_metric, smooth_metric)
-        self.set_utiliz(save_out_interval, print_inter_loss)
+        self.set_loss(activ_metric, regular_metric, regular_lambda)
+        self.set_precondition(precondition_metric, GB_radius)
+        self.set_smooth_gradient(smooth_metric, factor)
         self.activ_loss = None
         self.optimal_image = None
 
@@ -295,20 +330,22 @@ class SynthesisImage(Algorithm):
         self.activ_losses = []
         self.regular_losses = []
 
-        self.row =None
-        self.column=None
-        
-    def set_metric(self, activ_metric, regular_metric,
-                   precondition_metric, smooth_metric):
+    def set_loss(self, activ_metric, regular_metric, regular_lambda):
         """
-        Set metric methods
-
-        Parameter:
-        ---------
-        activ_metric[str]: The metric method to summarize activation
-        regular_metric[str]: The metric method of regularization
-        precondition_metric[str]: The metric method of preconditioning
-        smooth_metric[str]: the metric method of smoothing
+        This method is to set loss function for optimization.
+        As the target usually is a 2-D feature map in convolutional layer with multiple units,
+        'active_metric' can make algorithm clear on how to omputue the loss value.
+        Also there are some popular regularization to make synthesis more interpretable,
+        'regular_metric' can set one of them and 'regular_lambda' give the weights of this term.
+        
+        Parameters
+        ----------
+        activ_metric : str
+            The metric method to summarize activation.
+        regular_metric : str 
+            The metric method of regularization.
+        regular_lambda : float
+            The lambda of the regularization.
         """
         # activation metric setting
         if activ_metric == 'max':
@@ -320,7 +357,7 @@ class SynthesisImage(Algorithm):
 
         # regularization metric setting
         if regular_metric is None:
-            self.regular_metric = self._regular_default
+            self.regular_metric = lambda: 0
         elif regular_metric == 'L1':
             self.regular_metric = self._L1_norm
         elif regular_metric == 'L2':
@@ -330,64 +367,52 @@ class SynthesisImage(Algorithm):
         else:
             raise AssertionError('Only L1, L2, and total variation are supported!')
 
+        # regularization hyperparameter setting
+        self.regular_lambda = regular_lambda
+
+    def set_precondition(self, precondition_metric, GB_radius):
+        """
+        This is the method to set whether a precondition metric will be used,
+        precondition is one of the method to smooth the high frequency noise on 
+        synthesized image. It will applied on every interval image during the iteration. 
+        
+        Parameters
+        ----------
+        precondition_metric : str
+            The metric method of preconditioning.
+        GB_radius : float
+            Radius parameter for 'GB', gaussian blur.
+        """
+
         # precondition metric setting
         if precondition_metric is None:
-            self.precondition_metric = self._precondition_default
+            self.precondition_metric = lambda x, y: None
         elif precondition_metric == 'GB':
             self.precondition_metric = self._gaussian_blur
         else:
             raise AssertionError('Only Gaussian Blur is supported!')
-            
+        self.GB_radius = GB_radius
+
+    def set_smooth_gradient(self, smooth_metric, factor):
+        """
+        This method is to set smooth gradient metric, it's a very effective way to
+        prove synthesized image quality.
+
+        Parameters
+        ----------
+        smooth_metric : str
+            The metric method of smoothing.
+        factor : float
+            Factor parameter for 'Fourier', smooth fourier.
+        """
         # smooth metric setting
         if smooth_metric is None:
-            self.smooth_metric = self._smooth_default
+            self.smooth_metric = lambda x: None
         elif smooth_metric == 'Fourier':
             self.smooth_metric = self._smooth_fourier
         else:
             raise AssertionError('Only Fourier Smooth is supported!')
-
-    def set_utiliz(self, save_out_interval=False, print_inter_loss=False):
-        '''
-        Set print and save interval pics
-        Parameters
-        -----------
-        save_out_interval[bool]
-        print_inter_loss[bool]
-        '''
-        # saving interval pics in iteration setting
-        if save_out_interval is True:
-            self.save_out_interval = self._save_out
-        elif save_out_interval is False:
-            self.save_out_interval = self._close_save
-
-        # print interation loss
-        if print_inter_loss is True:
-            self.print_inter_loss = self._print_loss
-        elif print_inter_loss is False:
-            self.print_inter_loss = self._print_close
-
-    def _print_loss(self, i, step, n_iter, loss):
-        if i % step == 0:
-            print(f'Interation: {i}/{n_iter}; Loss: {loss}')
-
-    def _print_close(self, i, step, n_iter, loss):
-        pass
-
-    def _save_out(self, currti, save_interval, save_path):
-        if (currti + 1) % save_interval == 0 and save_path is not None:
-            img_out = self.optimal_image[0].detach().numpy().copy()
-            img_out = ip.to_pil(img_out, True)
-            img_out.save(pjoin(save_path, f'synthesized_image_iter{currti + 1}.jpg'))
-            print('Saved No.',currti + 1,'in iteration')
-        elif save_path == None:
-            raise AssertionError('Check save_out_interval parameters please! You must give save_interval & save_path!')
-
-    def _close_save(self, currti, save_interval, save_path):
-        pass
-
-    def _regular_default(self):
-        reg = 0
-        return reg
+        self.factor = factor
 
     def _L1_norm(self):
         reg = torch.abs(self.optimal_image).sum()
@@ -409,29 +434,21 @@ class SynthesisImage(Algorithm):
         self.regular_losses.append(reg.item())
         return reg
 
-    def _precondition_default(self, GB_radius):
-        precond_image = self.optimal_image[0].detach().numpy()
-        precond_image = ip.to_tensor(precond_image).float()
-        precond_image = copy.deepcopy(precond_image)
-        return precond_image
-
-    def _gaussian_blur(self, radius):
+    def _gaussian_blur(self, radius, lr):
         precond_image = filters.gaussian(self.optimal_image[0].detach().numpy(), radius)
-        precond_image = ip.to_tensor(precond_image).float()
-        precond_image = copy.deepcopy(precond_image)
-        return precond_image
-
-    def _smooth_default(self, factor):
-        pass
+        self.optimal_image = ip.to_tensor(precond_image).float().unsqueeze(0)
+        self.optimal_image.requires_grad_(True)
+        self.optimizer = Adam([self.optimal_image], lr=lr)
 
     def _smooth_fourier(self, factor):
         """
         Tones down the optimal image gradient with 1/sqrt(f) filter in the Fourier domain.
         Equivalent to low-pass filtering in the spatial domain.
         
-        Parameter:
-        ---------
-        factor[float]: parameters used in fourier transform
+        Parameters
+        ----------
+        factor : float 
+            Parameters used in fourier transform.
         """
         # initialize grad
         grad = self.optimal_image.grad
@@ -448,33 +465,28 @@ class SynthesisImage(Algorithm):
             F = grad.new_tensor(t / t.mean()).unsqueeze(-1)
             pp = torch.rfft(grad.data, 2, onesided=False)
             # adjust the optimal_image grad after Fourier transform
-            self.optimal_image.grad = torch.irfft(pp * F, 2, onesided=False)
-    
-    def mean_image(self):
-        pass
-
-    def center_bias(self):
-        pass
+            self.optimal_image.grad = copy.copy(torch.irfft(pp * F, 2, onesided=False))
         
-    def register_hooks(self,unit=None):
+    def register_hooks(self, unit=None):
         """
         Define register hook and register them to specific layer and channel.
-        Parameter:
-        ---------
-        unit[tuple]: determine unit position, None means channel
+        
+        Parameters
+        ----------
+        unit : tuple
+            Determine unit position, `None` means channel, default None.
         
         """
         layer, chn = self.get_layer()
 
         def forward_hook(module, feat_in, feat_out):
-            if unit == None:
+            if unit is None:
                 self.activ_loss = - self.activ_metric(feat_out[0, chn - 1])
             else:
-                if isinstance(unit,tuple) and len(unit)==2:
-                    self.row,self.column = unit
-                    row = int(self.row)
-                    column = int(self.column)
-                    self.activ_loss = - self.activ_metric(feat_out[0, chn - 1,row,column])  # single unit
+                if isinstance(unit, tuple) and len(unit) == 2:
+                    row = int(unit[0])
+                    column = int(unit[1])
+                    self.activ_loss = -feat_out[0, chn - 1, row, column]  # single unit
                 else:
                     raise AssertionError('Check unit must be 2-dimensinal tuple')
             self.activ_losses.append(self.activ_loss.item())
@@ -485,32 +497,33 @@ class SynthesisImage(Algorithm):
 
         return handle
 
-    def synthesize(self, init_image = None, unit=None, lr = 0.1,
-                    regular_lambda = 1, n_iter = 30, save_path = None,
-                    save_interval = None, GB_radius = 0.875, factor = 0.5, step = 1):
+    def synthesize(self, init_image=None, unit=None, lr=0.1, n_iter=30,
+                   verbose=True, save_path=None, save_step=None):
         """
         Synthesize the image which maximally activates target layer and channel
 
-        Parameter:
-        ---------
-        init_image[ndarray|Tensor|PIL.Image]: initialized image
-        unit[tuple]:set target unit position
-        lr[float]: learning rate
-        regular_lambda[float]: the lambda of the regularization
-        n_iter[int]: the number of iterations
-        save_path[str]: the directory to save images
-            If is None, do nothing.
-            else, save synthesized image at the last iteration.
-        save_interval[int]: save interval
-            If is None, do nothing.
-            else, save_path must not be None.
-                Save out synthesized images per 'save interval' iterations.
-        factor[float]
-        GB_radius[float]
-        step[int]
-        Return:
+        Parameters
+        ----------
+        init_image : ndarray, Tensor, PIL.Image
+            Initialized image.
+        unit : tuple
+            Set target unit position.
+        lr : float
+            Learning rate.
+        n_iter : int
+            The number of iterations
+        verbose : bool
+            print loss duration iteration or not
+        save_path : str
+            The directory to save synthesized images.
+        save_step : int
+            Save out synthesized images for every 'save_step' iterations.
+            Only used when save_path is not None.
+
+        Return
         ------
-            [ndarray]: the synthesized image with shape as (n_chn, height, width)
+        final_image : ndarray 
+            The synthesized image with shape as (n_chn, height, width).
         """
         # Hook the selected layer
         handle = self.register_hooks(unit)
@@ -518,74 +531,87 @@ class SynthesisImage(Algorithm):
         # prepare initialized image
         if init_image is None:
             # Generate a random image
-            init_image = np.random.normal(loc=[0.485, 0.456, 0.406], scale=[0.229, 0.224, 0.225], 
-                                          size=(*self.dnn.img_size, 3)).transpose(2,0,1)
-            init_image = ip.to_tensor(init_image).float()
-            init_image = copy.deepcopy(init_image)
+            init_image = torch.rand(3, *self.dnn.img_size, dtype=torch.float32)
         else:
             init_image = ip.to_tensor(init_image).float()
             init_image = copy.deepcopy(init_image)
 
+        self.optimal_image = init_image.unsqueeze(0)
+        self.optimal_image.requires_grad_(True)
+        self.optimizer = Adam([self.optimal_image], lr=lr)
+
+        # prepare for loss
         self.activ_losses = []
         self.regular_losses = []
-        
-        # prepare for loss
+
+        # iteration
         for i in range(n_iter):
-            self.optimal_image = init_image.unsqueeze(0)
-            self.optimal_image.requires_grad_(True)
-            optimizer = Adam([self.optimal_image], lr=lr)
-            
-            # save out
-            self.save_out_interval(i, save_interval, save_path)
-            
-            # Forward pass layer by layer until the target layer
-            # to triger the hook funciton.
+
+            if save_path is not None and save_step is not None:
+                if i % save_step == 0:
+                    img_out = self.optimal_image[0].detach().numpy().copy()
+                    img_out = ip.to_pil(img_out, True)
+                    img_out.save(pjoin(save_path, 'synthesized_image_iter{}.jpg'.format(i)))
+
+            # Forward pass layer by layer until the target layer to trigger the hook.
             self.dnn.model(self.optimal_image)
+
             # computer loss
-            loss = self.activ_loss + regular_lambda * self.regular_metric()
-            # zero gradients
-            optimizer.zero_grad()
-            # Backward
+            loss = self.activ_loss + self.regular_lambda * self.regular_metric()
+
+            # backpropagation
+            self.optimizer.zero_grad()
             loss.backward()
-            #smoooth the gradient
-            self.smooth_metric(factor)
+
+            # smooth gradients
+            self.smooth_metric(self.factor)
+
             # Update image
-            optimizer.step()
-            
-            # Print interation
-            self.print_inter_loss(i, step, n_iter, loss)
+            self.optimizer.step()
+
+            if verbose:
+                print('Iteration: {}/{}; Loss: {}'.format(i+1, n_iter, loss))
+
             # precondition
-            init_image = self.precondition_metric(GB_radius)
+            self.precondition_metric(self.GB_radius, lr)
            
-        # compute act_loss for one more time as the loss 
-        # we computed in each iteration is for the previous pic
+        # trigger hook for the activ_loss of the final synthesized image
         self.dnn.model(self.optimal_image)
-        self.regular_metric()   
+        # calculate regular_loss of the final synthesized image
+        self.regular_metric()
                 
         # remove hook
         handle.remove()
 
         # output synthesized image
         final_image = self.optimal_image[0].detach().numpy().copy()
+        if save_path is not None:
+            final_image = ip.to_pil(final_image, True)
+            final_image.save(pjoin(save_path, 'synthesized_image.jpg'))
 
         return final_image
     
     
 class MaskedImage(Algorithm):
-    '''
+    """
     Generate masked gray picture for images according to activation changes
-    '''
+    """
     
     def __init__(self,dnn, layer=None, channel=None, unit=None, 
              stdev_size_thr=1.0,filter_sigma=1.0,target_reduction_ratio=0.9):
         """
-        Parameters:
+        Parameters
         ----------
-        dnn[DNN]: DNNBrain DNN
-        layer[str]: name of the layer where the algorithm performs on
-        channel[int]: sequence number of the channel where the algorithm performs on
-        initial_image[ndarray]: initial image waits for masking
-        unit[tuple]: position of the target unit
+        dnn : DNN 
+            A dnnbrain DNN.
+        layer : str 
+            Name of the layer where the algorithm performs on.
+        channel : int 
+            Number of the channel where the algorithm performs on.
+        initial_image : ndarray 
+            Initial image waits for masking.
+        unit : tuple 
+            Position of the target unit.
         """
         super(MaskedImage, self).__init__(dnn, layer, channel)
         self.set_parameters(unit, stdev_size_thr, filter_sigma, target_reduction_ratio)
@@ -602,10 +628,14 @@ class MaskedImage(Algorithm):
         
         Parameters
         ----------
-        unit[tuple]: position of the target unit
-        stdev_size_thr[float]: fraction of standard dev threshold for size of blobs,default 1.0
-        filter_sigma[float]: sigma for final gaussian blur, default 1.0
-        target_reduction_ratio[float]; reduction ratio to achieve for tightening the mask,default 0.9
+        unit : tuple 
+            Position of the target unit.
+        stdev_size_thr : float
+            Fraction of standard dev threshold for size of blobs, default 1.0.
+        filter_sigma : float 
+            Sigma for final gaussian blur, default 1.0.
+        target_reduction_ratio : float 
+            Reduction ratio to achieve for tightening the mask,default 0.9.
         """            
         if isinstance(unit,tuple) and len(unit) == 2:    
             self.row,self.column = unit
@@ -619,17 +649,19 @@ class MaskedImage(Algorithm):
         self.target_reduction_ratio = target_reduction_ratio
         
     def prepare_test(self,masked_image):
-        '''
-        transfer pic to tenssor for dnn activation
+        """
+        Transfer pic to tenssor for dnn activation
         
-        Parameters:
-        -----------
-        masked_image [ndarray]: masked image waits for dnn activation
+        Parameters
+        ----------
+        masked_image : ndarray
+            Masked image waits for dnn activation
         
-        returns:
-        -----------
-            [tensor] for dnn computation
-        '''
+        returns
+        --------
+        test_image : tensor 
+            Pytorch tensor for dnn computation
+        """
         test_image = np.repeat(masked_image,3).reshape((224,224,3))
         test_image = test_image.transpose((2,0,1))
         test_image = ip.to_tensor(test_image).float()
@@ -659,18 +691,21 @@ class MaskedImage(Algorithm):
         return handle
              
     def put_mask(self, initial_image, maxiteration=100):
-        '''
+        """
         Put mask on image
        
-        Parameter:
-        --------
-        initial_image[ndarray]: initial image waits for masking
-        maxiteration[int]: the max number of iterations to sto
+        Parameters
+        ----------
+        initial_image : ndarray
+            Initial image waits for masking.
+        maxiteration : int
+            The max number of iterations to stop.
         
         Return
-        -------
-        masked_image[ndarray]: the masked image with shape as (n_chn, height, width)
-        '''
+        ------
+        masked_image : ndarray 
+            The masked image with shape as (n_chn, height, width).
+        """
         if isinstance(initial_image,np.ndarray):
             if len(initial_image.shape) in [2,3]:
                 img = initial_image
@@ -732,18 +767,23 @@ class MaskedImage(Algorithm):
         
 class MinimalParcelImage(Algorithm):
     """
-    A class to generate minimal image for target channels from a DNN model 
+    A class to generate minimal image for target channels from a DNN model.
     """
     
     def __init__(self, dnn, layer=None, channel=None, activaiton_criterion='max', search_criterion='max'):
         """
-        Parameter:
-        ---------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
-        activaiton_criterion[str]: the criterion of how to pooling activaiton
-        search_criterion[str]: the criterion of how to search minimal image
+        Parameters
+        ----------
+        dnn : DNN 
+            A dnnbrain's DNN object.
+        layer : str 
+            Name of the layer where you focus on.
+        channel : int 
+            Number of the channel where you focus on.
+        activaiton_criterion : str 
+            The criterion of how to pooling activaiton.
+        search_criterion : str 
+            The criterion of how to search minimal image.
         """
         super(MinimalParcelImage, self).__init__(dnn, layer, channel)
         self.set_params(activaiton_criterion, search_criterion)
@@ -751,12 +791,14 @@ class MinimalParcelImage(Algorithm):
        
     def set_params(self, activaiton_criterion='max', search_criterion='max'):
         """
-        Set parameter for searching minmal image
+        Set parameter for searching minmal image.
         
-        Parameter:
-        ---------
-        activaiton_criterion[str]: the criterion of how to pooling activaiton, choices=(max, mean, median, L1, L2)
-        search_criterion[str]: the criterion of how to search minimal image, choices=(max, fitting curve)
+        Parameters
+        ----------
+        activaiton_criterion : str 
+            The criterion of how to pooling activaiton, choices=(max, mean, median, L1, L2).
+        search_criterion : str 
+            The criterion of how to search minimal image, choices=(max, fitting curve).
         """
         self.activaiton_criterion = activaiton_criterion
         self.search_criterion = search_criterion
@@ -764,16 +806,19 @@ class MinimalParcelImage(Algorithm):
     def _generate_decompose_parcel(self, image, segments):
         """
         Decompose image to multiple parcels using the given segments and
-        put each parcel into a separated image with a black background
+        put each parcel into a separated image with a black background.
         
-        Parameter:
-        ---------
-        image[ndarray]: shape (height,width,n_chn) 
-        segments[ndarray]: shape (width, height).Integer mask indicating segment labels.
+        Parameters
+        ----------
+        image : ndarray
+            Shape=(height,width,n_chn). 
+        segments : ndarray
+            Shape (width, height).Integer mask indicating segment labels.
         
-        Return:
+        Return
         ---------
-        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        parcel : ndarray
+            Shape (n_parcel,height,width,n_chn).
         """
         self.parcel = np.zeros((np.max(segments)+1,image.shape[0],image.shape[1],3),dtype=np.uint8)
         #generate parcel
@@ -784,15 +829,17 @@ class MinimalParcelImage(Algorithm):
     def felzenszwalb_decompose(self, image, scale=100, sigma=0.5, min_size=50):
         """
         Decompose image to multiple parcels using felzenszwalb method and
-        put each parcel into a separated image with a black background
+        put each parcel into a separated image with a black background.
         
-        Parameter:
-        ---------
-        image[ndarray] : shape (height,width,n_chn) 
+        Parameters
+        ----------
+        image : ndarray
+            Shape=(height,width,n_chn).
         
-        Return:
+        Return
         ---------
-        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        parcel : ndarray
+            Shape=(n_parcel,height,width,n_chn).
         """
         #decompose image
         segments = segmentation.felzenszwalb(image, scale, sigma, min_size)
@@ -803,16 +850,19 @@ class MinimalParcelImage(Algorithm):
     def slic_decompose(self, image, n_segments=250, compactness=10, sigma=1):
         """
         Decompose image to multiple parcels using slic method and
-        put each parcel into a separated image with a black background  
+        put each parcel into a separated image with a black background.
         
-        Parameter:
-        ---------
-        image[ndarray] : shape (height,width,n_chn) 
-        meth[str]: method to decompose images
+        Parameters
+        ----------
+        image : ndarray
+            Shape (height,width,n_chn).
+        meth : str 
+            Method to decompose images.
         
-        Return:
+        Return
         ---------
-        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        parcel : ndarray 
+            Shape=(n_parcel,height,width,n_chn)
         """
         #decompose image
         segments = segmentation.slic(image, n_segments, compactness, sigma)
@@ -822,17 +872,20 @@ class MinimalParcelImage(Algorithm):
 
     def quickshift_decompose(self, image, kernel_size=3, max_dist=6, ratio=0.5):
         """
-        Decompose image to multiple parcels using quickshift method and
-        put each parcel into a separated image with a black background
+        Decompose image to multiple parcels using quickshift method and 
+        put each parcel into a separated image with a black background.
         
-        Parameter:
-        ---------
-        image[ndarray] : shape (height,width,n_chn) 
-        meth[str]: method to decompose images
+        Parameters
+        ----------
+        image : ndarray
+            Shape (height,width,n_chn).
+        meth : str 
+            Method to decompose images.
         
-        Return:
+        Return
         ---------
-        parcel[ndarray]: shape (n_parcel,height,width,n_chn)
+        parcel : ndarray
+            Shape (n_parcel,height,width,n_chn).
         """
         #decompose image
         segments = segmentation.quickshift(image, kernel_size, max_dist, ratio)
@@ -844,13 +897,15 @@ class MinimalParcelImage(Algorithm):
         """
         sort the parcel according the activation of dnn. 
         
-        Parameter:
-        ---------
-        order[str]: ascending or descending
+        Parameters
+        ----------
+        order : str
+            Ascending or descending.
         
-        Return:
+        Return
         ---------
-        parcel[ndarray]: shape (n_parcel,height,width,n_chn) parcel after sorted
+        parcel : ndarray
+            Shape (n_parcel,height,width,n_chn) parcel after sorted.
         """
         #change its shape(n_parcel,n_chn,height,width)
         parcel = self.parcel.transpose((0,3,1,2))
@@ -868,13 +923,15 @@ class MinimalParcelImage(Algorithm):
         """
         combine the indexed parcel into a image
         
-        Parameter:
-        ---------
-        indices[list|slice]: subscript indices
+        Parameters
+        ----------
+        indices : list, slice 
+            Subscript indices.
         
-        Return:
-        -----
-        image_container[ndarray]: shape (n_chn,height,width)
+        Return
+        ------
+        image_container : ndarray 
+            Shape=(n_chn,height,width).
         """
         #compose parcel correaspond with indices
         if isinstance(indices, (list,slice)):
@@ -889,12 +946,13 @@ class MinimalParcelImage(Algorithm):
         then iterate to find the combination of the parcels which can maximally
         activate the target channel.
         
-        Note: before call this method, you should call xx_decompose method to 
+        **Note**: before call this method, you should call xx_decompose method to 
         decompose the image into parcels. 
         
-        Return:
-        ---------
-        image_min[ndarray]: final minimal images in shape (height,width,n_chn)
+        Return
+        -------
+        image_min : ndarray 
+            Final minimal images in shape (height,width,n_chn).  
         """
         if self.parcel is None: 
             raise AssertionError('Please run decompose method to '
@@ -924,7 +982,7 @@ class MinimalParcelImage(Algorithm):
 class MinimalComponentImage(Algorithm):
     """
     A class to generate minmal image for a CNN model using a specific part 
-    decomposer and optimization criterion
+    decomposer and optimization criterion.
     """
 
     def set_params(self,  meth='pca', criterion='max'):
@@ -941,7 +999,8 @@ class MinimalComponentImage(Algorithm):
     def sort_componet(self, order='descending'):
         """
         sort the component according the activation of dnn. 
-        order[str]: ascending or descending
+        order : str 
+            Sort order, *'ascending'* or *'descending'*
         """
         pass
     
@@ -958,11 +1017,12 @@ class MinimalComponentImage(Algorithm):
         Note: before call this method, you should call xx_decompose method to 
         decompose the image into parcels. 
         
-        Parameters:
-        ---------
-        stim[Stimulus]: stimulus
+        Parameters
+        ----------
+        stim : Stimulus
+            Stimulus 
         
-        Returns:
+        Returns
         ------
         """
         pass
@@ -976,31 +1036,37 @@ class OccluderDiscrepancyMapping(Algorithm):
 
     def __init__(self, dnn, layer=None, channel=None, window=(11, 11), stride=(2, 2), metric='mean'):
         """
-        Set necessary parameters.
-
-        Parameters:
+        
+        Parameters
         ----------
-        dnn[DNN]: DNNBrain's DNN object
-        layer[str]: name of the layer that you focus on
-        channel[int]: sequence number of the channel that you focus on (start with 1)
-        window[tuple]: The size of sliding window - (width, height).
-        stride[tuple]: The step length of sliding window - (width_step, height_step)
-        metric[str]: max or mean
-            The metric to summarize the target channel's activation
+        dnn : DNN 
+            A dnnbrain's DNN object.
+        layer : str 
+            Name of the layer that you focus on.
+        channel : int
+            Number of the channel that you focus on (start with 1).
+        window : tuple 
+            The size of sliding window - (width, height).
+        stride : tuple
+            The step length of sliding window - (width_step, height_step).
+        metric : str
+            The metric to summarize the target channel's activation, 'max' or 'mean.
         """
         super(OccluderDiscrepancyMapping, self).__init__(dnn, layer, channel)
         self.set_params(window, stride, metric)
         
     def set_params(self, window, stride, metric):
         """
-        Set parameter for occluder discrepancy mapping
+        Set parameter for occluder discrepancy mapping.
 
-        Parameters:
+        Parameters
         ----------
-        window[tuple]: The size of sliding window - (width, height).
-        stride[tuple]: The step length of sliding window - (width_step, height_step)
-        metric[str]: max or mean
-            The metric to summarize the target channel's activation
+        window : tuple
+            The size of sliding window - (width, height).
+        stride : tuple
+            The step length of sliding window - (width_step, height_step).
+        metric : str
+            The metric to summarize the target channel's activation, 'max' or 'mean'.
         """        
         self.window = window
         self.stride = stride
@@ -1009,15 +1075,17 @@ class OccluderDiscrepancyMapping(Algorithm):
     def compute(self, image):
         """
         Compute discrepancy map of the image using a occluder window
-        moving from top-left to bottom-right
+        moving from top-left to bottom-right.
         
-        Parameter:
-        ---------
-        image[ndarray|Tensor|PIL.Image]: an original image
+        Parameters
+        ----------
+        image : ndarray, Tensor, PIL.Image
+            An original image.
         
-        Return:
+        Return
         ---------
-        discrepancy_map[ndarray]
+        discrepancy_map : ndarray
+            Discrepancy activation map.
         """
         # preprocess image
         image = ip.to_array(image)
@@ -1058,15 +1126,19 @@ class UpsamplingActivationMapping(Algorithm):
         """
         Set necessary parameters.
 
-        Parameters:
+        Parameters
         ----------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
-        interp_meth[str]: Algorithm used for resampling are
-                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
-                          Default: 'bicubic'
-        interp_threshold[int]: value is in [0, 1]
+        dnn : DNN 
+            A dnnbrain's DNN object
+        layer : str 
+            Name of the layer where you focus on.
+        channel : int 
+            Number of the channel where you focus on.
+        interp_meth : str
+            Algorithm used for resampling are
+            'nearest', 'bilinear', 'bicubic', 'area'. Default: 'bicubic'.
+        interp_threshold : float 
+            Value is in [0, 1].
             The threshold used to filter the map after resampling.
             For example, if the threshold is 0.58, it means clip the feature map
             with the min as the minimum of the top 42% activation.
@@ -1078,12 +1150,13 @@ class UpsamplingActivationMapping(Algorithm):
         """
         Set necessary parameters.
 
-        Parameters:
+        Parameters
         ----------
-        interp_meth[str]: Algorithm used for resampling are
-                          'nearest'  | 'bilinear' | 'bicubic' | 'area'
-                          Default: 'bicubic'
-        interp_threshold[int]: value is in [0, 1]
+        interp_meth : str
+            Algorithm used for resampling are
+            'nearest', 'bilinear', 'bicubic', 'area'. Default: 'bicubic'
+        interp_threshold: float
+            value is in [0, 1].
             The threshold used to filter the map after resampling.
             For example, if the threshold is 0.58, it means clip the feature map
             with the min as the minimum of the top 42% activation.
@@ -1093,16 +1166,17 @@ class UpsamplingActivationMapping(Algorithm):
 
     def compute(self, image):
         """
-        Resample the channel's feature map to input size
+        Resample the channel's feature map to input size.
 
-        Parameter:
+        Parameters
         ---------
-        image[ndarray|Tensor|PIL.Image]: an input image
+        image : ndarray, Tensor, PIL.Image
+            An input image.
         
-        Return:
+        Return
         ------
-        img_act[ndarray]: shape=(height, width)
-            image after resampling
+        img_act : ndarray
+            Image after resampling, Shape=(height, width).
         """
         # preprocess image
         image = ip.to_array(image)[None, :]
@@ -1123,28 +1197,28 @@ class UpsamplingActivationMapping(Algorithm):
         return img_act
 
 
-class EmpiricalReceptiveField():
+class EmpiricalReceptiveField:
     """
     A Class to Estimate Empirical Receptive Field (RF) of a DNN Model.
     """
 
     def __init__(self, engine=None):
         """
-        Parameter:
-        ---------
-        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
-            the engine to compute empirical receptive field
+        Parameters
+        ----------
+        engine : UpsamplingActivationMapping, OccluderDiscrepancyMapping 
+            The engine to compute empirical receptive field.
         """
         self.set_params(engine)
 
     def set_params(self, engine):
         """
-        Set engine to compute empirical receptive field
+        Set engine to compute empirical receptive field.
 
-        Parameter:
-        ---------
-        engine[UpsamplingActivationMapping|OccluderDiscrepancyMapping]: 
-            Must be an instance of UpsamplingActivationMapping or OccluderDiscrepancyMapping
+        Parameters
+        ----------
+        engine : UpsamplingActivationMapping, OccluderDiscrepancyMapping 
+            Must be an instance of UpsamplingActivationMapping or OccluderDiscrepancyMapping.
         """
         if not isinstance(engine, (UpsamplingActivationMapping, OccluderDiscrepancyMapping)):
             raise TypeError('The engine must be an instance of' 
@@ -1153,15 +1227,17 @@ class EmpiricalReceptiveField():
 
     def generate_rf(self, all_thresed_act):
         """
-        Compute RF on Given Image for Target Layer and Channel
+        Compute RF on Given Image for Target Layer and Channel.
 
-        Parameter:
-        ---------
-        all_thresed_act[ndarray]: shape must be (n_chn, dnn.img_size)
+        Parameters
+        ----------
+        all_thresed_act : ndarray
+            Shape must be (n_chn, dnn.img_size).
         
-        Return:
+        Return
         ---------
-        empirical_rf_size[np.float64] : empirical rf size of specific image     
+        empirical_rf_size : np.float64
+            Empirical rf size of specific image.     
         """
         #init variables
         self.all_thresed_act = all_thresed_act
@@ -1199,25 +1275,31 @@ class EmpiricalReceptiveField():
         empirical_rf_size = np.sqrt(empirical_rf_area)
         return empirical_rf_size
 
-    def compute(self, stimuli):
+    def compute(self, stimuli, save_path=None):
         """
-        Compute empirical receptive field based on input stimulus
+        Compute empirical receptive field based on input stimulus.
 
-        Parameter:
+        Parameters
+        ----------
+        stimuli : Stimulus
+            Input stimuli which loaded from files on the disk.
+        save_path : str
+            Path to save single image's receptive field.
+            If None, it will not be saved.
+            
+        Return
         ---------
-        stimuli[Stimulus]: input stimuli which loaded from files on the disk.
-        
-        Return:
-        ---------
-        emp_rf[ndarray]: mean empirical receptive field of all the input images,
-                         its shape is equal to the theoretical rf size in specific layer
+        emp_rf : ndarray
+            Mean empirical receptive field of all the input images,
+            its shape is equal to the theoretical rf size in specific layer.
         """
         # loaded images
         if not isinstance(stimuli, Stimulus):
             raise TypeError('The input stimuli must be an instance of Stimulus!')
         images = np.zeros((len(stimuli.get('stimID')),3,224,224), dtype=np.uint8)
         for idx, img_id in enumerate(stimuli.get('stimID')):
-            image = plt.imread(pjoin(stimuli.header['path'], img_id)).transpose(2,0,1)
+            image = Image.open(pjoin(stimuli.header['path'], img_id)).convert('RGB')
+            image = np.asarray(image).transpose(2,0,1)
             image = ip.resize(image, self.engine.dnn.img_size)
             images[idx] = image
         # prepare dnn info
@@ -1262,6 +1344,12 @@ class EmpiricalReceptiveField():
             unit_max = max(act_all, key=act_all.get)
             patch_max = patch_all[unit_max]
             range_max = range_all[unit_max]
+            # save single receptive field in the original image
+            if not save_path is None:
+                img_patch_org = pic[:,int(range_max[0][0]):int(range_max[0][1]),
+                                    int(range_max[1][0]):int(range_max[1][1])]
+                img_patch_org = ip.to_pil(img_patch_org, True)
+                img_patch_org.save(pjoin(save_path, f'{idx+1}.jpg'))
             # integrate all patch 
             if int(range_max[0][0]) == 0:
                 h_indice = (int(rf_size-patch_max.shape[0]), int(rf_size))
@@ -1280,7 +1368,8 @@ class EmpiricalReceptiveField():
         # compute mean and generate rf
         emp_rf = np.mean(rf_all, axis=0).squeeze()
         return emp_rf
-                    
+
+
 class TheoreticalReceptiveField(Algorithm):
     """
     A Class to Count Theoretical Receptive Field.
@@ -1290,19 +1379,23 @@ class TheoreticalReceptiveField(Algorithm):
     
     def __init__(self, dnn, layer=None, channel=None):
         """
-        Parameter:
-        ---------
-        dnn[DNN]: dnnbrain's DNN object
-        layer[str]: name of the layer where you focus on
-        channel[int]: sequence number of the channel where you focus on
+        Parameters
+        ----------
+        dnn : DNN
+            A dnnbrain's DNN object.
+        layer : str
+            Name of the layer where you focus on.
+        channel : int
+            Number of the channel where you focus on.
         """
         super(TheoreticalReceptiveField, self).__init__(dnn, layer, channel)
     
     def set_parameters(self, unit):
         """
-        Parameter:
-        ---------
-        unit[tuple]: the unit location in its feature map
+        Parameters
+        ----------
+        unit : tuple
+            The unit location in its feature map.
         """
         self.unit = unit
         
@@ -1360,19 +1453,23 @@ class TheoreticalReceptiveField(Algorithm):
         
     def compute(self, batch_size=-1, device="cuda", display=None):   
         """
-        Compute specific receptive field information for target dnn 
+        Compute specific receptive field information for target dnn.
         Only support AlexNet, VGG11!
 
-        Parameter:
-        ---------
-        batch_size[int]: the batch size used in computing
-        device[str]: Input device, please specify 'cuda' or 'cpu'
-        display[bool]: if True, it will show the receptive field information in a table
+        Parameters
+        ----------
+        batch_size : int
+            The batch size used in computing.
+        device : str 
+            Input device, please specify 'cuda' or 'cpu'.
+        display : bool
+            If True, it will show the receptive field information in a table.
         
-        Return:
+        Return
         ---------
-        receptive field[OrderedDict]: receptive field information which contain
-                               rf_size, feature_map_size, start, jump 
+        receptive field : OrderedDict
+            Receptive field information which contains
+            rf_size, feature_map_size, start, jump 
         """
         # define params
         model = self.dnn.model
@@ -1495,17 +1592,19 @@ class TheoreticalReceptiveField(Algorithm):
     
     def find_region(self, receptive_field):
         """
-        Compute specific receptive field range for target dnn, layer and unit
+        Compute specific receptive field range for target dnn, layer and unit.
 
-        Parameter:
-        ---------
-        receptive field[dict]: receptive field information which contain
-                               rf_size, feature_map_size, start, jump 
+        Parameters
+        ----------
+        receptive field : dict
+            Receptive field information which contains
+            rf_size, feature_map_size, start, jump.
                                
-        Return:
-        ---------
-        rf_range[list]: the theoretical receptive field region 
-                        example:[(start_h, end_h), (start_w, end_w)] 
+        Return
+        --------
+        rf_range : list
+            The theoretical receptive field region 
+            example:[(start_h, end_h), (start_w, end_w)].
         """
         layer = str(int(self.dnn.layer2loc[self.mask.layers[0]][-1])+1)
         input_shape = receptive_field["input_size"]
@@ -1531,15 +1630,17 @@ class TheoreticalReceptiveField(Algorithm):
     
     def _check_same(self, container):
         """
-        Merge elements in the container if they are same
+        Merge elements in the container if they are same.
 
-        Parameter:
+        Parameters
         ---------
-        container[list|tuple]: the containers needed to handle
+        container : list, tuple
+            The containers needed to handle.
         
-        Return:
+        Return
         ---------
-        element[int]: specific elements in the containers
+        element : int 
+            Specific elements in the containers.
         """
         if isinstance(container, (list, tuple)):
             assert len(container) == 2 and container[0] == container[1]
@@ -1547,4 +1648,3 @@ class TheoreticalReceptiveField(Algorithm):
         else:
             element = container
         return element
-        

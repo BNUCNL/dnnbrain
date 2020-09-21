@@ -3,7 +3,7 @@ import numpy as np
 from copy import deepcopy
 from dnnbrain.io import fileio as fio
 from dnnbrain.dnn.base import dnn_mask, dnn_fe, array_statistic
-from dnnbrain.dnn.base import UnivariatePredictionModel, MultivariatePredictionModel
+from dnnbrain.dnn.base import UnivariateMapping, MultivariateMapping
 from dnnbrain.brain.algo import convolve_hrf
 
 
@@ -13,10 +13,12 @@ class Stimulus:
     """
     def __init__(self, header=None, data=None):
         """
-        Parameter:
-        ---------
-        header[dict]: meta-information of stimuli
-        data[dict]: stimulus/behavior data
+        Parameters
+        ----------
+        header : dict
+            Meta-information of stimuli
+        data : dict
+            Stimulus/behavior data.
             Its values are arrays with shape as (n_stim,).
             It must have the key 'stimID'.
         """
@@ -39,9 +41,10 @@ class Stimulus:
         """
         Load stimulus-related information
 
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .stim.csv
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .stim.csv
         """
         stim_file = fio.StimulusFile(fname)
         stimuli = stim_file.read()
@@ -52,9 +55,10 @@ class Stimulus:
         """
         Save stimulus-related information
 
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .stim.csv
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .stim.csv
         """
         stim_file = fio.StimulusFile(fname)
         header = self.header.copy()
@@ -65,13 +69,15 @@ class Stimulus:
         """
         Get a column of data according to the item
 
-        Parameter:
-        ---------
-        item[str]: item name of each column
+        Parameters
+        ----------
+        item : str
+            Item name of each column
 
-        Return:
-        ------
-        col[array]: a column of data
+        Returns
+        -------
+        col : array
+            A column of data
         """
         return self._data[item]
 
@@ -79,10 +85,12 @@ class Stimulus:
         """
         Set a column of data according to the item
 
-        Parameters:
+        Parameters
         ----------
-        item[str]: item name of the column
-        value[array_like]: an array_like data with shape as (n_stim,)
+        item : str 
+            Item name of the column
+        value : array_like
+            An array_like data with shape as (n_stim,)
         """
         self._data[item] = np.asarray(value)
 
@@ -90,23 +98,33 @@ class Stimulus:
         """
         Delete a column of data according to item
 
-        Parameter:
-        ---------
-        item[str]: item name of each column
+        Parameters
+        ----------
+        item : str
+            Item name of each column
         """
         self._data.pop(item)
 
     @property
     def items(self):
+        """
+        Get list of items
+
+        Returns
+        -------
+        items : list
+            The list of items
+        """
         return list(self._data.keys())
 
     def __len__(self):
         """
         the length of the Stimulus object
 
-        Return:
-        ------
-            [int]: the number of stimulus IDs
+        Returns
+        -------
+        length : int
+            The number of stimulus IDs
         """
         return len(self._data['stimID'])
 
@@ -114,13 +132,15 @@ class Stimulus:
         """
         Get part of the Stimulus object by imitating 2D array's subscript index
 
-        Parameter:
-        ---------
-        indices[int|list|tuple|slice]: subscript indices
+        Parameters
+        ----------
+        indices : int,list,tuple,slice
+            Subscript indices
 
-        Return:
-        ------
-        stim[Stimulus]: a part of the self.
+        Returns
+        -------
+        stim : Stimulus
+            A part of the self.
         """
         # parse subscript indices
         if isinstance(indices, int):
@@ -201,14 +221,17 @@ class Stimulus:
 
 
 class Activation:
-    """DNN activation"""
-
+    """
+    DNN activation
+    """
     def __init__(self, layer=None, value=None):
         """
-        Parameters:
+        Parameters
         ----------
-        layer[str]: layer name
-        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+        layer : str
+            Layer name
+        value : array
+            4D DNN activation array with shape (n_stim, n_chn, n_row, n_col).
             It will be ignored if layer is None.
         """
         if layer is None:
@@ -221,10 +244,12 @@ class Activation:
         """
         Load DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        fname[str]: DNN activation file
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        fname : str
+            DNN activation file
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
         """
         if dmask is not None:
             dmask_dict = dict()
@@ -239,9 +264,10 @@ class Activation:
         """
         Save DNN activation
 
-        Parameter:
-        ---------
-        fname[str]: output file of DNN activation
+        Parameters
+        ----------
+        fname : str
+            Output file of DNN activation
         """
         fio.ActivationFile(fname).write(self._activation)
 
@@ -249,13 +275,15 @@ class Activation:
         """
         Get DNN activation
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
 
-        Return:
-        ------
-            [array]: (n_stim, n_chn, n_row, n_col) array
+        Returns
+        -------
+        act_layer : array
+            (n_stim, n_chn, n_row, n_col) array
         """
         return self._activation[layer]
 
@@ -263,10 +291,12 @@ class Activation:
         """
         Set DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: layer name
-        value[array]: 4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
+        layer : str
+            Layer name
+        value : array
+            4D DNN activation array with shape (n_stim, n_chn, n_row, n_col)
         """
         self._activation[layer] = value
 
@@ -274,9 +304,10 @@ class Activation:
         """
         Delete DNN activation
 
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name
         """
         self._activation.pop(layer)
 
@@ -284,13 +315,15 @@ class Activation:
         """
         Concatenate activations from different batches of stimuli
 
-        Parameter:
-        ---------
-        activations[list]: a list of Activation objects
+        Parameters
+        ----------
+        activations : list
+            A list of Activation objects
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         # check availability
         for i, v in enumerate(activations, 1):
@@ -312,19 +345,29 @@ class Activation:
 
     @property
     def layers(self):
+        """
+        Get all layers in the Activation
+
+        Returns
+        -------
+        layers : list
+           The list of layers.
+        """
         return list(self._activation.keys())
 
     def mask(self, dmask):
         """
         Mask DNN activation
 
-        Parameter:
-        ---------
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        Parameters
+        ----------
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         activation = Activation()
         for layer in dmask.layers:
@@ -339,13 +382,15 @@ class Activation:
         """
         Pooling DNN activation for each channel
 
-        Parameter:
-        ---------
-        method[str]: pooling method, choices=(max, mean, median, L1, L2)
+        Parameters
+        ----------
+        method : str
+            Pooling method, choices=(max, mean, median, L1, L2)
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         activation = Activation()
         for layer, data in self._activation.items():
@@ -358,19 +403,32 @@ class Activation:
         """
         Extract features of DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        method[str]: feature extraction method, choices=(pca, hist, psd)
-            pca: use n_feat principal components as features
-            hist: use histogram of activation as features
-                Note: n_feat equal-width bins in the given range will be used!
-                psd: use power spectral density as features
-        n_feat[int]: The number of features to extract
-        axis{str}: axis for feature extraction, choices=(chn, row_col)
+        method : str
+            Feature extraction method, choices are as follows:
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+            +-------------+---------------------------------------------+
+            | Method name |              Model description              |
+            +=============+=============================================+
+            |     pca     | use n_feat principal components as features |
+            +-------------+---------------------------------------------+
+            |    hist     | use histogram of activation as features     |
+            |             | Note: n_feat equal-width bins in the        |
+            |             | given range will be used!                   |
+            +-------------+---------------------------------------------+
+            |     psd     | use power spectral density as features      |
+            +-------------+---------------------------------------------+
+        n_feat : int, float
+            The number of features to extract.
+            Note: It can be a float only when the method is pca.
+        axis : str
+            axis for feature extraction, choices=(chn, row_col)
+
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         activation = Activation()
         for layer, data in self._activation.items():
@@ -383,17 +441,23 @@ class Activation:
         """
         Convolve DNN activation with HRF and align with the timeline of BOLD signal
 
-        Parameters:
+        Parameters
         ----------
-        onsets[array_like]: in sec. size = n_event
-        durations[array_like]: in sec. size = n_event
-        n_vol[int]: the number of volumes of BOLD signal
-        tr[float]: repeat time in second
-        ops[int]: oversampling number per second
+        onsets : array_like
+            In sec. size = n_event
+        durations : array_like
+            In sec. size = n_event
+        n_vol : int
+            The number of volumes of BOLD signal
+        tr : float
+            Repeat time in second
+        ops : int
+            Oversampling number per second
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         activation = Activation()
         for layer, data in self._activation.items():
@@ -409,9 +473,10 @@ class Activation:
         """
         Check availability of the arithmetic operation for self
 
-        Parameter:
-        ---------
-        other[Activation]: DNN activation
+        Parameters
+        ----------
+        other : Activation
+            DNN activation
         """
         if not isinstance(other, Activation):
             raise TypeError("unsupported operand type(s): "
@@ -426,13 +491,15 @@ class Activation:
         """
         Define addition operation
 
-        Parameter:
-        ---------
-        other[Activation]: DNN activation
+        Parameters
+        ----------
+        other : Activation
+            DNN activation
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         self._check_arithmetic(other)
 
@@ -447,13 +514,15 @@ class Activation:
         """
         Define subtraction operation
 
-        Parameter:
-        ---------
-        other[Activation]: DNN activation
+        Parameters
+        ----------
+        other : Activation
+            DNN activation
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         self._check_arithmetic(other)
 
@@ -468,13 +537,15 @@ class Activation:
         """
         Define multiplication operation
 
-        Parameter:
-        ---------
-        other[Activation]: DNN activation
+        Parameters
+        ----------
+        other : Activation
+            DNN activation
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         self._check_arithmetic(other)
 
@@ -489,13 +560,15 @@ class Activation:
         """
         Define true division operation
 
-        Parameter:
-        ---------
-        other[Activation]: DNN activation
+        Parameters
+        ----------
+        other : Activation
+            DNN activation
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         self._check_arithmetic(other)
 
@@ -510,13 +583,15 @@ class Activation:
         """
         Get part of Activation along stimulus axis
 
-        Parameter:
-        ---------
-        indices[int|list|slice]: indices of stimulus axis
+        Parameters
+        ----------
+        indices : int, list, slice
+            indices of stimulus axis
 
-        Return:
-        ------
-        activation[Activation]: DNN activation
+        Returns
+        -------
+        activation : Activation
+            DNN activation
         """
         if isinstance(indices, int):
             indices = [indices]
@@ -534,21 +609,26 @@ class Activation:
 
 
 class Mask:
-    """DNN mask"""
-
+    """
+    DNN mask
+    """
     def __init__(self, layer=None, channels='all', rows='all', columns='all'):
         """
-        Parameter:
-        ---------
-        layer[str]: layer name
+        Parameters
+        ----------
+        layer : str
+            Layer name.
             If layer is None, other parameters will be ignored.
-        channels[str|list]: channels of interest.
+        channels : str, list
+            Channels of interest.
             If is str, it must be 'all' which means all channels.
             If is list, its elements are serial numbers of channels.
-        rows[str|list]: rows of interest.
+        rows : str, list
+            Rows of interest.
             If is str, it must be 'all' which means all rows.
             If is list, its elements are serial numbers of rows.
-        columns[str|list]: columns of interest.
+        columns : str, list
+            Columns of interest.
             If is str, it must be 'all' which means all columns.
             If is list, its elements are serial numbers of columns.
         """
@@ -560,9 +640,10 @@ class Mask:
         """
         Load DNN mask, the whole mask will be overrode.
 
-        Parameter:
-        ---------
-        fname[str]: DNN mask file
+        Parameters
+        ----------
+        fname : str 
+            DNN mask file
         """
         self._dmask = fio.MaskFile(fname).read()
 
@@ -570,9 +651,10 @@ class Mask:
         """
         Save DNN mask
 
-        Parameter:
-        ---------
-        fname[str]: output file name of DNN mask
+        Parameters
+        ----------
+        fname : str
+            Output file name of DNN mask
         """
         fio.MaskFile(fname).write(self._dmask)
 
@@ -580,13 +662,15 @@ class Mask:
         """
         Get mask of a layer
 
-        Parameter:
+        Parameters
         ---------
-        layer[str]: layer name
+        layer : str
+            Layer name
 
-        Return:
-        ------
-            [dict]: layer mask
+        Returns
+        -------
+        mask : dict
+            The mask of a specific layer
         """
         return self._dmask[layer]
 
@@ -594,21 +678,30 @@ class Mask:
         """
         Set DNN mask
 
-        Parameters:
+        Parameters
         ----------
-        layer[str]: layer name
+        layer : str
+            Layer name.
             If layer is new, its corresponding mask value will be initialized as 'all'.
-        kwargs[dict]: keyword arguments
-            Only three keywords ('channels', 'rows', 'columns') are valid.
-            channels[str|list]: channels of interest.
-                If is str, it must be 'all' which means all channels.
-                If is list, its elements are serial numbers of channels.
-            rows[str|list]: rows of interest.
-                If is str, it must be 'all' which means all rows.
-                If is list, its elements are serial numbers of rows.
-            columns[str|list]: columns of interest.
-                If is str, it must be 'all' which means all columns.
-                If is list, its elements are serial numbers of columns.
+        kwargs : dict
+            Keyword arguments.
+            Only three keywords ('channels', 'rows', 'columns') are valid.            
+                    
+            +-------------+-------------+----------------------------------------------+
+            |   Keywords  |    Option   |                Description                   |
+            +=============+=============+==============================================+
+            |   channels  |     str     | It must be 'all' which means all channels.   |
+            |             +-------------+----------------------------------------------+
+            |             |    list     | Its elements are serial numbers of channels. |
+            +-------------+-------------+----------------------------------------------+
+            |     rows    |     str     | It must be 'all' which means all rows.       |
+            |             +-------------+----------------------------------------------+
+            |             |    list     | Its elements are serial numbers of rows.     |
+            +-------------+-------------+----------------------------------------------+
+            |   columns   |     str     | It must be 'all' which means all columns.    |
+            |             +-------------+----------------------------------------------+
+            |             |    list     | Its elements are serial numbers of columns.  |
+            +-------------+-------------+----------------------------------------------+
         """
         # assertion
         for k, v in kwargs.items():
@@ -630,9 +723,10 @@ class Mask:
         """
         Make a copy of the DNN mask
 
-        Return:
-        ------
-        dmask[Mask]: The mask includes layers/channels/rows/columns of interest.
+        Returns
+        -------
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
         """
         dmask = Mask()
         dmask._dmask = deepcopy(self._dmask)
@@ -643,9 +737,10 @@ class Mask:
         """
         Delete a layer
 
-        Parameter:
+        Parameters
         ---------
-        layer[str]: layer name
+        Layer : str
+            Layer name
         """
         self._dmask.pop(layer)
 
@@ -657,29 +752,44 @@ class Mask:
 
     @property
     def layers(self):
+        """
+        Get all layers in the Mask
+
+        Returns
+        -------
+        layers : list
+           The list of layers.
+        """
         return list(self._dmask.keys())
 
 
 class RDM:
-    """representation distance matrix"""
-
+    """
+    Representation distance matrix
+    """
     def __init__(self):
         self.rdm_type = None
         self._rdm_dict = dict()
 
     def load(self, fname):
         """
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .rdm.h5
+        load RDM
+        
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .rdm.h5
         """
         self.rdm_type, self._rdm_dict = fio.RdmFile(fname).read()
 
     def save(self, fname):
         """
-        Parameter:
-        ---------
-        fname[str]: file name with suffix as .rdm.h5
+        Save RDM
+        
+        Parameters
+        ----------
+        fname : str
+            File name with suffix as .rdm.h5
         """
         fio.RdmFile(fname).write(self.rdm_type, self._rdm_dict)
 
@@ -687,20 +797,24 @@ class RDM:
         """
         Get RDM according its key.
 
-        Parameters:
+        Parameters
         ----------
-        key[str]: the key of the RDM
-        triu[bool]:
+        key : str
+            The key of the RDM
+        triu : bool
             If True, get RDM as the upper triangle vector.
             If False, get RDM as the square matrix.
 
-        Return:
-        ------
-        rdm_arr[ndarray]: RDM
+        Returns
+        -------
+        rdm_arr : ndarray
+            RDM
+            
             If rdm_type is bRDM:
-                Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
+            Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
+            
             If rdm_type is dRDM:
-                Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
+            Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
         """
         rdm_arr = self._rdm_dict[key]
         if not triu:
@@ -721,15 +835,19 @@ class RDM:
         """
         Set RDM according its key.
 
-        Parameters:
+        Parameters
         ----------
-        key[str]: the key of the RDM
-        rdm_arr[ndarray]: RDM
+        key : str
+            The key of the RDM
+        rdm_arr : ndarray
+            RDM
+            
             If rdm_type is bRDM:
-                Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
+            Its shape is ((n_item^2-n_item)/2,) or (n_item, n_item).
+            
             If rdm_type is dRDM:
-                Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
-        triu[bool]:
+            Its shape is (n_iter, (n_item^2-n_item)/2) or (n_iter, n_item, n_item).
+        triu : bool
             If True, RDM will be regarded as the upper triangle vector.
             If False, RDM will be regarded as the square matrix.
         """
@@ -759,9 +877,10 @@ class RDM:
         """
         Get keys of RDM dictionary
 
-        Return:
-        ------
-        keys[list]: the list of keys
+        Returns
+        -------
+        keys : list
+            The list of keys
         """
         if self._rdm_dict:
             keys = list(self._rdm_dict.keys())
@@ -775,9 +894,10 @@ class RDM:
         """
         Get the number of items of RDM
 
-        Return:
-        ------
-        n_item[int]: the number of items
+        Returns
+        -------
+        n_item : int
+            The number of items
         """
         k = self.keys[0]
         if self.rdm_type == 'bRDM':
@@ -793,110 +913,155 @@ class RDM:
 
 class DnnProbe:
     """
-    Decode DNN activation to behavior data. As a result,
+    Decode DNN activation to behavior data. As a result, |br|
     probe the ability of DNN activation to predict the behavior.
     """
-    def __init__(self, dnn_activ=None, model_type=None, model_name=None, cv=3):
+    def __init__(self, dnn_activ=None, map_type=None, estimator=None,
+                 cv=5, scoring=None):
         """
-        Parameters:
+        Parameters
         ----------
-        dnn_activ[Activation]: DNN activation
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
+        dnn_activ : Activation
+            DNN activation
+        map_type : str
+            choices=(uv, mv)
+            uv: univariate mapping
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            If is str, it is a name of a estimator used to do mapping.
             If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+                And the map_type must be 'uv'.
+        cv : int
+            the number of cross validation folds.
+        scoring : str or callable
+            the method to evaluate the predictions on the test set.
         """
-        self.set(dnn_activ, model_type, model_name, cv)
+        self.set_activ(dnn_activ)
+        self.set_mapper(map_type, estimator, cv, scoring)
 
-    def set(self, dnn_activ=None, model_type=None, model_name=None, cv=None):
+    def set_activ(self, dnn_activ):
         """
-        Set some attributes
+        Set DNN activation
 
-        Parameters:
+        Parameters
         ----------
-        dnn_activ[Activation]: DNN activation
-        model_type[str]: choices=(uv, mv)
-            'uv': univariate prediction model
-            'mv': multivariate prediction model
-        model_name[str]: name of a model used to do prediction
-            If is 'corr', it just uses correlation rather than prediction.
-                And the model_type must be 'uv'.
-        cv[int]: cross validation fold number
+        dnn_activ : Activation
+            DNN activation
         """
-        if dnn_activ is not None:
-            self.dnn_activ = dnn_activ
+        self.dnn_activ = dnn_activ
 
-        if model_type is None:
-            pass
-        elif model_type == 'uv':
-            self.model = UnivariatePredictionModel()
-        elif model_type == 'mv':
-            self.model = MultivariatePredictionModel()
+    def set_mapper(self, map_type, estimator, cv, scoring):
+        """
+        Set mapping attributes
+
+        Parameters
+        ----------
+        map_type : str 
+            choices=(uv, mv) |br|
+            uv: univariate mapping |br|
+            mv: multivariate mapping
+        estimator : str | sklearn estimator or pipeline
+            Estimator used in mapping. |br|
+            If is str, it is a name of a estimator used to do mapping. |br|
+            If the name is 'corr', it just uses correlation rather than prediction, |br|
+            and the map_type must be 'uv'.
+        cv : int
+            The number of cross validation folds.
+        scoring : str or callable
+            The method to evaluate the predictions on the test set.
+        """
+        if map_type is None:
+            return
+        elif map_type == 'uv':
+            self.mapper = UnivariateMapping(estimator, cv, scoring)
+        elif map_type == 'mv':
+            self.mapper = MultivariateMapping(estimator, cv, scoring)
         else:
-            raise ValueError('model_type must be one of the (uv, mv).')
-
-        if model_name is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(model_name)
-
-        if cv is not None:
-            if not hasattr(self, 'model'):
-                raise RuntimeError('You have to set model_type first!')
-            self.model.set(cv=cv)
+            raise ValueError('map_type must be one of the (uv, mv).')
 
     def probe(self, beh_data, iter_axis=None):
         """
         Probe the ability of DNN activation to predict the behavior.
 
-        Parameters:
+        Parameters
         ----------
-        beh_data[ndarray]: behavior data with shape as (n_stim, n_beh)
-        iter_axis[str]: iterate along the specified axis
-            ---for uv---
-            channel: Summarize the maximal prediction score for each channel.
-            row_col: Summarize the maximal prediction score for each position (row_idx, col_idx).
-            default: Summarize the maximal prediction score for the whole layer.
-            ---for mv---
-            channel: Do multivariate prediction using all units in each channel.
-            row_col: Do multivariate prediction using all units in each position (row_idx, col_idx).
-            default: Do multivariate prediction using all units in the whole layer.
+        beh_data : ndarray
+            Behavior data with shape as (n_stim, n_beh)
+        iter_axis : str
+            Iterate along the specified axis. Different map type have different operations.
+            
+            +-------+---------+----------------------------------------------------------+
+            | map   |iter_axis|  description                                             |
+            | type  |         |                                                          |
+            +=======+=========+==========================================================+
+            | uv    | channel |Summarize the maximal prediction score for each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Summarize the maximal prediction score for each position  |
+            |       |         |(row_idx, col_idx)                                        |
+            |       +---------+----------------------------------------------------------+
+            |       | None    |Summarize the maximal prediction score for the whole layer|
+            +-------+---------+----------------------------------------------------------+
+            |  mv   | channel |Multivariate prediction using all units in each channel   |
+            |       +---------+----------------------------------------------------------+
+            |       | row_col |Multivariate prediction using all units in each           |
+            |       |         |position (row_idx, col_idx)                               |
+            |       +---------+----------------------------------------------------------+
+            |       | None    |Multivariate prediction using all units in the whole layer|
+            +-------+---------+----------------------------------------------------------+
 
-        Return:
-        ------
-        probe_dict[dict]:
-            ---for uv---
-            layer:
-                max_score[ndarray]: shape=(n_iter, n_beh)
-                    max scores at each iteration
-                max_loc[ndarray]: shape=(n_iter, n_beh, 3)
-                    max locations of the max scores, the size 3 of the third dimension means
-                    channel, row and column locations respectively.
-                max_model[ndarray]: shape=(n_iter, n_beh)
-                    fitted models of the max scores
-                    Note: only exists when model is classifier or regressor
-                score[ndarray]: shape=(n_iter, n_beh, cv)
-                    The third dimension means scores of each cross validation folds of the max scores
-                    Note: only exists when model is classifier or regressor
-                conf_m[ndarray]: shape=(n_iter, n_beh, cv)
-                    The third dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds of the max scores
-                    Note: only exists when model is classifier
+        Returns
+        -------
+        probe_dict : dict
+            A dict containing the score information
 
-            ---for mv---
-            layer:
-                score[ndarray]: shape=(n_iter, n_beh, cv)
-                    The third dimension means scores of each cross validation folds
-                    at each iteration and behavior
-                model[ndarray]: shape=(n_iter, n_beh)
-                    Each element is a model fitted at the corresponding iteration and behavior.
-                conf_m[ndarray]: shape=(n_iter, n_beh, cv)
-                    The third dimension means confusion matrices (n_label, n_label) of
-                    each cross validation folds, at each iteration and behavior.
-                    Note: only exists when model is classifier
+            +-------+---------+-----------------------------------------------------------------------+
+            |       |         |                           First value                                 |
+            |       |         +-----------+-----------------------------------------------------------+
+            | Map   |First    |Second     |                       Second value                        |
+            | type  |key      |key        |                                                           |
+            +=======+=========+===========+===========================================================+
+            |  uv   | layer   | score     |If estimator type is correlation, it's an                  |
+            |       |         |           |array with shape as (n_iter, n_beh). |br|                  |
+            |       |         |           |Each element is the maximal pearson r among all            |
+            |       |         |           |features at corresponding iteration correlating            |
+            |       |         |           |to the corresponding behavior. |br|                        |
+            |       |         |           |If estimator type is regressor or classifier,              |
+            |       |         |           |it's an array with shape as (n_iter, n_beh, cv). |br|      |
+            |       |         |           |For each iteration and behavior, the third axis            |
+            |       |         |           |contains scores of each cross validation fold,             |
+            |       |         |           |when using the feature with maximal score                  |
+            |       |         |           |to predict the corresponding behavior.                     |
+            |       | (str)   +-----------+-----------------------------------------------------------+
+            |       |         | location  |An array with shape as (n_iter, n_beh, 3) |br|             |
+            |       |         |           |Max locations of the max scores, the |br|                  |
+            |       |         |           |size 3 of the third dimension means |br|                   |
+            |       |         |           |channel, row and column respectively.                      |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_iter, n_beh). |br|               |
+            |       |         |           |Fitted models of the max scores. |br|                      |
+            |       |         |           |Note: not exists when estimator type is correlation.       |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv) |br|            |
+            |       |         |           |The third dimension means confusion matrices               |
+            |       |         |           |(n_label, n_label) of each cross validation                |
+            |       |         |           |fold of the max scores. |br|                               |
+            |       |         |           |Note: only exists when estimator type is classifier.       |
+            +-------+---------+-----------+-----------------------------------------------------------+
+            |  mv   | layer   | score     |An array with shape as (n_iter, n_beh, cv) |br|            |
+            |       |         |           |The third dimension means scores of each                   |
+            |       | (str)   |           |cross validation fold at each iteration                    |
+            |       |         |           |and behavior.                                              |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | model     |An array with shape as (n_iter, n_beh). |br|               |
+            |       |         |           |Each element is a model fitted at the |br|                 |
+            |       |         |           |corresponding iteration and behavior.                      |
+            |       |         +-----------+-----------------------------------------------------------+
+            |       |         | conf_m    |An array with shape as (n_iter, n_beh, cv). |br|           |
+            |       |         |           |The third dimension means confusion matrices               |
+            |       |         |           |(n_label, n_label) of each cross validation                |
+            |       |         |           |fold at the corresponding iteration and behavior. |br|     |
+            |       |         |           |Note: only exists when estimator type is classifier.       |
+            +-------+---------+-----------+-----------------------------------------------------------+
         """
         _, n_beh = beh_data.shape
 
@@ -919,21 +1084,30 @@ class DnnProbe:
                 raise ValueError("Unsupported iter_axis:", iter_axis)
             n_stim, n_iter, n_elem = activ.shape
 
-            # start probing
-            if isinstance(self.model, UnivariatePredictionModel):
-                # prepare layer dict
+            # prepare layer dict
+            if self.mapper.estimator_type == 'correlation':
+                probe_dict[layer] = {'score': np.zeros((n_iter, n_beh))}
+            elif self.mapper.estimator_type == 'regressor':
                 probe_dict[layer] = {
-                    'max_score': np.zeros((n_iter, n_beh)),
-                    'max_loc': np.zeros((n_iter, n_beh, 3), dtype=np.int),
-                    'max_model': np.zeros((n_iter, n_beh), dtype=np.object),
-                    'score': np.zeros((n_iter, n_beh, self.model.cv)),
-                    'conf_m': np.zeros((n_iter, n_beh, self.model.cv), dtype=np.object)
+                    'score': np.zeros((n_iter, n_beh, self.mapper.cv)),
+                    'model': np.zeros((n_iter, n_beh), dtype=np.object)
                 }
+            else:
+                probe_dict[layer] = {
+                    'score': np.zeros((n_iter, n_beh, self.mapper.cv)),
+                    'model': np.zeros((n_iter, n_beh), dtype=np.object),
+                    'conf_m': np.zeros((n_iter, n_beh, self.mapper.cv), dtype=np.object)
+                }
+
+            # start probing
+            if isinstance(self.mapper, UnivariateMapping):
+                probe_dict[layer]['location'] = np.zeros((n_iter, n_beh, 3), dtype=np.int)
+
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    data = self.mapper.map(activ[:, iter_idx, :], beh_data)
                     for k, v in data.items():
-                        if k == 'max_loc':
+                        if k == 'location':
                             if iter_axis is None:
                                 chn_idx = v // n_row_col
                                 row_idx = v % n_row_col // n_col
@@ -952,23 +1126,10 @@ class DnnProbe:
                         else:
                             probe_dict[layer][k][iter_idx] = v
                     print('Layer-{} iter-{}/{}'.format(layer, iter_idx+1, n_iter))
-                # clear layer dict
-                if self.model.model_type == 'corr':
-                    probe_dict[layer].pop('max_model')
-                    probe_dict[layer].pop('score')
-                    probe_dict[layer].pop('conf_m')
-                elif self.model.model_type == 'regressor':
-                    probe_dict[layer].pop('conf_m')
             else:
-                # prepare layer dict
-                probe_dict[layer] = {
-                    'score': np.zeros((n_iter, n_beh, self.model.cv)),
-                    'model': np.zeros((n_iter, n_beh), dtype=np.object),
-                    'conf_m': np.zeros((n_iter, n_beh, self.model.cv), dtype=np.object)
-                }
                 # start iteration
                 for iter_idx in range(n_iter):
-                    data = self.model.predict(activ[:, iter_idx, :], beh_data)
+                    data = self.mapper.map(activ[:, iter_idx, :], beh_data)
                     for k, v in data.items():
                         probe_dict[layer][k][iter_idx] = v
 
