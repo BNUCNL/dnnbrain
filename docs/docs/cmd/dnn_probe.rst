@@ -35,13 +35,12 @@ Required Arguments
 | beh                         | Specify behaviors as the groud truth   |
 +-----------------------------+----------------------------------------+
 | model                       | Method of analysis model. Enter one    |
-|                             | parameter 'Model', choose from ('glm', |
-|                             | 'lasso','svc','lrc','corr').           |
-|                             | 'glm': general linear model            |
-|                             | 'lasso': lasso regression              |
-|                             | 'svc': support vector machine          |
-|                             | 'lrc': logistic regression             |
-|                             | 'corr': pearson correlation            |
+|                             | parameter 'Model', choose from: |br|   |
+|                             | 'glm': general linear model  |br|      |
+|                             | 'lasso': lasso regression    |br|      |
+|                             | 'svc': support vector machine |br|     |
+|                             | 'lrc': logistic regression |br|        |
+|                             | 'corr': pearson correlation |br|       |
 +-----------------------------+----------------------------------------+
 | out                         | An output directory                    |
 +-----------------------------+----------------------------------------+
@@ -52,41 +51,42 @@ Optional Arguments
 +-----------------------------+----------------------------------------+
 | Argument                    | Discription                            |
 +=============================+========================================+
-| layer                       | Name of the target layer(s).Default is |
+| layer                       | Name of the target layer(s). Default is|
 |                             | all.                                   |
 +-----------------------------+----------------------------------------+
-| chn                         | Index of target channel(s).Default is  |
+| chn                         | Index of target channel(s). Default is |
 |                             | all. Channel index starts from 1.      |
 +-----------------------------+----------------------------------------+
 | dmask                       | Path of a .dmask.csv file in which     |
 |                             | detailed information of neuron(s) of   |
-|                             | interest in DNN is specified.Argument  |
-|                             | layer/chn and dmask are mutually       |
-|                             | exclusive. Provide only one of them if |
-|                             | needed.                                |
+|                             | interest in DNN is specified. |br|     |
+|                             | Argument layer/chn and dmask are       |
+|                             | mutually exclusive. |br|               | 
+|                             | Provide only one of them if needed.    |
 +-----------------------------+----------------------------------------+
-| iteraxis                    | Axis for model iteration. Default for  |
+| iteraxis                    | Axis for model iteration.  |br|        |
+|                             | Default for                            |
 |                             | 'uv' analysis is to summarize the      |
 |                             | maximal prediction score for the whole |
-|                             | layer. Default for 'mv' analysis is to |
-|                             | do analysis using all units in layer.  |
-|                             | If -anal is 'uv':                      |
+|                             | layer. |br|                            |
+|                             | Default for 'mv' analysis is to do     |
+|                             | analysis using all units in layer. |br||
+|                             | If -anal is 'uv':  |br|                |
 |                             | 'channel': Summarize the maximal       |
-|                             | prediction score for each channel.     |
+|                             | prediction score for each channel. |br||
 |                             | 'row_col': Summarize the maximal       |
 |                             | prediction score for each location     |
-|                             | (row_idx, col_idx).                    |
-|                             |                                        |
-|                             | If -anal is 'mv':                      |
+|                             | (row_idx, col_idx). |br|               |
+|                             | If -anal is 'mv': |br|                 |
 |                             | 'channel': Do mva using all units in   |
-|                             | each channel.                          | 
+|                             | each channel. |br|                     | 
 |                             | 'row_col': Do mva using all units in   | 
-|                             | each location (row_idx, col_idx).      |
+|                             | each location (row_idx, col_idx). |br| |
 |                             |                                        |
 +-----------------------------+----------------------------------------+
 | cv                          | Cross validation fold number.          |
 +-----------------------------+----------------------------------------+
-
+ 
 
 Outputs
 -------

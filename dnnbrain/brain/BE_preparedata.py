@@ -386,4 +386,3 @@ if __name__ == '__main__':
     plt.scatter(model.predict(X_train)[:, 0], y_train[:, 0], color='b')
     plt.scatter(model.predict(X_test)[:, 0], y_test[:, 0], color='r')
     plt.show()
-

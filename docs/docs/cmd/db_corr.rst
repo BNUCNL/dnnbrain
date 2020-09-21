@@ -24,7 +24,7 @@ Required Arguments
 +===================+==================================================+
 | act               | DNN activation file                              |
 +-------------------+--------------------------------------------------+
-| resp              | a .roi.h5/.nii file |br|                         |
+| resp              | a .roi.h5/.nii file. |br|                        |
 |                   | If it is .nii file, -roi will be ignored. |br|   |
 |                   | All voxels' activation will be a correlate.      |
 +-------------------+--------------------------------------------------+
@@ -47,7 +47,7 @@ Optional Arguments
 |                   | listed with their own channels, rows and columns of |
 |                   | interest.                                           |
 +-------------------+-----------------------------------------------------+
-| iteraxis          | choices=(channel, row_col) |br|                     |
+| iteraxis          | choices = (channel, row_col) |br|                   |
 |                   | Iterate along the specified axis. |br|              |
 |                   | channel: Summarize the maximal pearson r for each   |
 |                   | channel. |br|                                       |
@@ -59,7 +59,7 @@ Optional Arguments
 | bmask             | Brain mask is used to extract activation            |
 |                   | locally. |br|                                       |
 |                   | Voxels with non-zero value will be regarded as      |
-|                   | correlates |br|                                     |
+|                   | correlates. |br|                                    |
 |                   | Only used when the response file is .nii file.      |
 +-------------------+-----------------------------------------------------+
 | roi               | Specify ROI names as the correlates. |br|           |

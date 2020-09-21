@@ -1062,6 +1062,10 @@ class DnnProbe:
             |       |         |           |fold at the corresponding iteration and behavior. |br|     |
             |       |         |           |Note: only exists when estimator type is classifier.       |
             +-------+---------+-----------+-----------------------------------------------------------+
+
+            .. |br| raw:: html
+
+               <br/>
         """
         _, n_beh = beh_data.shape
 
