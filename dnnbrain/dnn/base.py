@@ -612,6 +612,71 @@ class VideoSet:
         return len(self.frame_nums)
 
 
+class VideoClipSet:
+    def __init__(self, clip_files, transform=None):
+        self.files = clip_files
+        self.labels = np.zeros(len(clip_files), dtype=np.int)
+        self.transform = transforms.Compose([transforms.ToTensor()]) if transform is None else transform
+
+    def __getitem__(self, indices):
+        """
+        Get clip data and corresponding labels
+
+        Parameters
+        ----------
+        indices : int, list, slice
+            Subscript indices
+
+        Returns
+        -------
+        data : tensor
+            Clip data with shape as (n_stim, n_chn, n_frame, height, weight).
+        labels : list
+            clip labels
+        """
+        if isinstance(indices, int):
+            files_tmp = [self.files[indices]]
+            labels = [self.labels[indices]]
+        elif isinstance(indices, list):
+            files_tmp = [self.files[idx] for idx in indices]
+            labels = [self.labels[idx] for idx in indices]
+        elif isinstance(indices, slice):
+            files_tmp = self.files[indices]
+            labels = self.labels[indices]
+        else:
+            raise IndexError("only integer, slices (`:`) and list are valid indices")
+
+        # load data
+        data = None
+        n_frame = None
+        n_file = len(files_tmp)
+        for file_idx, file in enumerate(files_tmp):
+            vid_cap = cv2.VideoCapture(file)
+            if n_frame is None:
+                n_frame = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            else:
+                assert n_frame == vid_cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+            for frame_idx in range(n_frame):
+                vid_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                _, frame = vid_cap.read()
+                frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                frame = self.transform(frame)
+                if data is None:
+                    data = torch.zeros(n_file, 3, n_frame, *frame.shape[1:])
+                data[file_idx, :, frame_idx] = frame
+
+        if data.shape[0] == 1:
+            data = data[0]
+            labels = labels[0]
+
+        return data, labels
+
+    def __len__(self):
+        """return the number of clips"""
+        return len(self.files)
+
+
 def cross_val_confusion(classifier, X, y, cv=None):
     """
     Evaluate confusion matrix and score from each fold of cross validation

@@ -162,6 +162,33 @@ class TestVideoSet:
             assert torch.equal(tmp, tmpvi[ii])
 
 
+class TestVideoClipSet:
+
+    # test video in each frames
+    def test_getitem(self):
+
+        frame_size = (112, 112)
+
+        # test int
+        clip_files = [pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')]
+        transform = transforms.Compose([transforms.Resize(frame_size),
+                                        transforms.ToTensor()])
+        dataset = db_base.VideoClipSet(clip_files, transform)
+        assert len(dataset) == 1
+
+        for idx, file in enumerate(clip_files):
+            data, labels = dataset[idx]
+            cap = cv2.VideoCapture(file)
+            n_frame = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            assert data.shape == (3, n_frame, *frame_size)
+            assert labels == 0
+            for i in range(n_frame):
+                _, frame = cap.read()
+                frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                frame = transform(frame)
+                assert torch.equal(data[:, i], frame)
+
+
 class TestImageProcessor:
 
     image = np.random.randint(0, 256, (3, 5, 5), np.uint8)
