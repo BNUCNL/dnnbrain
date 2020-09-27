@@ -1,8 +1,10 @@
+import imp
 import torch
 import torch.nn as nn
 import numpy as np
 from dnnbrain.dnn.core import Mask
 from torch.autograd import Variable
+from sklearn.preprocessing import StandardScaler
 
 class BrainDecoding:
     pass
@@ -300,6 +302,33 @@ class VAEDecodingReconstruction(BrainDecodingReconstruction):
         self.set_loss(function, lambda_pixel, lambda_feature, threshold)
         self.set_decompose(de_type, components)
     
+    def compute_feature(self, brain_activ, caffenet_path, net_name):
+        """
+        """
+        
+        #initialize the caffenet to extract the features
+        MainModel = imp.load_source('MainModel', "release_deepsim_v0.5/trained_models/caffenet/pytorch_caffenet.py")
+        caffenet = torch.load(caffenet_path)
+        caffenet.eval()
+        
+        # run caffenet and extract the features
+        caffenet.set_feature_name(net_name)
+        
+        # start computing
+#        train_feature = torch.ones(real_train_num, 4096)
+#        for idx in range(times):
+#            num_forw = batch_size * idx
+#            num_back = batch_size * (idx+1)
+#            batch = data_train[num_forw:num_back, :]
+#            output = caffenet(torch.tensor(batch))
+#            feat = caffenet.feature
+#            train_feature[num_forw:num_back, :] = feat
+        
+        caffenet(torch.tensor(brain_activ))
+        feature = caffenet.feature        
+        del caffenet
+        return feature
+    
     def generate(self, latent_space):
         """
         Generate images from latent_space on specified generator type
@@ -334,7 +363,31 @@ class VAEDecodingReconstruction(BrainDecodingReconstruction):
         loss_all : list
             A list containing the loss information.
         """
-    
+        # Contruct decoding model
+        decode_net = nn.Sequential(
+                nn.Linear(brain_activ.shape[1], 128)
+        )
+       
+        optimizer = self.optimizer(decode_net.parameters(), self.lr)
+        loss_all = []
+        
+        scaler = StandardScaler()
+        scaler.fit(brain_activ)
+        brain_activ_nor = scaler.transform(brain_activ)
+        
+        # Start training
+        for epoch in range(self.n_epoch):
+            latent_space = decode_net(brain_activ_nor)
+            image_gen = self.generate(latent_nor)
+            loss= self.compute_loss(image_gen, image_set)
+            print(f'loss:{loss.item()} in epoch{epoch}')
+            loss_all.append(loss.item())
+            # backprop
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        return decode_net, loss_all
+        
     def predict(self, decoding_model, brain_activ_test):
         """
         Test decoding model and generate image based on brain activity.
