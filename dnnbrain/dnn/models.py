@@ -1148,3 +1148,44 @@ class Resnet152(DNN):
             module = module._modules[k]
 
         return module
+
+
+class R3D:
+    def __init__(self, pretrained=True):
+        self.model = tv_models.video.r3d_18()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'r3d_18.pth')))
+        self.layer2loc = {
+            'conv3d_1': ('stem',),
+            'conv3d_2': ('layer1',),
+            'conv3d_3': ('layer2',),
+            'conv3d_4': ('layer3',),
+            'conv3d_5': ('layer4',),
+            'fc': ('fc',)
+        }
+        self.img_size = (112, 112)
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
