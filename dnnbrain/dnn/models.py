@@ -5,13 +5,14 @@ import numpy as np
 
 from os.path import join as pjoin
 from scipy.stats import pearsonr
+from functools import partial
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision import models as tv_models
 from dnnbrain.dnn.core import Stimulus, Activation
-from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
+from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic, VideoClipSet
 
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
@@ -1164,7 +1165,14 @@ class R3D:
             'conv3d_5': ('layer4',),
             'fc': ('fc',)
         }
-        self.img_size = (112, 112)
+        self.frame_size = (112, 112)
+        normalize = transforms.Normalize([0.43216, 0.394666, 0.37645],
+                                         [0.22803, 0.22145, 0.216989])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.frame_size),
+            transforms.ToTensor(),
+            normalize
+        ])
 
     @property
     def layers(self):
@@ -1176,16 +1184,58 @@ class R3D:
 
         Parameters
         ----------
-        layer : str
-            layer name
+        layer : str or tuple
+            layer name or position in DNN
 
         Returns
         -------
         module : Module
             PyTorch Module object
         """
+        assert isinstance(layer, (str, tuple))
+        layer = self.layer2loc[layer] if isinstance(layer, str) else layer
         module = self.model
-        for k in self.layer2loc[layer]:
+        for k in layer:
             module = module._modules[k]
 
         return module
+
+    def compute_activation(self, clip_files, layers):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        clip_files : list of str
+        layers : list of str or list of tuple
+
+        Return
+        ------
+        activ_list : list of ndarrays
+        """
+        # prepare hooks
+        activ_list = [list() for _ in layers]
+
+        def hook_act(module, input, output, layer_idx):
+            acts = output.detach().numpy().copy()
+            activ_list[layer_idx].extend(acts)
+
+        hook_handles = []
+        for idx, layer in enumerate(layers):
+            module = self.layer2module(layer)
+            handle = module.register_forward_hook(partial(hook_act, layer_idx=idx))
+            hook_handles.append(handle)
+
+        # -extract activation-
+        dataset = VideoClipSet(clip_files, self.test_transform)
+        data_loader = DataLoader(dataset, 8, shuffle=False)
+        self.model.eval()
+        n_stim = len(dataset)
+        for stims, _ in data_loader:
+            self.model(stims)
+            print('Extracted activation of {0}/{1}'.format(len(activ_list[0]), n_stim))
+        activ_list = [np.asarray(activ) for activ in activ_list]
+
+        for handle in hook_handles:
+            handle.remove()
+        return activ_list
