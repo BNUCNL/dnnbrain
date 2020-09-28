@@ -1151,6 +1151,75 @@ class Resnet152(DNN):
         return module
 
 
+class InceptionV3(DNN):
+    def __init__(self, pretrained=True):
+        super(InceptionV3, self).__init__()
+        self.model = tv_models.inception_v3()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'inception_v3_google.pth')))
+        self.layer2loc = {
+            'conv1': ('Conv2d_1a_3x3',),
+            'conv2': ('Conv2d_2a_3x3',),
+            'conv3': ('Conv2d_2b_3x3',),
+            'maxpool1': ('maxpool1',),
+            'conv4': ('Conv2d_3b_1x1',),
+            'conv5': ('Conv2d_4a_3x3',),
+            'maxpool2': ('maxpool2',),
+            'inception1': ('Mixed_5b',),
+            'inception2': ('Mixed_5c',),
+            'inception3': ('Mixed_5d',),
+            'inception4': ('Mixed_6a',),
+            'inception5': ('Mixed_6b',),
+            'inception6': ('Mixed_6c',),
+            'inception7': ('Mixed_6d',),
+            'inception8': ('Mixed_6e',),
+            'inception9': ('Mixed_7a',),
+            'inception10': ('Mixed_7b',),
+            'inception11': ('Mixed_7c',),
+            'avgpool': ('avgpool',),
+            'fc': ('fc',)
+        }
+        self.img_size = (299, 299)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
+
+
 class R3D:
     def __init__(self, pretrained=True):
         self.model = tv_models.video.r3d_18()
