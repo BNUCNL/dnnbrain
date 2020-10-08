@@ -758,7 +758,9 @@ class VggFace(DNN):
         ])
         self.test_transform = transforms.Compose([
             transforms.Resize(self.img_size),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            lambda x: x * 255.0,
+            normalize
         ])
 
     @property
