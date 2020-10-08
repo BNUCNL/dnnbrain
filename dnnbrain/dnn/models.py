@@ -25,7 +25,7 @@ class VggFaceModel(nn.Module):
         super(VggFaceModel, self).__init__()
         self.meta = {'mean': [129.186279296875, 104.76238250732422, 93.59396362304688],
                      'std': [1, 1, 1],
-                     'imageSize': [3, 224, 224]}
+                     'imageSize': [224, 224, 3]}
         self.conv1_1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         self.relu1_1 = nn.ReLU(inplace=True)
         self.conv1_2 = nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
@@ -745,11 +745,16 @@ class VggFace(DNN):
                           'fc7':     ('fc7',),
                           'relu7':   ('relu7',),
                           'fc8':     ('fc8',)}
-        self.img_size = (224, 224)
+        self.img_size = (*self.model.meta['imageSize'][:2],)
+        normalize = transforms.Normalize(mean=self.model.meta['mean'],
+                                         std=self.model.meta['std'])
         self.train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(self.img_size),
+            transforms.Resize(256),
+            transforms.RandomCrop(self.img_size),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            lambda x: x * 255.0,
+            normalize
         ])
         self.test_transform = transforms.Compose([
             transforms.Resize(self.img_size),
