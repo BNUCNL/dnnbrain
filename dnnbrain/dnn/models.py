@@ -108,6 +108,66 @@ class VggFaceModel(nn.Module):
         return x
 
 
+class VGGishModel(nn.Module):
+    """
+    References
+    ----------
+    1. https://github.com/tensorflow/models/tree/master/research/audioset/vggish
+    2. https://github.com/harritaylor/torchvggish
+    """
+    def __init__(self):
+        super(VGGishModel, self).__init__()
+        self.features = self._make_layers()
+        self.embeddings = nn.Sequential(
+            nn.Linear(512 * 4 * 6, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 128),
+            # nn.ReLU(True)  # Ref2 has this, but ref1 not.
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        # Transpose the output from features to
+        # remain compatible with vggish embeddings to
+        # fit tensorflow flatted style
+        x = torch.transpose(x, 1, 3)
+        x = torch.transpose(x, 1, 2)
+        x = x.contiguous()
+        x = x.view(x.size(0), -1)
+        x = self.embeddings(x)
+
+        return x
+
+    def _make_layers(self):
+        layers = []
+        in_channels = 1
+        for v in [64, "M", 128, "M", 256, 256, "M", 512, 512, "M"]:
+            if v == "M":
+                layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            else:
+                conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+                layers.extend([conv2d, nn.ReLU(inplace=True)])
+                in_channels = v
+        return nn.Sequential(*layers)
+
+
+class VGGish:
+
+    def __init__(self, pretrained=True):
+        self.model = VGGishModel()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vggish.pth')))
+
+    def _preprocess(self, x, fs):
+        pass
+
+    def _postprocess(self):
+        pass
+
+
 class DNN:
     """
     Deep neural network
