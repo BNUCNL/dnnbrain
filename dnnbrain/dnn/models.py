@@ -1230,10 +1230,10 @@ class Resnet152(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'resnet152.pth')))
-        self.layer2loc = {'conv': ('conv1',),
-                          'bn': ('bn1',),
-                          'relu': ('relu',),
-                          'maxpool': ('maxpool',),
+        self.layer2loc = {'conv':                ('conv1',),
+                          'bn':                  ('bn1',),
+                          'relu':                ('relu',),
+                          'maxpool':             ('maxpool',),
                           'layer1_bottleneck0':  ('layer1', '0'),
                           'layer1_bottleneck1':  ('layer1', '1'),
                           'layer1_bottleneck2':  ('layer1', '2'),
@@ -1284,6 +1284,7 @@ class Resnet152(DNN):
                           'layer4_bottleneck0':  ('layer4', '0'),
                           'layer4_bottleneck1':  ('layer4', '1'),
                           'layer4_bottleneck2':  ('layer4', '2'),
+                          'avgpool':             ('avgpool',),
                           'fc':                  ('fc',)}
         self.img_size = (224, 224)
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
