@@ -243,6 +243,42 @@ class VGGish:
 
         return module
 
+    def compute_activation(self, wavfile, layers):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        wavfile : path to wav file
+        layers : list of str or list of tuple according to VGGish layer modules
+
+        Return
+        ------
+        activ_list : list of ndarrays
+        """
+        # prepare hooks
+        activ_list = [list() for _ in layers]
+
+        def hook_act(module, input, output, layer_idx):
+            acts = output.detach().numpy().copy()
+            activ_list[layer_idx].extend(acts)
+
+        hook_handles = []
+        for idx, layer in enumerate(layers):
+            module = self.layer2module(layer)
+            handle = module.register_forward_hook(partial(hook_act, layer_idx=idx))
+            hook_handles.append(handle)
+
+        # -extract activation-
+        stims = self._preprocess(wavfile).detach()
+        self.model.eval()
+        self.model(stims)
+        activ_list = [np.asarray(activ) for activ in activ_list]
+
+        for handle in hook_handles:
+            handle.remove()
+        return activ_list
+
     def __call__(self, x, fs=None):
         if self.preprocess:
             x = self._preprocess(x, fs)
