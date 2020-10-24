@@ -155,14 +155,22 @@ class VGGishModel(nn.Module):
 
 
 class VGGish:
+    """
+    References
+    ----------
+    1. https://github.com/tensorflow/models/tree/master/research/audioset/vggish
+    2. https://github.com/harritaylor/torchvggish
+    """
 
     def __init__(self, pretrained=True, preprocess=True, postprocess=True):
 
+        # prepare VGGish model
         self.model = VGGishModel()
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'vggish.pth')))
 
+        # prepare preprocess and postprocess
         self.preprocess = preprocess
         self.postprocess = postprocess
         if self.postprocess:
@@ -178,6 +186,98 @@ class VGGish:
                 )
 
                 self.postproc.load_state_dict(state_dict)
+
+        self.layer2loc = {'conv1': ('features', '0'),
+                          'conv1_relu': ('features', '1'),
+                          'conv1_maxpool': ('features', '2'),
+                          'conv2': ('features', '3'),
+                          'conv2_relu': ('features', '4'),
+                          'conv2_maxpool': ('features', '5'),
+                          'conv3': ('features', '6'),
+                          'conv3_relu': ('features', '7'),
+                          'conv4': ('features', '8'),
+                          'conv4_relu': ('features', '9'),
+                          'conv4_maxpool': ('features', '10'),
+                          'conv5': ('features', '11'),
+                          'conv5_relu': ('features', '12'),
+                          'conv6': ('features', '13'),
+                          'conv6_relu': ('features', '14'),
+                          'conv6_maxpool': ('features', '15'),
+                          'fc1': ('embeddings', '0'),
+                          'fc1_relu': ('embeddings', '1'),
+                          'fc2': ('embeddings', '2'),
+                          'fc2_relu': ('embeddings', '3'),
+                          'fc3': ('embeddings', '4')}
+
+    @property
+    def layers(self):
+        """
+        Get list of layer names
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name or position.
+
+        Parameters
+        ----------
+        layer : str or tuple
+            layer name or position in DNN
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        assert isinstance(layer, (str, tuple))
+        layer = self.layer2loc[layer] if isinstance(layer, str) else layer
+        module = self.model
+        for k in layer:
+            module = module._modules[k]
+
+        return module
+
+    def compute_activation(self, wavfile, layers):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        wavfile : path to wav file
+        layers : list of str or list of tuple according to VGGish layer modules
+
+        Return
+        ------
+        activ_list : list of ndarrays
+        """
+        # prepare hooks
+        activ_list = [list() for _ in layers]
+
+        def hook_act(module, input, output, layer_idx):
+            acts = output.detach().numpy().copy()
+            activ_list[layer_idx].extend(acts)
+
+        hook_handles = []
+        for idx, layer in enumerate(layers):
+            module = self.layer2module(layer)
+            handle = module.register_forward_hook(partial(hook_act, layer_idx=idx))
+            hook_handles.append(handle)
+
+        # -extract activation-
+        stims = self._preprocess(wavfile).detach()
+        self.model.eval()
+        self.model(stims)
+        activ_list = [np.asarray(activ) for activ in activ_list]
+
+        for handle in hook_handles:
+            handle.remove()
+        return activ_list
 
     def __call__(self, x, fs=None):
         if self.preprocess:
@@ -1424,7 +1524,7 @@ class R3D:
 
     def layer2module(self, layer):
         """
-        Get a PyTorch Module object according to the layer name.
+        Get a PyTorch Module object according to the layer name or position.
 
         Parameters
         ----------

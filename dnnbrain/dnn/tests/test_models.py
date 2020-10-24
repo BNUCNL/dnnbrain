@@ -174,5 +174,32 @@ class TestR3D:
             assert np.all(activ1 == activ2)
 
 
+class TestVGGish:
+
+    def test_compute_activation(self):
+
+        vggish = db_models.VGGish(postprocess=False)
+        layers = ['fc3', ('features', '11')]
+        wavfile = pjoin(DNNBRAIN_TEST, 'bus_chatter.wav')
+
+        # observed
+        activ_list1 = vggish.compute_activation(wavfile, layers)
+
+        # ground truth
+        activ_list2 = []
+
+        def hook_act(module, input, output):
+            acts = output.detach().numpy().copy()
+            activ_list2.append(acts)
+
+        handle = vggish.model.features[11].register_forward_hook(hook_act)
+        activ_list2.insert(0, vggish(wavfile).detach().numpy())
+        handle.remove()
+
+        # test
+        for activ1, activ2 in zip(activ_list1, activ_list2):
+            assert np.all(activ1 == activ2)
+
+
 if __name__ == '__main__':
     pytest.main()
