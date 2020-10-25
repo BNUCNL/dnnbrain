@@ -36,6 +36,17 @@ class StimulusFile:
         2,1,1,1,dog,0.6,0.4
         3,2,1,0,cat,0.7,0.5
         ...,...,...,...,...,...
+
+        Format of .stim.csv of video_clips stimuli is
+        --------------------------
+        type=video_clip
+        path=parent_dir_to_video_clips
+        [Several optional keys] (eg., title=video_clip stimuli)
+        data=stimID,[label],[condition]
+        clip1_name,0,cat
+        clip2_name,1,dog
+        clip3_name,0,cat
+        ...,...,...,...,...,...
         """
         assert fname.endswith('.stim.csv'), "File suffix must be .stim.csv"
         self.fname = fname
@@ -65,7 +76,7 @@ class StimulusFile:
             stimuli[k] = v
         assert 'type' in stimuli.keys(), "'type' needs to be included in meta data."
         assert 'path' in stimuli.keys(), "'path' needs to be included in meta data."
-        assert stimuli['type'] in ('image', 'video'), 'not supported type: {}'.format(stimuli['type'])
+        assert stimuli['type'] in ('image', 'video', 'video_clip'), 'not supported type: {}'.format(stimuli['type'])
 
         # --operate var_lines--
         # prepare keys
@@ -80,7 +91,7 @@ class StimulusFile:
         data = OrderedDict()
         for idx, key in enumerate(data_keys):
             if key == 'stimID':
-                if stimuli['type'] == 'image':
+                if stimuli['type'] in ('image', 'video_clip'):
                     dtype = np.str
                 else:
                     var_data[idx] = np.float64(var_data[idx])
@@ -102,12 +113,13 @@ class StimulusFile:
         Parameters
         ----------
         type : str
-            Stimulus type in ('image', 'video')
+            Stimulus type in ('image', 'video', 'video_clip')
         path : str
             Path_to_stimuli.
             
             If type is 'image', the path is the parent directory of the images.
             If type is 'video', the path is the file name of the video.
+            If type is 'video_clip', the path is the parent directory of the video clips.
         data : dict
             Stimulus variable data
         opt_meta : dict
