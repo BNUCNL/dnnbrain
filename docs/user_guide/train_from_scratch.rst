@@ -70,7 +70,10 @@ For each image channel, we calculate the mean and standard deviation (std) among
     std = img_arr.std(axis=(0, 1, 2)) / 255
     normalize = transforms.Normalize(mean=mean, std=std)
 
-After finishing definition of model and preparation of data. We build an instance of DNNBrain's DNN class to encapsulate the model and operations that will be used during training:
+After finishing definition of model and preparation of data. There are two ways to encapsulate the model and operations that will be used during training. The first way is to build an instance of DNNBrain's DNN class and assign values to its attributes; The second is to derive a subclass from DNN class to rewrite attributes and even methods:
+
+Building an instance of DNN class
+---------------------------------
 
 ::
 
@@ -89,6 +92,32 @@ After finishing definition of model and preparation of data. We build an instanc
         transforms.ToTensor(),
         normalize
     ])
+
+Driving a subclass from DNN class
+---------------------------------
+
+::
+
+    class MyDNN(DNN):
+    
+        def __init__(self):
+            super(MyDNN, self).__init__()
+            self.model = Model()
+            self.img_size = img_size
+            self.train_transform = transforms.Compose([
+                transforms.RandomResizedCrop(img_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize
+            ])
+            self.test_transform = transforms.Compose([
+                transforms.Resize(img_size),
+                transforms.ToTensor(),
+                normalize
+            ])
+    
+    
+    dnn = MyDNN()
 
 where "train_transform" defines how to transform training images to be input tensors, and "test_transform" defines how to transform testing images to be input tensors. In this case, "train_transform" will be used during training, and "test_transform" will be used when evaluating model's generalization on validation data at each epoch.
 
