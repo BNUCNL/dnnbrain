@@ -3,6 +3,7 @@ import random
 import numpy as np
 
 from scipy.stats import pearsonr, spearmanr, kendalltau, zscore
+from sklearn.cluster import KMeans, AgglomerativeClustering, DBSCAN
 from dnnbrain.dnn.core import Mask
 
 
@@ -161,6 +162,37 @@ def topk_accuracy(pred_labels, true_labels, k):
     acc = acc / len(true_labels)
 
     return acc
+
+
+def clustering(data, n_clusters, method, **kwargs):
+    """
+    Parameters
+    ----------
+    data : {array-like, sparse matrix} of shape (n_samples, n_features)
+    n_clusters : int
+        The number of clusters to form
+        It will be ignored when the method is 'DBSCAN'.
+    method : str
+        specify the cluster method
+    kwargs : keyword arguments
+
+    Returns
+    -------
+    labels : ndarray of shape (n_samples,)
+    """
+    if method == 'kmeans':
+        kmeans = KMeans(n_clusters=n_clusters, **kwargs)
+        labels = kmeans.fit_predict(data)
+    elif method == 'HAC':
+        hac = AgglomerativeClustering(n_clusters=n_clusters, **kwargs)
+        labels = hac.fit_predict(data)
+    elif method == 'DBSCAN':
+        dbscan = DBSCAN(**kwargs)
+        labels = dbscan.fit_predict(data)
+    else:
+        raise ValueError("not supported method")
+
+    return labels
 
 
 def permutation_RSA(rdm1, rdm2, corr_type='pearson', n_iter=10000):
