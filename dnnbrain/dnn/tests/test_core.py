@@ -122,6 +122,19 @@ class TestStimulus:
         for k, v in data.items():
             assert np.all(v == stimuli._data[k])
 
+    def test_permutate(self):
+        stim = dcore.Stimulus(self.header_true, self.data_true)
+        stim_pm = stim.permutate('acc')
+        assert stim_pm.header == self.header_true
+        for item in stim_pm.items:
+            true = self.data_true[item]
+            tmp = stim_pm.get(item)
+            if item == 'acc':
+                assert not np.all(tmp == true)
+                assert sorted(tmp) == sorted(true)
+            else:
+                assert np.all(tmp == true)
+
     def test_len(self):
 
         stimuli = dcore.Stimulus()
