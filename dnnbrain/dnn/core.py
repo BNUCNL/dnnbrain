@@ -1,3 +1,4 @@
+import random
 import numpy as np
 
 from copy import deepcopy
@@ -104,6 +105,34 @@ class Stimulus:
             Item name of each column
         """
         self._data.pop(item)
+
+    def permutate(self, item):
+        """
+        Permutate a column of data according to the item
+
+        Parameters
+        ----------
+        item : str
+            Item name of the column
+
+        Returns
+        -------
+        stim : Stimulus
+            A copy of the current instance of Stimulus
+            except for the permutation on the specified column.
+        """
+        indices = list(range(len(self._data['stimID'])))
+        random.shuffle(indices)
+
+        stim = Stimulus()
+        stim.header = deepcopy(self.header)
+        stim.set(item, self.get(item)[indices])
+        items = self.items
+        items.remove(item)
+        for item in items:
+            stim.set(item, deepcopy(self.get(item)))
+
+        return stim
 
     @property
     def items(self):
