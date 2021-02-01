@@ -30,4 +30,5 @@ Visualization
 Train DNN
 ---------
 
-:doc:`Transfer Learning <transfer_learning>`
+| :doc:`Transfer Learning <transfer_learning>`
+| :doc:`Train from Scratch <train_from_scratch>`

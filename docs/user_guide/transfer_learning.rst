@@ -14,7 +14,7 @@ with 50 epochs as an example.
 Scenario 1: finetuning
 ----------------------
 
-In this scenario, all parameters will be trained.
+In this scenario, all parameters can be trained.
 
 ::
 
@@ -40,6 +40,51 @@ In this scenario, all parameters will be trained.
 
    # ---train the DNN and save out---
    train_dict = dnn.train(stim_train, 50, 'classification', 
+                          data_train=True, data_validation=stim_validation)
+   
+   # save information of training process
+   pkl.dump(train_dict, open('train_dict.pkl', 'wb'))
+   
+   # save parameters of the retrained DNN
+   dnn.save('alexnet_tl.pth')
+
+In addition, we can only finetune a specified layer's parameters. Of course, the new task layer's parameters will also be trained.
+
+::
+
+   import torch
+   import itertools
+   import pickle as pkl
+
+   from dnnbrain.dnn.models import AlexNet
+   from dnnbrain.dnn.core import Stimulus
+
+   # ---load training and validation data---
+   stim_train = Stimulus()
+   stim_train.load('train.stim.csv')
+   stim_validation = Stimulus()
+   stim_validation.load('validation.stim.csv')
+
+   # ---replace the final FC layer with a new one---
+   # initialize DNN
+   dnn = AlexNet()
+   # get the number of input features of the final FC layer
+   n_in_feat = dnn.model.classifier[6].in_features
+   # replacement
+   dnn.model.classifier[6] = torch.nn.Linear(n_in_feat, 2)
+
+   # ---prepare optimizer---
+   # set learning rate
+   lr = 0.00001
+   # set the number of epochs
+   n_epoch = 50
+   # pass parameters of a specified layer and the task layer to the optimizer
+   conv5_params = dnn.layer2module('conv5').parameters()  # the specified layer
+   fc3_params = dnn.model.classifier[6].parameters()  # the task layer
+   optimizer = torch.optim.Adam(itertools.chain(conv5_params, fc3_params), lr)
+
+   # ---train the DNN and save out---
+   train_dict = dnn.train(stim_train, n_epoch, 'classification', optimizer,
                           data_train=True, data_validation=stim_validation)
    
    # save information of training process
