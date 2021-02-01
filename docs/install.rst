@@ -18,6 +18,9 @@ Requirements
 -  opencv-python>=4.1.0.25
 -  matplotlib>=2.2.2
 -  cifti>=1.1
+-  resampy
+-  soundfile
+-  six
 
 A easy way to get most of these requirements is to install a python
 distribution (e.g.

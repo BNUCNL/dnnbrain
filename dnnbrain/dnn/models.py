@@ -5,13 +5,15 @@ import numpy as np
 
 from os.path import join as pjoin
 from scipy.stats import pearsonr
+from functools import partial
 from PIL import Image
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision import models as tv_models
 from dnnbrain.dnn.core import Stimulus, Activation
-from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic
+from dnnbrain.dnn.base import ImageSet, VideoSet, dnn_mask, array_statistic, VideoClipSet
+from dnnbrain.utils import vggish_input, vggish_params
 
 DNNBRAIN_MODEL = pjoin(os.environ['DNNBRAIN_DATA'], 'models')
 
@@ -24,7 +26,7 @@ class VggFaceModel(nn.Module):
         super(VggFaceModel, self).__init__()
         self.meta = {'mean': [129.186279296875, 104.76238250732422, 93.59396362304688],
                      'std': [1, 1, 1],
-                     'imageSize': [3, 224, 224]}
+                     'imageSize': [224, 224, 3]}
         self.conv1_1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         self.relu1_1 = nn.ReLU(inplace=True)
         self.conv1_2 = nn.Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
@@ -105,6 +107,272 @@ class VggFaceModel(nn.Module):
         x = self.dropout7(x)
         x = self.fc8(x)
         return x
+
+
+class VGGishModel(nn.Module):
+    """
+    References
+    ----------
+    1. https://github.com/tensorflow/models/tree/master/research/audioset/vggish
+    2. https://github.com/harritaylor/torchvggish
+    """
+    def __init__(self):
+        super(VGGishModel, self).__init__()
+        self.features = self._make_layers()
+        self.embeddings = nn.Sequential(
+            nn.Linear(512 * 4 * 6, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Linear(4096, 128),
+            # nn.ReLU(True)  # Ref2 has this, but ref1 not.
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        # Transpose the output from features to
+        # remain compatible with vggish embeddings to
+        # fit tensorflow flatted style
+        x = torch.transpose(x, 1, 3)
+        x = torch.transpose(x, 1, 2)
+        x = x.contiguous()
+        x = x.view(x.size(0), -1)
+        x = self.embeddings(x)
+
+        return x
+
+    def _make_layers(self):
+        layers = []
+        in_channels = 1
+        for v in [64, "M", 128, "M", 256, 256, "M", 512, 512, "M"]:
+            if v == "M":
+                layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+            else:
+                conv2d = nn.Conv2d(in_channels, v, kernel_size=3, padding=1)
+                layers.extend([conv2d, nn.ReLU(inplace=True)])
+                in_channels = v
+        return nn.Sequential(*layers)
+
+
+class VGGish:
+    """
+    References
+    ----------
+    1. https://github.com/tensorflow/models/tree/master/research/audioset/vggish
+    2. https://github.com/harritaylor/torchvggish
+    """
+
+    def __init__(self, pretrained=True, preprocess=True, postprocess=True):
+
+        # prepare VGGish model
+        self.model = VGGishModel()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'vggish.pth')))
+
+        # prepare preprocess and postprocess
+        self.preprocess = preprocess
+        self.postprocess = postprocess
+        if self.postprocess:
+            self.postproc = self._postprocess()
+            if pretrained:
+                state_dict = torch.load(pjoin(DNNBRAIN_MODEL, 'vggish_pca.pth'))
+                # TODO: Convert the state_dict to torch
+                state_dict[vggish_params.PCA_EIGEN_VECTORS_NAME] = torch.as_tensor(
+                    state_dict[vggish_params.PCA_EIGEN_VECTORS_NAME], dtype=torch.float
+                )
+                state_dict[vggish_params.PCA_MEANS_NAME] = torch.as_tensor(
+                    state_dict[vggish_params.PCA_MEANS_NAME].reshape(-1, 1), dtype=torch.float
+                )
+
+                self.postproc.load_state_dict(state_dict)
+
+        self.layer2loc = {'conv1': ('features', '0'),
+                          'conv1_relu': ('features', '1'),
+                          'conv1_maxpool': ('features', '2'),
+                          'conv2': ('features', '3'),
+                          'conv2_relu': ('features', '4'),
+                          'conv2_maxpool': ('features', '5'),
+                          'conv3': ('features', '6'),
+                          'conv3_relu': ('features', '7'),
+                          'conv4': ('features', '8'),
+                          'conv4_relu': ('features', '9'),
+                          'conv4_maxpool': ('features', '10'),
+                          'conv5': ('features', '11'),
+                          'conv5_relu': ('features', '12'),
+                          'conv6': ('features', '13'),
+                          'conv6_relu': ('features', '14'),
+                          'conv6_maxpool': ('features', '15'),
+                          'fc1': ('embeddings', '0'),
+                          'fc1_relu': ('embeddings', '1'),
+                          'fc2': ('embeddings', '2'),
+                          'fc2_relu': ('embeddings', '3'),
+                          'fc3': ('embeddings', '4')}
+
+    @property
+    def layers(self):
+        """
+        Get list of layer names
+
+        Returns
+        -------
+        layers : list
+            The list of layer name
+        """
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name or position.
+
+        Parameters
+        ----------
+        layer : str or tuple
+            layer name or position in DNN
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        assert isinstance(layer, (str, tuple))
+        layer = self.layer2loc[layer] if isinstance(layer, str) else layer
+        module = self.model
+        for k in layer:
+            module = module._modules[k]
+
+        return module
+
+    def compute_activation(self, wavfile, layers):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        wavfile : path to wav file
+        layers : list of str or list of tuple according to VGGish layer modules
+
+        Return
+        ------
+        activ_list : list of ndarrays
+        """
+        # prepare hooks
+        activ_list = [list() for _ in layers]
+
+        def hook_act(module, input, output, layer_idx):
+            acts = output.detach().numpy().copy()
+            activ_list[layer_idx].extend(acts)
+
+        hook_handles = []
+        for idx, layer in enumerate(layers):
+            module = self.layer2module(layer)
+            handle = module.register_forward_hook(partial(hook_act, layer_idx=idx))
+            hook_handles.append(handle)
+
+        # -extract activation-
+        stims = self._preprocess(wavfile).detach()
+        self.model.eval()
+        self.model(stims)
+        activ_list = [np.asarray(activ) for activ in activ_list]
+
+        for handle in hook_handles:
+            handle.remove()
+        return activ_list
+
+    def __call__(self, x, fs=None):
+        if self.preprocess:
+            x = self._preprocess(x, fs)
+        x = self.model(x)
+        if self.postprocess:
+            x = self.postproc(x)
+        return x
+
+    def _preprocess(self, x, fs=None):
+        if isinstance(x, np.ndarray):
+            x = vggish_input.waveform_to_examples(x, fs)
+        elif isinstance(x, str):
+            x = vggish_input.wavfile_to_examples(x)
+        else:
+            raise AttributeError
+        return x
+
+    def _postprocess(self):
+        class Postprocessor(nn.Module):
+            """Post-processes VGGish embeddings. Returns a torch.Tensor instead of a
+            numpy array in order to preserve the gradient.
+
+            "The initial release of AudioSet included 128-D VGGish embeddings for each
+            segment of AudioSet. These released embeddings were produced by applying
+            a PCA transformation (technically, a whitening transform is included as well)
+            and 8-bit quantization to the raw embedding output from VGGish, in order to
+            stay compatible with the YouTube-8M project which provides visual embeddings
+            in the same format for a large set of YouTube videos. This class implements
+            the same PCA (with whitening) and quantization transformations."
+            """
+
+            def __init__(self):
+                """Constructs a postprocessor."""
+                super(Postprocessor, self).__init__()
+                # Create empty matrix, for user's state_dict to load
+                self.pca_eigen_vectors = torch.empty(
+                    (vggish_params.EMBEDDING_SIZE, vggish_params.EMBEDDING_SIZE,),
+                    dtype=torch.float,
+                )
+                self.pca_means = torch.empty(
+                    (vggish_params.EMBEDDING_SIZE, 1), dtype=torch.float
+                )
+
+                self.pca_eigen_vectors = nn.Parameter(self.pca_eigen_vectors, requires_grad=False)
+                self.pca_means = nn.Parameter(self.pca_means, requires_grad=False)
+
+            def postprocess(self, embeddings_batch):
+                """Applies tensor postprocessing to a batch of embeddings.
+
+                Parameters
+                ----------
+                embeddings_batch : PyTorch tensor
+                    shape=(batch_size, embedding_size)
+                    containing output from the embedding layer of VGGish.
+
+                Returns
+                -------
+                A tensor of the same shape as the input, containing the PCA-transformed,
+                quantized, and clipped version of the input.
+                """
+                assert len(embeddings_batch.shape) == 2, "Expected 2-d batch, got %r" % (
+                    embeddings_batch.shape,
+                )
+                assert (
+                        embeddings_batch.shape[1] == vggish_params.EMBEDDING_SIZE
+                ), "Bad batch shape: %r" % (embeddings_batch.shape,)
+
+                # Apply PCA.
+                # - Embeddings come in as [batch_size, embedding_size].
+                # - Transpose to [embedding_size, batch_size].
+                # - Subtract pca_means column vector from each column.
+                # - Premultiply by PCA matrix of shape [output_dims, input_dims]
+                #   where both are are equal to embedding_size in our case.
+                # - Transpose result back to [batch_size, embedding_size].
+                pca_applied = torch.mm(self.pca_eigen_vectors, (embeddings_batch.t() - self.pca_means)).t()
+
+                # Quantize by:
+                # - clipping to [min, max] range
+                clipped_embeddings = torch.clamp(
+                    pca_applied, vggish_params.QUANTIZE_MIN_VAL, vggish_params.QUANTIZE_MAX_VAL
+                )
+                # - convert to 8-bit in range [0.0, 255.0]
+                quantized_embeddings = torch.round(
+                    (clipped_embeddings - vggish_params.QUANTIZE_MIN_VAL)
+                    * (
+                            255.0
+                            / (vggish_params.QUANTIZE_MAX_VAL - vggish_params.QUANTIZE_MIN_VAL)
+                    )
+                )
+                return torch.squeeze(quantized_embeddings)
+
+            def forward(self, x):
+                return self.postprocess(x)
+        return Postprocessor()
 
 
 class DNN:
@@ -744,15 +1012,22 @@ class VggFace(DNN):
                           'fc7':     ('fc7',),
                           'relu7':   ('relu7',),
                           'fc8':     ('fc8',)}
-        self.img_size = (224, 224)
+        self.img_size = (*self.model.meta['imageSize'][:2],)
+        normalize = transforms.Normalize(mean=self.model.meta['mean'],
+                                         std=self.model.meta['std'])
         self.train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(self.img_size),
+            transforms.Resize(256),
+            transforms.RandomCrop(self.img_size),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            lambda x: x * 255.0,
+            normalize
         ])
         self.test_transform = transforms.Compose([
             transforms.Resize(self.img_size),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            lambda x: x * 255.0,
+            normalize
         ])
 
     @property
@@ -1055,10 +1330,10 @@ class Resnet152(DNN):
         if pretrained:
             self.model.load_state_dict(torch.load(
                 pjoin(DNNBRAIN_MODEL, 'resnet152.pth')))
-        self.layer2loc = {'conv': ('conv1',),
-                          'bn': ('bn1',),
-                          'relu': ('relu',),
-                          'maxpool': ('maxpool',),
+        self.layer2loc = {'conv':                ('conv1',),
+                          'bn':                  ('bn1',),
+                          'relu':                ('relu',),
+                          'maxpool':             ('maxpool',),
                           'layer1_bottleneck0':  ('layer1', '0'),
                           'layer1_bottleneck1':  ('layer1', '1'),
                           'layer1_bottleneck2':  ('layer1', '2'),
@@ -1109,6 +1384,7 @@ class Resnet152(DNN):
                           'layer4_bottleneck0':  ('layer4', '0'),
                           'layer4_bottleneck1':  ('layer4', '1'),
                           'layer4_bottleneck2':  ('layer4', '2'),
+                          'avgpool':             ('avgpool',),
                           'fc':                  ('fc',)}
         self.img_size = (224, 224)
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -1148,3 +1424,162 @@ class Resnet152(DNN):
             module = module._modules[k]
 
         return module
+
+
+class InceptionV3(DNN):
+    def __init__(self, pretrained=True):
+        super(InceptionV3, self).__init__()
+        self.model = tv_models.inception_v3()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'inception_v3_google.pth')))
+        self.layer2loc = {
+            'conv1': ('Conv2d_1a_3x3',),
+            'conv2': ('Conv2d_2a_3x3',),
+            'conv3': ('Conv2d_2b_3x3',),
+            'maxpool1': ('maxpool1',),
+            'conv4': ('Conv2d_3b_1x1',),
+            'conv5': ('Conv2d_4a_3x3',),
+            'maxpool2': ('maxpool2',),
+            'inception1': ('Mixed_5b',),
+            'inception2': ('Mixed_5c',),
+            'inception3': ('Mixed_5d',),
+            'inception4': ('Mixed_6a',),
+            'inception5': ('Mixed_6b',),
+            'inception6': ('Mixed_6c',),
+            'inception7': ('Mixed_6d',),
+            'inception8': ('Mixed_6e',),
+            'inception9': ('Mixed_7a',),
+            'inception10': ('Mixed_7b',),
+            'inception11': ('Mixed_7c',),
+            'avgpool': ('avgpool',),
+            'fc': ('fc',)
+        }
+        self.img_size = (299, 299)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
+
+
+class R3D:
+    def __init__(self, pretrained=True):
+        self.model = tv_models.video.r3d_18()
+        if pretrained:
+            self.model.load_state_dict(torch.load(
+                pjoin(DNNBRAIN_MODEL, 'r3d_18.pth')))
+        self.layer2loc = {
+            'conv3d_1': ('stem',),
+            'conv3d_2': ('layer1',),
+            'conv3d_3': ('layer2',),
+            'conv3d_4': ('layer3',),
+            'conv3d_5': ('layer4',),
+            'fc': ('fc',)
+        }
+        self.frame_size = (112, 112)
+        normalize = transforms.Normalize([0.43216, 0.394666, 0.37645],
+                                         [0.22803, 0.22145, 0.216989])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.frame_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name or position.
+
+        Parameters
+        ----------
+        layer : str or tuple
+            layer name or position in DNN
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        assert isinstance(layer, (str, tuple))
+        layer = self.layer2loc[layer] if isinstance(layer, str) else layer
+        module = self.model
+        for k in layer:
+            module = module._modules[k]
+
+        return module
+
+    def compute_activation(self, clip_files, layers):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        clip_files : list of str
+        layers : list of str or list of tuple
+
+        Return
+        ------
+        activ_list : list of ndarrays
+        """
+        # prepare hooks
+        activ_list = [list() for _ in layers]
+
+        def hook_act(module, input, output, layer_idx):
+            acts = output.detach().numpy().copy()
+            activ_list[layer_idx].extend(acts)
+
+        hook_handles = []
+        for idx, layer in enumerate(layers):
+            module = self.layer2module(layer)
+            handle = module.register_forward_hook(partial(hook_act, layer_idx=idx))
+            hook_handles.append(handle)
+
+        # -extract activation-
+        dataset = VideoClipSet(clip_files, self.test_transform)
+        data_loader = DataLoader(dataset, 8, shuffle=False)
+        self.model.eval()
+        n_stim = len(dataset)
+        for stims, _ in data_loader:
+            self.model(stims)
+            print('Extracted activation of {0}/{1}'.format(len(activ_list[0]), n_stim))
+        activ_list = [np.asarray(activ) for activ in activ_list]
+
+        for handle in hook_handles:
+            handle.remove()
+        return activ_list

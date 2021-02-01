@@ -8,6 +8,7 @@ from PIL import Image
 from os.path import join as pjoin
 from dnnbrain.dnn import core as dcore
 from dnnbrain.dnn import models as db_models
+from dnnbrain.dnn.base import VideoClipSet
 
 DNNBRAIN_TEST = pjoin(os.environ['DNNBRAIN_DATA'], 'test')
 TMP_DIR = pjoin(os.path.expanduser('~'), '.dnnbrain_tmp')
@@ -142,21 +143,62 @@ class TestVgg19_bn:
         torch.equal(conv16_shape, torch.tensor(dnn.get_kernel('conv16').shape))
         torch.equal(conv16_1_0, dnn.get_kernel('conv16', 1)[0])    
 
-        
-@pytest.mark.skip
-def test_dnn_train_model():
-    """
-    Test dnn_train_model
-    """
-    pass
-    
-    
-@pytest.mark.skip
-def test_dnn_test_model():
-    """
-    Test dnn_test_model
-    """
-    pass
+
+class TestR3D:
+
+    def test_compute_activation(self):
+
+        r3d = db_models.R3D()
+        layers = ['fc', ('layer1', '0', 'conv1', '0')]
+        clip_files = [pjoin(DNNBRAIN_TEST, 'video', 'sub-CSI1_ses-01_imagenet.mp4')]
+
+        # observed
+        activ_list1 = r3d.compute_activation(clip_files, layers)
+
+        # ground truth
+        activ_list2 = []
+
+        def hook_act(module, input, output):
+            acts = output.detach().numpy().copy()
+            activ_list2.append(acts)
+
+        handle = r3d.model.layer1[0].conv1[0].register_forward_hook(hook_act)
+        vid_clip_set = VideoClipSet(clip_files, r3d.test_transform)
+        data, _ = vid_clip_set[0]
+        data = torch.unsqueeze(data, 0)
+        activ_list2.insert(0, r3d.model(data).detach().numpy())
+        handle.remove()
+
+        # test
+        for activ1, activ2 in zip(activ_list1, activ_list2):
+            assert np.all(activ1 == activ2)
+
+
+class TestVGGish:
+
+    def test_compute_activation(self):
+
+        vggish = db_models.VGGish(postprocess=False)
+        layers = ['fc3', ('features', '11')]
+        wavfile = pjoin(DNNBRAIN_TEST, 'bus_chatter.wav')
+
+        # observed
+        activ_list1 = vggish.compute_activation(wavfile, layers)
+
+        # ground truth
+        activ_list2 = []
+
+        def hook_act(module, input, output):
+            acts = output.detach().numpy().copy()
+            activ_list2.append(acts)
+
+        handle = vggish.model.features[11].register_forward_hook(hook_act)
+        activ_list2.insert(0, vggish(wavfile).detach().numpy())
+        handle.remove()
+
+        # test
+        for activ1, activ2 in zip(activ_list1, activ_list2):
+            assert np.all(activ1 == activ2)
 
 
 if __name__ == '__main__':

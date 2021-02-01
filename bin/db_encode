@@ -34,7 +34,8 @@ def main():
                         metavar='Layer',
                         type=str,
                         nargs='+',
-                        help="layer names of interest")
+                        help="layer names of interest "
+                             "Default using all layers in .act.h5 file")
     parser.add_argument('-chn',
                         metavar='Channel',
                         type=int,
