@@ -200,6 +200,31 @@ class TestVGGish:
         for activ1, activ2 in zip(activ_list1, activ_list2):
             assert np.all(activ1 == activ2)
 
+class TestClipResnet:
+
+    def test_compute_activation(self):
+
+        # -prepare-
+        # prepare stimuli
+        stim_file = pjoin(DNNBRAIN_TEST, 'image', 'sub-CSI1_ses-01_imagenet.stim.csv')
+
+        # prepare DNN mask
+        dmask = dcore.Mask()
+        dmask.set('conv1')
+        dmask.set('layer2_block3')
+        dmask.set('fc')
+
+        # -compute activation-
+        dnn = db_models.ClipResnet()
+        # compute with Stimulus
+        stimuli1 = dcore.Stimulus()
+        stimuli1.load(stim_file)
+        activation1 = dnn.compute_activation(stimuli1, dmask)
+
+        # assert
+        print(activation1.get('fc').shape)
+        # np.testing.assert_equal(activation1.get('conv5'), activation2.get('conv5'))
+        # np.testing.assert_equal(activation1.get('fc3'), activation2.get('fc3'))
 
 if __name__ == '__main__':
     pytest.main()

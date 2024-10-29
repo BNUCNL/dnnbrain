@@ -1,5 +1,6 @@
 import os
 import time
+import clip
 import torch
 import numpy as np
 
@@ -1583,3 +1584,178 @@ class R3D:
         for handle in hook_handles:
             handle.remove()
         return activ_list
+
+
+class ClipResnet(DNN):
+    def __init__(self, pretrained=True):
+        super(ClipResnet, self).__init__()
+        if pretrained:
+            self.model, _ = clip.load('RN50', device='cuda')
+        else:
+            raise ValueError('ClipResnet just support the pretrained version')
+
+        self.layer2loc = {
+            'conv1':               ('visual', 'conv1'),
+            'bn1':                 ('visual', 'bn1'),
+            'relu1':               ('visual', 'relu1'),
+            'conv2':               ('visual', 'conv2'),
+            'bn2':                 ('visual', 'bn2'),
+            'relu2':               ('visual', 'relu2'),
+            'conv3':               ('visual', 'conv3'),
+            'bn3':                 ('visual', 'bn3'),
+            'relu3':               ('visual', 'relu3'),
+            'avgpool':             ('visual', 'avgpool'),
+            'layer1_block0':       ('visual', 'layer1', '0'),
+            'layer1_block1':       ('visual', 'layer1', '1'),
+            'layer1_block2':       ('visual', 'layer1', '2'),
+            'layer2_block0':       ('visual', 'layer2', '0'),
+            'layer2_block1':       ('visual', 'layer2', '1'),
+            'layer2_block2':       ('visual', 'layer2', '2'),
+            'layer2_block3':       ('visual', 'layer2', '3'),
+            'layer3_block0':       ('visual', 'layer3', '0'),
+            'layer3_block1':       ('visual', 'layer3', '1'),
+            'layer3_block2':       ('visual', 'layer3', '2'),
+            'layer3_block3':       ('visual', 'layer3', '3'),
+            'layer3_block4':       ('visual', 'layer3', '4'),
+            'layer3_block5':       ('visual', 'layer3', '5'),
+            'layer4_block0':       ('visual', 'layer4', '0'),
+            'layer4_block1':       ('visual', 'layer4', '1'),
+            'layer4_block2':       ('visual', 'layer4', '2'),
+            'fc':           ('visual', 'attnpool', 'c_proj'),
+        }
+        self.img_size = (224, 224)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(self.img_size),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+        ])
+        self.test_transform = transforms.Compose([
+            transforms.Resize(self.img_size),
+            transforms.ToTensor(),
+            normalize
+        ])
+
+    @property
+    def layers(self):
+        return list(self.layer2loc.keys())
+
+    def layer2module(self, layer):
+        """
+        Get a PyTorch Module object according to the layer name.
+
+        Parameters
+        ----------
+        layer : str
+            layer name
+
+        Returns
+        -------
+        module : Module
+            PyTorch Module object
+        """
+        module = self.model
+        for k in self.layer2loc[layer]:
+            module = module._modules[k]
+
+        return module
+
+    def compute_activation(self, stimuli, dmask, pool_method=None, cuda=True):
+        """
+        Extract DNN activation
+
+        Parameters
+        ----------
+        stimuli : Stimulus, ndarray
+            Input stimuli.           
+            If is Stimulus, loaded from files on the disk.
+            If is ndarray, its shape is (n_stim, n_chn, height, width)
+        dmask : Mask
+            The mask includes layers/channels/rows/columns of interest.
+        pool_method : str
+            pooling method, choices=(max, mean, median, L1, L2)
+        cuda : bool
+            use GPU or not
+
+        Returns
+        -------
+        activation : Activation
+            DNN activation
+        """
+        # prepare stimuli loader
+        if isinstance(stimuli, np.ndarray):
+            stim_set = []
+            for arr in stimuli:
+                img = Image.fromarray(arr.transpose((1, 2, 0)))
+                stim_set.append((self.test_transform(img), 0))
+        elif isinstance(stimuli, Stimulus):
+            if stimuli.header['type'] == 'image':
+                stim_set = ImageSet(stimuli.header['path'], stimuli.get('stimID'),
+                                    transform=self.test_transform)
+            elif stimuli.header['type'] == 'video':
+                stim_set = VideoSet(stimuli.header['path'], stimuli.get('stimID'),
+                                    transform=self.test_transform)
+            else:
+                raise TypeError('{} is not a supported stimulus type.'.format(stimuli.header['type']))
+        else:
+            raise TypeError('The input stimuli must be an instance of ndarray or Stimulus!')
+        data_loader = DataLoader(stim_set, 8, shuffle=False)
+
+        # -extract activation-
+        # prepare model
+        self.model.eval()
+        if cuda:
+            assert torch.cuda.is_available(), 'There is no CUDA available.'
+
+        n_stim = len(stim_set)
+        activation = Activation()
+        for layer in dmask.layers:
+            # prepare dnn activation hook
+            acts_holder = []
+
+            def hook_act(module, input, output):
+
+                # copy activation
+                if cuda:
+                    acts = output.cpu().data.numpy().copy()
+                else:
+                    acts = output.detach().numpy().copy()
+
+                # unify dimension number
+                if acts.ndim == 4:
+                    pass
+                elif acts.ndim == 2:
+                    acts = acts[:, :, None, None]
+                else:
+                    raise ValueError('Unexpected activation shape:', acts.shape)
+
+                # mask activation
+                mask = dmask.get(layer)
+                acts = dnn_mask(acts, mask.get('chn'),
+                                mask.get('row'), mask.get('col'))
+
+                # pool activation
+                if pool_method is not None:
+                    acts = array_statistic(acts, pool_method, (2, 3), True)
+
+                # hold activation
+                acts_holder.extend(acts)
+
+            module = self.layer2module(layer)
+            hook_handle = module.register_forward_hook(hook_act)
+
+            # extract DNN activation
+            for stims, _ in data_loader:
+                # stimuli with shape as (n_stim, n_chn, height, width)
+                if cuda:
+                    stims = stims.to(torch.device('cuda'))
+                self.model.visual(stims)
+                print('Extracted activation of {0}: {1}/{2}'.format(
+                    layer, len(acts_holder), n_stim))
+            activation.set(layer, np.asarray(acts_holder))
+
+            hook_handle.remove()
+
+        return activation
