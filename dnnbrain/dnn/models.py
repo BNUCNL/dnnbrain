@@ -8,7 +8,6 @@ from os.path import join as pjoin
 from scipy.stats import pearsonr
 from functools import partial
 from PIL import Image
-from tqdm import tqdm
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
